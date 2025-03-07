@@ -1,6 +1,7 @@
 
 pub type Score = f32;
 
+/*
 //Solution, Individual, Chromosome, GeneticIndividual
 pub trait Chromosome{
 
@@ -24,11 +25,11 @@ pub struct GeneticAlgorithm<T: Chromosome>{
 impl<T: Chromosome> GeneticAlgorithm<T>{
 
     // fit, run 
-    pub fn run() -> Impl Population<T>{
+    pub fn run() -> impl Population<T>{
 
     }
 }
-
+ */
 
 fn main() {
     println!("Hello, world!");

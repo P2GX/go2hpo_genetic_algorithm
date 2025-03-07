@@ -3,7 +3,9 @@ use std::collections::{HashMap, HashSet};
 use ontolius::{
     base::TermId,
     ontology::csr::MinimalCsrOntology,
-    prelude::{AncestorNodes, DescendantNodes, HierarchyAware, Ontology, OntologyHierarchy, TermAware},
+    prelude::{
+        AncestorNodes, DescendantNodes, HierarchyAware, Ontology, OntologyHierarchy, TermAware,
+    },
 };
 
 pub struct TermObservation {
@@ -27,8 +29,7 @@ pub trait HierarchyTraversal {
 impl HierarchyTraversal for MinimalCsrOntology {
     fn get_ancestors(&self, query: &TermId) -> Vec<TermId> {
         if let Some(idx) = self.id_to_idx(query) {
-            self
-                .hierarchy()
+            self.hierarchy()
                 .iter_ancestors_of(idx)
                 .map(|idx| {
                     self.idx_to_term_id(idx).expect(
@@ -44,8 +45,7 @@ impl HierarchyTraversal for MinimalCsrOntology {
 
     fn get_descendants(&self, query: &TermId) -> Vec<TermId> {
         if let Some(idx) = self.id_to_idx(query) {
-            self
-                .hierarchy()
+            self.hierarchy()
                 .iter_descendants_of(idx)
                 .map(|idx| {
                     self.idx_to_term_id(idx).expect(
@@ -104,6 +104,9 @@ impl<O> NaiveSatisfactionChecker<O> {
 
 #[cfg(test)]
 mod tests {
+    use std::{fs::File, io::BufReader};
+
+    use flate2::bufread::GzDecoder;
     use ontolius::io::OntologyLoaderBuilder;
 
     use super::*;
@@ -111,19 +114,23 @@ mod tests {
     #[test]
     fn test_is_satisfied() {
         // TODO: consider `lazy_static` to factor out `checker`.
+        let go_path = "data/go/go.toy.json.gz";
+        let reader = GzDecoder::new(BufReader::new(
+            File::open(go_path).expect("The file should be in the repo"),
+        ));
+        
         let loader = OntologyLoaderBuilder::new().obographs_parser().build();
-
-        let go: MinimalCsrOntology = loader.load_from_path("path/to/small/go.json").expect("Toy ontology should be OK");
+        let go: MinimalCsrOntology = loader
+            .load_from_read(reader)
+            .expect("Toy ontology should be OK");
 
         let map = HashMap::new(); // TODO: fill with some data
         let checker = NaiveSatisfactionChecker::new(go, map);
 
         let conjunction = todo!();
-        
+
         let actual = checker.is_satisfied("GENE", conjunction);
 
         assert_eq!(actual, true);
     }
-
-    
 }

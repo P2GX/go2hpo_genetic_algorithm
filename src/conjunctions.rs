@@ -4,13 +4,19 @@ use ontolius::{
     base::TermId,
     ontology::csr::MinimalCsrOntology,
     prelude::{
-        AncestorNodes, DescendantNodes, HierarchyAware, Ontology, OntologyHierarchy, TermAware,
+        AncestorNodes, DescendantNodes, HierarchyAware,TermAware,
     },
 };
 
 pub struct TermObservation {
     term_id: TermId,
     is_excluded: bool,
+}
+
+impl TermObservation{
+    pub fn new(term_id: TermId, is_excluded: bool) -> Self {
+        Self { term_id, is_excluded }
+    }
 }
 
 pub struct Conjunction {
@@ -104,7 +110,7 @@ impl<O> NaiveSatisfactionChecker<O> {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs::File, io::BufReader};
+    use std::{fs::File, hash::Hash, io::BufReader};
 
     use flate2::bufread::GzDecoder;
     use ontolius::io::OntologyLoaderBuilder;
@@ -124,12 +130,33 @@ mod tests {
             .load_from_read(reader)
             .expect("Toy ontology should be OK");
 
-        let map = HashMap::new(); // TODO: fill with some data
+        let symbol = String::from("gene1");
+
+        let t1: TermId = "GO:0051146".parse().unwrap();
+        let t2: TermId = "GO:0052693".parse().unwrap();
+
+        let mut gene1_hashset = HashSet::new();
+        gene1_hashset.insert(t1.clone());
+        gene1_hashset.insert(t2.clone());
+
+ 
+        let mut map = HashMap::new(); // TODO: fill with some data
+        map.insert(symbol.clone(), gene1_hashset);
+
+
         let checker = NaiveSatisfactionChecker::new(go, map);
+        
 
-        let conjunction = todo!();
+        let mut term_vec:Vec<TermObservation> = Vec::new();
+        term_vec.push(TermObservation::new(t1, false));
+        term_vec.push(TermObservation::new(t2, false));
+        // term_vec.push(TermObservation::new(t1, false));
 
-        let actual = checker.is_satisfied("GENE", conjunction);
+        let conjunction = Conjunction{term_observations: term_vec};
+
+        
+
+        let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
     }

@@ -5,3 +5,7 @@ edition = "2021"
 
 [dependencies]
 ontolius = "0.4.2"
+
+
+[dev-dependencies]
+flate2 = "1.1.0"

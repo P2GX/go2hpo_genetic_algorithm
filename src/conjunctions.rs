@@ -1,4 +1,5 @@
-use std::collections::{HashMap, HashSet};
+use std::{cell::OnceCell, collections::{HashMap, HashSet}};
+use lazy_static::lazy_static;
 
 use ontolius::{
     base::TermId,
@@ -28,12 +29,12 @@ pub trait SatisfactionChecker {
 }
 
 pub trait HierarchyTraversal {
-    fn get_ancestors(&self, query: &TermId) -> Vec<TermId>;
-    fn get_descendants(&self, query: &TermId) -> Vec<TermId>;
+    fn get_ancestors(&self, query: &TermId) -> HashSet<TermId>;
+    fn get_descendants(&self, query: &TermId) -> HashSet<TermId>;
 }
 
 impl HierarchyTraversal for MinimalCsrOntology {
-    fn get_ancestors(&self, query: &TermId) -> Vec<TermId> {
+    fn get_ancestors(&self, query: &TermId) -> HashSet<TermId> {
         if let Some(idx) = self.id_to_idx(query) {
             self.hierarchy()
                 .iter_ancestors_of(idx)
@@ -49,7 +50,7 @@ impl HierarchyTraversal for MinimalCsrOntology {
         }
     }
 
-    fn get_descendants(&self, query: &TermId) -> Vec<TermId> {
+    fn get_descendants(&self, query: &TermId) -> HashSet<TermId> {
         if let Some(idx) = self.id_to_idx(query) {
             self.hierarchy()
                 .iter_descendants_of(idx)
@@ -79,18 +80,47 @@ where
         match result {
             Some(go_annots_set) => {
                 for term_ob in &conjunction.term_observations {
+
+                    // let term_desc: HashSet<TermId> = self.go.get_descendants(&term_ob.term_id);
+                    let term_desc: OnceCell<HashSet<TermId>> = OnceCell::new();
+                    //LONGER VERSION:
                     match term_ob.is_excluded {
                         true => {
                             if go_annots_set.contains(&term_ob.term_id) {
                                 return false;
                             }
-                        }
+                            // else if !go_annots_set.is_disjoint(&term_desc){
+                            //     return false;
+                            // }
+
+                            // // ONCE CELL ALTERNATIVE
+                            let descendants = term_desc.get_or_init(|| self.go.get_descendants(&term_ob.term_id));
+                            if !go_annots_set.is_disjoint(descendants){
+                                return false;
+                            }
+                        } 
                         false => {
                             if !go_annots_set.contains(&term_ob.term_id) {
-                                return false;
+                                let descendants = term_desc.get_or_init(|| self.go.get_descendants(&term_ob.term_id));
+                                if go_annots_set.is_disjoint(descendants){
+                                    return false;
+                                }
                             }
                         }
                     }
+
+                    // // SHORTER VERSION: (PREFERRED)
+                    // if term_ob.is_excluded == go_annots_set.contains(&term_ob.term_id){
+                    //     return false;
+                    // }
+                    // else if term_ob.is_excluded == !go_annots_set.is_disjoint(&term_desc){
+                    //     return false;
+                    // }
+
+                    // // EVEN SHORTER VERSION:
+                    // if term_ob.is_excluded == (go_annots_set.contains(&term_ob.term_id) || !go_annots_set.is_disjoint(&term_desc)){
+                    //     return false;
+                    // }
                 }
                 true
             }
@@ -117,9 +147,11 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_is_satisfied() {
-        // TODO: consider `lazy_static` to factor out `checker`.
+    lazy_static! {
+        static ref checker : NaiveSatisfactionChecker<MinimalCsrOntology> = initialize_data(); // NaiveSatisfactionChecker::new(go, map);
+    }
+
+    fn initialize_data() -> NaiveSatisfactionChecker<MinimalCsrOntology> {
         let go_path = "data/go/go.toy.json.gz";
         let reader = GzDecoder::new(BufReader::new(
             File::open(go_path).expect("The file should be in the repo"),
@@ -129,23 +161,30 @@ mod tests {
         let go: MinimalCsrOntology = loader
             .load_from_read(reader)
             .expect("Toy ontology should be OK");
-
-        let symbol = String::from("gene1");
-
+    
+        // GENE 1
+        let symbol1 = String::from("gene1");
+    
         let t1: TermId = "GO:0051146".parse().unwrap();
         let t2: TermId = "GO:0052693".parse().unwrap();
 
         let mut gene1_hashset = HashSet::new();
         gene1_hashset.insert(t1.clone());
         gene1_hashset.insert(t2.clone());
-
- 
-        let mut map = HashMap::new(); // TODO: fill with some data
-        map.insert(symbol.clone(), gene1_hashset);
-
-
-        let checker = NaiveSatisfactionChecker::new(go, map);
+    
         
+        let mut map = HashMap::new();
+        map.insert(symbol1.clone(), gene1_hashset);
+    
+        NaiveSatisfactionChecker::new(go, map)
+    }
+
+
+    #[test]
+    fn test_is_satisfied_esssential() {
+        let t1: TermId = "GO:0051146".parse().unwrap();
+        let t2: TermId = "GO:0052693".parse().unwrap();
+        let symbol = String::from("gene1");
 
         let mut term_vec:Vec<TermObservation> = Vec::new();
         term_vec.push(TermObservation::new(t1, false));
@@ -154,10 +193,76 @@ mod tests {
 
         let conjunction = Conjunction{term_observations: term_vec};
 
-        
+        let actual = checker.is_satisfied(&symbol, &conjunction);
+
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_is_satisfied_subset() {
+        let t1: TermId = "GO:0051146".parse().unwrap();
+        let symbol = String::from("gene1");
+
+        let mut term_vec:Vec<TermObservation> = Vec::new();
+        term_vec.push(TermObservation::new(t1, false));
+        // term_vec.push(TermObservation::new(t1, false));
+
+        let conjunction = Conjunction{term_observations: term_vec};
 
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_is_not_satisfied_essential(){
+        let t1: TermId = "GO:0051146".parse().unwrap();
+        let t2: TermId = "GO:0052693".parse().unwrap();
+        let t3: TermId = "GO:0005634".parse().unwrap();
+        let symbol = String::from("gene1");
+
+        let mut term_vec:Vec<TermObservation> = Vec::new();
+        term_vec.push(TermObservation::new(t1, false));
+        term_vec.push(TermObservation::new(t2, false));
+        term_vec.push(TermObservation::new(t3, false));
+        // term_vec.push(TermObservation::new(t1, false));
+
+        let conjunction = Conjunction{term_observations: term_vec};
+
+        let actual = checker.is_satisfied(&symbol, &conjunction);
+
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_is_satisfied_with_exclusion(){
+        let t1: TermId = "GO:0051146".parse().unwrap();
+        let t2: TermId = "GO:0052693".parse().unwrap();
+        let t3: TermId = "GO:0005634".parse().unwrap();
+        let symbol = String::from("gene1");
+
+        let mut term_vec:Vec<TermObservation> = Vec::new();
+        term_vec.push(TermObservation::new(t1, false));
+        term_vec.push(TermObservation::new(t2, false));
+        term_vec.push(TermObservation::new(t3, true));
+        // term_vec.push(TermObservation::new(t1, false));
+
+        let conjunction = Conjunction{term_observations: term_vec};
+
+        let actual = checker.is_satisfied(&symbol, &conjunction);
+
+        assert_eq!(actual, true);
+    }
+
+    // #[test]
+    fn test_is_satisfied_with_ontology(){
+        
+        
+    }
+
+
+    // #[test]
+    fn test_is_not_satisfied_with_ontology(){
+        todo!()
     }
 }

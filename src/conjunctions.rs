@@ -1,5 +1,5 @@
-use rand::Rng;
 use ontolius::TermId;
+use rand::{seq::SliceRandom, Rng};
 
 #[derive(Debug)]
 pub struct TermObservation {
@@ -21,12 +21,13 @@ pub struct Conjunction {
     pub term_observations: Vec<TermObservation>,
 }
 
-// Before it was ConjunctionGenerator, but the Disjunctions Generators can implement the same kind of trait, so 
+// Before it was ConjunctionGenerator, but the Disjunctions Generators can implement the same kind of trait, so
 // I renamed it to Formula Generator to be more generic
-pub trait FormulaGenerator{
+pub trait FormulaGenerator {
     fn generate(&self) -> Conjunction;
 }
 
+//Creates Conjunctions randomly that might have redundant terms
 pub struct RedundantRandomConjunctionGenerator<'a> {
     n_terms: usize,
     terms: &'a Vec<TermId>,
@@ -34,38 +35,66 @@ pub struct RedundantRandomConjunctionGenerator<'a> {
 
 impl<'a> FormulaGenerator for RedundantRandomConjunctionGenerator<'a> {
     fn generate(&self) -> Conjunction {
-        let mut terms : Vec<TermObservation> = Vec::new();
+        let mut terms: Vec<TermObservation> = Vec::new();
         // Select them randomly
-        for _ in 0..self.n_terms{
+        for _ in 0..self.n_terms {
             terms.push(self.randomly_pick());
         }
-        Conjunction{ term_observations: terms }
+        Conjunction {
+            term_observations: terms,
+        }
     }
 }
 
-impl<'a> RedundantRandomConjunctionGenerator<'a>{
-        //randomly generate a TermObeservation
-        fn randomly_pick(&self) -> TermObservation{
-            //randomly pick a term 
-            let mut rng = rand::rng();
-            let term_id = self.terms[rng.random_range(0..self.terms.len())].clone();
-            //randomly choose whether true or false
-            let is_excluded: bool = rng.random(); 
-            return TermObservation::new(term_id, is_excluded)
-        }
+impl<'a> RedundantRandomConjunctionGenerator<'a> {
+    //randomly generate a TermObeservation
+    fn randomly_pick(&self) -> TermObservation {
+        //randomly pick a term
+        let mut rng = rand::rng();
+        let term_id = self.terms[rng.random_range(0..self.terms.len())].clone();
+        //randomly choose whether true or false
+        let is_excluded: bool = rng.random();
+        return TermObservation::new(term_id, is_excluded);
+    }
 }
 
+//Creates Conjunctions randomly whith non-repeating terms
+pub struct RandomConjunctionGenerator<'a> {
+    n_terms: usize,
+    terms: &'a Vec<TermId>,
+}
 
+impl<'a> FormulaGenerator for RandomConjunctionGenerator<'a> {
+    fn generate(&self) -> Conjunction {
+        let mut rng = rand::rng();
 
+        let mut shuffled_terms = self.terms.clone();
+        shuffled_terms.shuffle(&mut rng);
 
+        let selected_terms: Vec<TermObservation> = shuffled_terms
+            .iter()
+            .take(self.n_terms)
+            .map(|term_id| TermObservation::new(term_id.clone(), rng.random()))
+            .collect();
+
+        Conjunction {
+            term_observations: selected_terms,
+        }
+    }
+}
+
+//TO DO: fare dei test per testare anche RandomConjunctionGenerator
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use lazy_static::lazy_static;
 
-    lazy_static!{
-        static ref small_test_terms:Vec<TermId> = vec!["GO:0051146", "GO:0052693", "GO:0005634"].into_iter().map(|s| s.parse().unwrap()).collect();
+    lazy_static! {
+        static ref small_test_terms: Vec<TermId> = vec!["GO:0051146", "GO:0052693", "GO:0005634"]
+            .into_iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
     }
 
     #[test]
@@ -77,14 +106,16 @@ mod tests {
         };
 
         let observation = generator.randomly_pick();
-        
+
         // println!("{:?}", observation);
-        assert!(small_test_terms.contains(&observation.term_id), "Term ID is not in the list");
+        assert!(
+            small_test_terms.contains(&observation.term_id),
+            "Term ID is not in the list"
+        );
     }
 
-
     #[test]
-    fn test_generate(){
+    fn test_generate() {
         let generator = RedundantRandomConjunctionGenerator {
             n_terms: 2,
             terms: &small_test_terms,

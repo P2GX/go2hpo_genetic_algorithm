@@ -21,6 +21,12 @@ pub struct Conjunction {
     pub term_observations: Vec<TermObservation>,
 }
 
+impl Conjunction{
+    pub fn len(&self) -> usize{
+        return self.term_observations.len() ;
+    }
+}
+
 // Before it was ConjunctionGenerator, but the Disjunctions Generators can implement the same kind of trait, so
 // I renamed it to Formula Generator to be more generic
 pub trait FormulaGenerator {
@@ -115,12 +121,49 @@ mod tests {
     }
 
     #[test]
-    fn test_generate() {
+    fn test_generate_redundant_random() {
+        let n_terms = 2;
         let generator = RedundantRandomConjunctionGenerator {
             n_terms: 2,
             terms: &small_test_terms,
         };
         let conjunction: Conjunction = generator.generate();
         println!("{:?}", conjunction);
+
+        assert_eq!(conjunction.len(), n_terms, "The real number of terms differs from the expected one");
+        
+        for term_obs in conjunction.term_observations{
+            assert!(
+                small_test_terms.contains(&term_obs.term_id),
+                "Term ID is not in the list"
+            );
+        }
+
     }
+
+    #[test]
+    fn test_generate_random() {
+        let n_terms = 2;
+        let generator = RedundantRandomConjunctionGenerator {
+            n_terms: 2,
+            terms: &small_test_terms,
+        };
+        let conjunction: Conjunction = generator.generate();
+        println!("{:?}", conjunction);
+
+        assert_eq!(conjunction.len(), n_terms, "The real number of terms differs from the expected one");
+        
+        for term_obs in conjunction.term_observations{
+            assert!(
+                small_test_terms.contains(&term_obs.term_id),
+                "Term ID is not in the list"
+            );
+        }
+
+    }
+
+    // #[test]
+    // fn test_generate(){
+        
+    // }
 }

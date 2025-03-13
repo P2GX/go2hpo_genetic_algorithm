@@ -1,0 +1,83 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'go2hpo_genetic_algorithm'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=go2hpo_genetic_algorithm"
+                ],
+                "filter": {
+                    "name": "go2hpo_genetic_algorithm",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'go2hpo_genetic_algorithm'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=go2hpo_genetic_algorithm",
+                    "--package=go2hpo_genetic_algorithm"
+                ],
+                "filter": {
+                    "name": "go2hpo_genetic_algorithm",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'go2hpo_genetic_algorithm'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=go2hpo_genetic_algorithm",
+                    "--package=go2hpo_genetic_algorithm"
+                ],
+                "filter": {
+                    "name": "go2hpo_genetic_algorithm",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'test_go_io'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=test_go_io",
+                    "--package=go2hpo_genetic_algorithm"
+                ],
+                "filter": {
+                    "name": "test_go_io",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

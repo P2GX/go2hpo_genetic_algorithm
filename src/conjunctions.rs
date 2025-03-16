@@ -1,7 +1,7 @@
 use ontolius::TermId;
 use rand::{seq::SliceRandom, Rng};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TermObservation {
     pub term_id: TermId,
     pub is_excluded: bool,
@@ -16,7 +16,7 @@ impl TermObservation {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Conjunction {
     pub term_observations: Vec<TermObservation>,
 }
@@ -27,9 +27,8 @@ impl Conjunction{
     }
 }
 
-// Before it was ConjunctionGenerator, but the Disjunctions Generators can implement the same kind of trait, so
-// I renamed it to Formula Generator to be more generic
-pub trait FormulaGenerator {
+
+pub trait ConjunctionGenerator {
     fn generate(&self) -> Conjunction;
 }
 
@@ -39,7 +38,7 @@ pub struct RedundantRandomConjunctionGenerator<'a> {
     terms: &'a Vec<TermId>,
 }
 
-impl<'a> FormulaGenerator for RedundantRandomConjunctionGenerator<'a> {
+impl<'a> ConjunctionGenerator for RedundantRandomConjunctionGenerator<'a> {
     fn generate(&self) -> Conjunction {
         let mut terms: Vec<TermObservation> = Vec::new();
         // Select them randomly
@@ -70,7 +69,7 @@ pub struct RandomConjunctionGenerator<'a> {
     terms: &'a Vec<TermId>,
 }
 
-impl<'a> FormulaGenerator for RandomConjunctionGenerator<'a> {
+impl<'a> ConjunctionGenerator for RandomConjunctionGenerator<'a> {
     fn generate(&self) -> Conjunction {
         let mut rng = rand::rng();
 

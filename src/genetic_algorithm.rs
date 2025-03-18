@@ -79,6 +79,55 @@ impl<C: SatisfactionChecker> FitnessScorer<Conjunction> for ConjunctionScorer<C>
     }
 }
 
+pub trait ElitesSelector<T: Clone> {
+    fn pass_elites(&self, next_population: &mut Vec<Solution<T>>, previous_population: &Vec<Solution<T>>, already_sorted: bool) -> usize;
+}
+
+pub struct ElitesByNumberSelector{
+    number_of_elites: usize,
+}
+
+impl<T: Clone> ElitesSelector<T> for ElitesByNumberSelector{
+    fn pass_elites(&self, next_population: &mut Vec<Solution<T>>, previous_population: &Vec<Solution<T>>, already_sorted: bool) -> usize {
+        if previous_population.len() <= self.number_of_elites {
+            panic!("Population size should be bigger than elites number. Population size: {}, elites number: {}", previous_population.len(),  self.number_of_elites);
+        }
+
+        let mut sorted_population = previous_population.clone();
+
+        if !already_sorted{
+            sorted_population.sort_by(|a, b| {
+                b.get()
+                .expect("The score should already be evaluated")
+                .partial_cmp(&a.get().expect("The score should already be evaluated"))
+                .unwrap_or(std::cmp::Ordering::Equal)
+            });
+        }
+    
+        let elites = sorted_population.iter().take(self.number_of_elites).cloned();
+
+        next_population.extend(elites);
+        next_population.len()
+    }
+}
+
+pub struct ElitesByThresholdSelector{
+    elite_cutoff: f64,
+    maximum_number: Option<usize>,
+}
+
+impl<T: Clone> ElitesSelector<T> for ElitesByThresholdSelector{
+    fn pass_elites(&self, next_population: &mut Vec<Solution<T>>, previous_population: &Vec<Solution<T>>, _already_sorted: bool) -> usize{
+        let elites = previous_population.iter()
+        .cloned()
+        .filter(|sol| sol.get().expect("The score should already be evaluated") >= self.elite_cutoff as f64);
+        next_population.extend(elites);
+        next_population.len()
+    }
+}
+
+
+
 //GeneticAlgorithm, GAEstimator
 pub struct GeneticAlgorithm<T: Clone> {
     population: Vec<Solution<T>>,
@@ -86,23 +135,18 @@ pub struct GeneticAlgorithm<T: Clone> {
     selection: Box<dyn Selection<Solution<T>>>,
     crossover: Box<dyn Crossover<Solution<T>>>,
     mutation: Box<dyn Mutation<Solution<T>>>,
+    elites_selector: Box<dyn ElitesSelector<T>>,
     mutation_rate: f64,
     generations: usize,
-    elitism_numb: usize,
 }
 
 impl<T: Clone> GeneticAlgorithm<T> {
-    pub fn initialize_population(&mut self, len: usize) -> Result<(), String> {
-        if len <= self.elitism_numb {
-            return Err("Population number should be bigger than elitism number".to_string());
-        }
-        todo!()
-    }
 
-    fn pass_elites(&self, evolved_population: &mut Vec<Solution<T>>) {
-        // it should get the best n solutions of the current generation and pass it to the next generation
-        // evolved_population is a refrence to the next generation population
-        // the number of solutions to keep is self.elitism_number
+    //TO DO: Two constructors:
+    //      - One in which the initial population of solution is passed
+    //      - One in which only the cardinality of the set of solutions per generation is passed (initizialize_population will be called)
+
+    pub fn initialize_population(&mut self, len: usize) -> Result<(), String> {
         todo!()
     }
 
@@ -117,11 +161,11 @@ impl<T: Clone> GeneticAlgorithm<T> {
             // New population for next generation
             let mut evolved_population: Vec<Solution<T>> = Vec::with_capacity(self.population.len());
 
-            // elitism
-            self.pass_elites(&mut evolved_population);
+            // elitism, return the size of the population already occupied by the "survivors" pof the previous generation
+            let number_of_elites = self.elites_selector.pass_elites(&mut evolved_population, &self.population, false);
 
             // new generation
-            for _ in self.elitism_numb..self.population.len() {
+            for _ in number_of_elites..self.population.len() {
                 // Selection and crossover
                 let parent1 = self.selection.select(&self.population);
                 let parent2 = self.selection.select(&self.population);
@@ -136,6 +180,7 @@ impl<T: Clone> GeneticAlgorithm<T> {
             }
 
             self.population = evolved_population;
+
             // Score population of current generation
             for solution in self.population.iter_mut() {
                 solution.get_or_score(&*self.scorer);
@@ -149,6 +194,8 @@ impl<T: Clone> GeneticAlgorithm<T> {
                 .partial_cmp(&b.get().unwrap())
                 .unwrap_or(std::cmp::Ordering::Equal)
         }).unwrap().clone();
+        
+        // OR maybe I could order them and return the best n
 
         best
         

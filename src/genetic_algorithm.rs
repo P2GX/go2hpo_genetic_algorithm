@@ -1,6 +1,8 @@
 use bitvec::ptr::Mut;
 use rand::prelude::*;
 
+use ontolius::{ontology::HierarchyWalks, TermId};
+
 use crate::{conjunctions::Conjunction, dnf::{DNFBitmask, DNF}, satisfaction_checker::{self, SatisfactionChecker}};
 
 pub trait Selection<T> {
@@ -12,56 +14,91 @@ pub trait Crossover<T> {
 }
 
 pub trait Mutation<T> {
-    fn mutate(&self, individual: &mut T);
+    fn mutate(&self, formula: &mut T);
 }
 
-pub struct ConjunctionMutation;
+pub struct ConjunctionMutation<O>{
+    go: O,
+}
 
-impl Mutation<Conjunction> for ConjunctionMutation {
-    fn mutate(&self, individual: &mut Conjunction) {
+impl<O> Mutation<Conjunction> for ConjunctionMutation<O>
+where
+    O: HierarchyWalks,
+    {
+    fn mutate(&self, formula: &mut Conjunction) {
         let mut rng = rand::rng();
         let rnd_num = rng.random_range(0..=7);
         match rnd_num{
-            0 => self.mutate_with_parent_term(individual),
-            1 => self.mutate_with_child_term(individual),
-            2 => self.delete_term(individual),
-            3 => self.add_random_term(individual),
-            4 => self.toggle_term_status(individual),
-            5 => self.delete_gene_expression_term(individual),
-            6 => self.add_gene_expression_term(individual),
-            7 => self.mutate_with_child_term(individual),
+            0 => self.mutate_with_parent_term(formula),
+            1 => self.mutate_with_child_term(formula),
+            2 => self.delete_random_term(formula),
+            3 => self.add_random_term(formula),
+            4 => self.toggle_term_status(formula),
+            5 => self.delete_gene_expression_term(formula),
+            6 => self.add_gene_expression_term(formula),
+            7 => self.mutate_with_child_term(formula),
             _ => todo!()
         }
     }
 }
 
-impl ConjunctionMutation{
+impl<O> ConjunctionMutation<O>
+where 
+O: HierarchyWalks,
+{
+
     //Exchange an HPO term with a parent
-    pub fn mutate_with_parent_term(&self, individual: &mut Conjunction){
-        todo!()
+    pub fn mutate_with_parent_term(&self, formula: &mut Conjunction) {
+        // Get a term from a random index. Maybe a more sophisticated way will be used in the future
+        let mut rng = rand::rng();
+        let rnd_index = rng.random_range(0..formula.len()); 
+        let mut term_ob = formula.term_observations.get_mut(rnd_index).expect("It should return a term");
+
+        // Get the parents' term IDs, I collect them to know the length without consuming it
+        let parents_ids: Vec<&TermId>= self.go.iter_parent_ids(&term_ob.term_id).collect();
+
+        // Select one of them randomly and subsitute it with the current termId in the formula
+        let rnd_index = rng.random_range(0..parents_ids.len()); 
+        term_ob.term_id = parents_ids.get(rnd_index).copied().unwrap().clone();
     }
+
     //Exchange an HPO term with one of its children
-    pub fn mutate_with_child_term(&self, individual: &mut Conjunction){
-        todo!()
+    pub fn mutate_with_child_term(&self, formula: &mut Conjunction){
+        // Get a term from a random index. Maybe a more sophisticated way will be used in the future
+        let mut rng = rand::rng();
+        let rnd_index = rng.random_range(0..formula.len()); 
+        let mut term_ob = formula.term_observations.get_mut(rnd_index).expect("It should return a term");
+
+        // Get the parents' term IDs, I collect them to know the length without consuming it
+        let child_ids: Vec<&TermId>= self.go.iter_child_ids(&term_ob.term_id).collect();
+
+        // Select one of them randomly and subsitute it with the current termId in the formula
+        let rnd_index = rng.random_range(0..child_ids.len()); 
+        term_ob.term_id = child_ids.get(rnd_index).copied().unwrap().clone();
     }
+
     //Delete an HPO term
-    pub fn delete_term(&self, individual: &mut Conjunction){
-        todo!()
+    pub fn delete_random_term(&self, formula: &mut Conjunction){
+        // Get a term from a random index. Maybe a more sophisticated way will be used in the future
+        let mut rng = rand::rng();
+        let rnd_index = rng.random_range(0..formula.len()); 
+        formula.term_observations.remove(rnd_index);
     }
+    
     //Add a random HPO term
-    pub fn add_random_term(&self, individual: &mut Conjunction){
+    pub fn add_random_term(&self, formula: &mut Conjunction){
         todo!()
     }
     //Toggle the status of a gene expression term from lo to hi or vice versa (And also of GO terms with is_excluded)
-    pub fn toggle_term_status(&self, individual: &mut Conjunction){
+    pub fn toggle_term_status(&self, formula: &mut Conjunction){
         todo!()
     }
     //Delete a gene expression term
-    pub fn delete_gene_expression_term(&self, individual: &mut Conjunction){
+    pub fn delete_gene_expression_term(&self, formula: &mut Conjunction){
         todo!()
     }
     //Add a gene expression term from a random tissue
-    pub fn add_gene_expression_term(&self, individual: &mut Conjunction){
+    pub fn add_gene_expression_term(&self, formula: &mut Conjunction){
         todo!()
     }
 }
@@ -69,7 +106,7 @@ impl ConjunctionMutation{
 pub struct DNFVecMutation;
 
 impl<T> Mutation<T> for DNFVecMutation {
-    fn mutate(&self, individual: &mut T) {
+    fn mutate(&self, formula: &mut T) {
         todo!();
     }
 }
@@ -77,7 +114,7 @@ impl<T> Mutation<T> for DNFVecMutation {
 pub struct DNFBitmaskMutation;
 
 impl<T> Mutation<T> for DNFBitmaskMutation {
-    fn mutate(&self, individual: &mut T) {
+    fn mutate(&self, formula: &mut T) {
         todo!();
     }
 }
@@ -224,7 +261,7 @@ impl<T: Clone> GeneticAlgorithm<T> {
             // new generation
             for _ in number_of_elites..self.population.len() {
                 // Selection and crossover
-                let parent1 = self.selection.select(&self.population);
+                let  parent1 = self.selection.select(&self.population);
                 let parent2 = self.selection.select(&self.population);
                 let mut offspring = self.crossover.crossover(&parent1, &parent2);
  

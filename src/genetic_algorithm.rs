@@ -17,15 +17,66 @@ pub trait Mutation<T> {
 
 pub struct ConjunctionMutation;
 
-impl<T> Mutation<T> for ConjunctionMutation {
+impl Mutation<Conjunction> for ConjunctionMutation {
+    fn mutate(&self, individual: &mut Conjunction) {
+        let mut rng = rand::rng();
+        let rnd_num = rng.random_range(0..=7);
+        match rnd_num{
+            0 => self.mutate_with_parent_term(individual),
+            1 => self.mutate_with_child_term(individual),
+            2 => self.delete_term(individual),
+            3 => self.add_random_term(individual),
+            4 => self.toggle_term_status(individual),
+            5 => self.delete_gene_expression_term(individual),
+            6 => self.add_gene_expression_term(individual),
+            7 => self.mutate_with_child_term(individual),
+            _ => todo!()
+        }
+    }
+}
+
+impl ConjunctionMutation{
+    //Exchange an HPO term with a parent
+    pub fn mutate_with_parent_term(&self, individual: &mut Conjunction){
+        todo!()
+    }
+    //Exchange an HPO term with one of its children
+    pub fn mutate_with_child_term(&self, individual: &mut Conjunction){
+        todo!()
+    }
+    //Delete an HPO term
+    pub fn delete_term(&self, individual: &mut Conjunction){
+        todo!()
+    }
+    //Add a random HPO term
+    pub fn add_random_term(&self, individual: &mut Conjunction){
+        todo!()
+    }
+    //Toggle the status of a gene expression term from lo to hi or vice versa (And also of GO terms with is_excluded)
+    pub fn toggle_term_status(&self, individual: &mut Conjunction){
+        todo!()
+    }
+    //Delete a gene expression term
+    pub fn delete_gene_expression_term(&self, individual: &mut Conjunction){
+        todo!()
+    }
+    //Add a gene expression term from a random tissue
+    pub fn add_gene_expression_term(&self, individual: &mut Conjunction){
+        todo!()
+    }
+}
+
+pub struct DNFVecMutation;
+
+impl<T> Mutation<T> for DNFVecMutation {
     fn mutate(&self, individual: &mut T) {
         todo!();
     }
 }
 
-pub struct DNFMutation;
+pub struct DNFBitmaskMutation;
 
-impl<T> Mutation<T> for DNFMutation {
+impl<T> Mutation<T> for DNFBitmaskMutation {
     fn mutate(&self, individual: &mut T) {
         todo!();
     }
@@ -39,6 +90,7 @@ pub struct Solution<T: Clone> {
     pub formula: T,
     score: Option<f64>,
 }
+
 impl<T: Clone> Solution<T> {
     pub fn get_or_score(&mut self, scorer: &dyn FitnessScorer<T>) -> f64 {
         match self.score {
@@ -78,7 +130,7 @@ impl<C: SatisfactionChecker> FitnessScorer<Conjunction> for ConjunctionScorer<C>
         1.0
     }
 }
-
+ 
 pub trait ElitesSelector<T: Clone> {
     fn pass_elites(&self, next_population: &mut Vec<Solution<T>>, previous_population: &Vec<Solution<T>>, already_sorted: bool) -> usize;
 }
@@ -118,10 +170,15 @@ pub struct ElitesByThresholdSelector{
 
 impl<T: Clone> ElitesSelector<T> for ElitesByThresholdSelector{
     fn pass_elites(&self, next_population: &mut Vec<Solution<T>>, previous_population: &Vec<Solution<T>>, _already_sorted: bool) -> usize{
-        let elites = previous_population.iter()
+        let mut elites = previous_population.iter()
         .cloned()
         .filter(|sol| sol.get().expect("The score should already be evaluated") >= self.elite_cutoff as f64);
-        next_population.extend(elites);
+
+        if let Some(max_n) = self.maximum_number{
+            next_population.extend(elites.take(max_n));
+        }else{
+            next_population.extend(elites);
+        }
         next_population.len()
     }
 }
@@ -157,7 +214,7 @@ impl<T: Clone> GeneticAlgorithm<T> {
             solution.get_or_score(&*self.scorer);
         }
 
-        for _ in 0..self.generations {
+        for _ in 0..self.generations { 
             // New population for next generation
             let mut evolved_population: Vec<Solution<T>> = Vec::with_capacity(self.population.len());
 
@@ -170,9 +227,9 @@ impl<T: Clone> GeneticAlgorithm<T> {
                 let parent1 = self.selection.select(&self.population);
                 let parent2 = self.selection.select(&self.population);
                 let mut offspring = self.crossover.crossover(&parent1, &parent2);
-
+ 
                 // Mutate with a certain probability
-                if rand::random::<f64>() <= self.mutation_rate {
+                if rand::random::<f64>() < self.mutation_rate {
                     self.mutation.mutate(&mut offspring);
                 }
 

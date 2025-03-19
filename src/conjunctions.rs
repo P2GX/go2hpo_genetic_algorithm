@@ -22,6 +22,8 @@ pub struct Conjunction {
 }
 
 impl Conjunction{
+    // Sum of all the annotation vectors
+    /// Total length of all the annotation terms present in the conjunction
     pub fn len(&self) -> usize{
         return self.term_observations.len() ;
     }

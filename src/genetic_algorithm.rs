@@ -1,9 +1,11 @@
 use bitvec::ptr::Mut;
 use rand::prelude::*;
 
-use ontolius::{ontology::HierarchyWalks, TermId};
+use ontolius::{ontology::{HierarchyWalks, OntologyTerms}, TermId};
+use ontolius::term::simple::SimpleMinimalTerm;
 
-use crate::{conjunctions::Conjunction, dnf::{DNFBitmask, DNF}, satisfaction_checker::{self, SatisfactionChecker}};
+use crate::{conjunctions::{Conjunction, TermObservation}, dnf::{DNFBitmask, DNF}, satisfaction_checker::{self, SatisfactionChecker}};
+use crate::dnf::DNFVec;
 
 pub trait Selection<T> {
     fn select(&self, population: &[T]) -> T;
@@ -23,7 +25,7 @@ pub struct ConjunctionMutation<O>{
 
 impl<O> Mutation<Conjunction> for ConjunctionMutation<O>
 where
-    O: HierarchyWalks,
+    O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
     {
     fn mutate(&self, formula: &mut Conjunction) {
         let mut rng = rand::rng();
@@ -44,14 +46,14 @@ where
 
 impl<O> ConjunctionMutation<O>
 where 
-O: HierarchyWalks,
+O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
 {
 
-    //Exchange an HPO term with a parent
+    /// Exchange an HPO term with a parent
     pub fn mutate_with_parent_term(&self, formula: &mut Conjunction) {
         // Get a term from a random index. Maybe a more sophisticated way will be used in the future
         let mut rng = rand::rng();
-        let rnd_index = rng.random_range(0..formula.len()); 
+        let rnd_index = rng.random_range(0..formula.term_observations.len()); 
         let mut term_ob = formula.term_observations.get_mut(rnd_index).expect("It should return a term");
 
         // Get the parents' term IDs, I collect them to know the length without consuming it
@@ -62,11 +64,11 @@ O: HierarchyWalks,
         term_ob.term_id = parents_ids.get(rnd_index).copied().unwrap().clone();
     }
 
-    //Exchange an HPO term with one of its children
+    ///  Exchange an HPO term with one of its children
     pub fn mutate_with_child_term(&self, formula: &mut Conjunction){
         // Get a term from a random index. Maybe a more sophisticated way will be used in the future
         let mut rng = rand::rng();
-        let rnd_index = rng.random_range(0..formula.len()); 
+        let rnd_index = rng.random_range(0..formula.term_observations.len()); 
         let mut term_ob = formula.term_observations.get_mut(rnd_index).expect("It should return a term");
 
         // Get the parents' term IDs, I collect them to know the length without consuming it
@@ -77,27 +79,45 @@ O: HierarchyWalks,
         term_ob.term_id = child_ids.get(rnd_index).copied().unwrap().clone();
     }
 
-    //Delete an HPO term
+    /// Delete an HPO term
     pub fn delete_random_term(&self, formula: &mut Conjunction){
         // Get a term from a random index. Maybe a more sophisticated way will be used in the future
         let mut rng = rand::rng();
-        let rnd_index = rng.random_range(0..formula.len()); 
+        let rnd_index = rng.random_range(0..formula.term_observations.len()); 
         formula.term_observations.remove(rnd_index);
     }
-    
-    //Add a random HPO term
+
+    /// Add a random HPO term
     pub fn add_random_term(&self, formula: &mut Conjunction){
-        todo!()
+        let mut rng = rand::rng();
+        let rnd_index = rng.random_range(0..self.go.len());
+        if let Some(new_term) = self.go.iter_term_ids().nth(rnd_index){
+            let term_obs = TermObservation::new(new_term.clone(), rng.random_bool(0.5));
+            formula.term_observations.push(term_obs);
+        }
     }
-    //Toggle the status of a gene expression term from lo to hi or vice versa (And also of GO terms with is_excluded)
+
+    /// Toggle the status of a gene expression term from lo to hi or vice versa (And also of GO terms with is_excluded)
     pub fn toggle_term_status(&self, formula: &mut Conjunction){
+        // Is it better to differentiate between GO terms and Gene Expression toggle mutations by
+        // creating two separate functions or should it be managed by only one function
+        
+        // Toggle go terms
+        let mut rng = rand::rng();
+        //if this function will manage the toggle of all the different kind of observations, the random number can be
+        // obtained from 0 to the length of ALL the annotation terms of the Conjunction
+        let rnd_index = rng.random_range(0..formula.term_observations.len()); 
+        let mut term_ob = formula.term_observations.get_mut(rnd_index).expect("It should return a term");
+        term_ob.is_excluded = !term_ob.is_excluded; 
+        // To do also for the rest
         todo!()
     }
-    //Delete a gene expression term
+
+    /// Delete a gene expression term
     pub fn delete_gene_expression_term(&self, formula: &mut Conjunction){
         todo!()
     }
-    //Add a gene expression term from a random tissue
+    /// Add a gene expression term from a random tissue
     pub fn add_gene_expression_term(&self, formula: &mut Conjunction){
         todo!()
     }
@@ -105,17 +125,17 @@ O: HierarchyWalks,
 
 pub struct DNFVecMutation;
 
-impl<T> Mutation<T> for DNFVecMutation {
-    fn mutate(&self, formula: &mut T) {
+impl Mutation<DNFVec> for DNFVecMutation {
+    fn mutate(&self, formula: &mut DNFVec) {
         todo!();
     }
 }
 
 pub struct DNFBitmaskMutation;
 
-impl<T> Mutation<T> for DNFBitmaskMutation {
-    fn mutate(&self, formula: &mut T) {
-        todo!();
+impl Mutation<DNFBitmask<'_>> for DNFBitmaskMutation {
+    fn mutate(&self, formula: &mut DNFBitmask) {
+        
     }
 }
 

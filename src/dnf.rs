@@ -39,6 +39,9 @@ impl DNFVec {
             conjunctions: conjs,
         }
     }
+    pub fn get_mut_active_conjunctions(&mut self) -> &mut Vec<Conjunction>{
+        return &mut self.conjunctions;
+    }
 }
 
 pub struct DNFBitmask<'a> {
@@ -81,6 +84,28 @@ impl<'a> DNFBitmask<'a> {
         Self {
             conjunction_mask: bitvec![0; conjunctions.len()], // Initialize bitmask (all `false`)
             conjunctions,
+        }
+    }
+}
+
+impl DNFBitmask<'_>{
+    /// Returns the total number of conjunctions (both active and inactive).
+    /// This is different from len(), which only counts active ones.
+    pub fn total_conjunctions_count(&self) -> usize {
+        self.conjunctions.len()  // Total number of conjunctions (active + inactive)
+    }
+
+    pub fn toggle_conjunction(&mut self, index: usize) -> Result<(), String>{
+        if index < self.conjunction_mask.len() {
+            let current_value = self.conjunction_mask[index];
+            self.conjunction_mask.set(index, !current_value);
+            Ok(())
+        } else {
+            Err(format!(
+                "Index {} is out of bounds. Max index: {}",
+                index,
+                self.conjunction_mask.len() - 1
+            ))
         }
     }
 }

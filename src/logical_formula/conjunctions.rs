@@ -17,10 +17,24 @@ impl TermObservation {
     }
 }
 
+impl PartialEq for TermObservation {
+    fn eq(&self, other: &Self) -> bool {
+        // Define custom equality criteria here
+        self.term_id == other.term_id && self.is_excluded == other.is_excluded
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Conjunction {
     pub term_observations: Vec<TermObservation>,
 }
+
+impl PartialEq for Conjunction{
+    fn eq(&self, other: &Self) -> bool {
+        self.term_observations == other.term_observations
+    }
+}
+
 
 impl Conjunction{
     // Sum of all the annotation vectors

@@ -15,6 +15,12 @@ pub struct DNFVec {
     conjunctions: Vec<Conjunction>,
 }
 
+impl PartialEq for DNFVec{
+    fn eq(&self, other: &Self) -> bool {
+        self.conjunctions == other.conjunctions
+    }
+}
+
 impl DNF for DNFVec {
     type SelectionType = Conjunction; //the istance itself
 
@@ -39,6 +45,11 @@ impl DNFVec {
             conjunctions: conjs,
         }
     }
+
+    pub fn from_conjunctions(conjunctions: Vec<Conjunction>) -> Self{
+        Self { conjunctions }
+    }
+
     pub fn get_mut_active_conjunctions(&mut self) -> &mut Vec<Conjunction>{
         return &mut self.conjunctions;
     }
@@ -47,6 +58,12 @@ impl DNFVec {
 pub struct DNFBitmask<'a> {
     conjunction_mask: BitVec,
     conjunctions: &'a [Conjunction], //Precomputed conjunctions
+}
+
+impl PartialEq for DNFBitmask<'_>{
+    fn eq(&self, other: &Self) -> bool {
+        self.conjunction_mask == other.conjunction_mask && self.conjunctions == other.conjunctions
+    }
 }
 
 impl<'a> DNF for DNFBitmask<'a> {

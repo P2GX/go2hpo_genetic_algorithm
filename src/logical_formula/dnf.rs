@@ -56,8 +56,8 @@ impl DNFVec {
 }
 
 pub struct DNFBitmask<'a> {
-    conjunction_mask: BitVec,
     conjunctions: &'a [Conjunction], //Precomputed conjunctions
+    conjunction_mask: BitVec,
 }
 
 impl PartialEq for DNFBitmask<'_>{
@@ -103,6 +103,19 @@ impl<'a> DNFBitmask<'a> {
             conjunctions,
         }
     }
+
+    pub fn new_with_bitmask(conjunctions: &'a[Conjunction], conjunction_mask: BitVec) -> Self{
+        Self { conjunctions, conjunction_mask }
+    }
+
+    pub fn get_possible_conjunctions(&self) -> &'a [Conjunction]{
+        return self.conjunctions;
+    }
+
+    pub fn get_conjunction_mask(&self) -> &BitVec{
+        &self.conjunction_mask
+    }
+
 }
 
 impl DNFBitmask<'_>{

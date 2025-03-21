@@ -1,7 +1,10 @@
 mod base;
-mod ga_operators;
-mod ga_algorithm;
+mod operators;
+mod algorithm;
 
 pub use base::{Solution, FitnessScorer};
-pub use ga_operators::{Selection, Crossover, Mutation, ElitesSelector};
-pub use ga_algorithm::GeneticAlgorithm;
+
+pub use operators::{Crossover, Mutation, ElitesSelector};
+// pub use operators::{ConjunctionCrossover};
+
+pub use algorithm::GeneticAlgorithm;

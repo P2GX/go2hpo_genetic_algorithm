@@ -1,6 +1,6 @@
 use super::base::{Solution, FitnessScorer}; //to change
 
-use super::ga_operators::{Selection, Crossover, Mutation, ElitesSelector};
+use super::operators::{Selection, Crossover, Mutation, ElitesSelector};
 
 
 //GeneticAlgorithm, GAEstimator

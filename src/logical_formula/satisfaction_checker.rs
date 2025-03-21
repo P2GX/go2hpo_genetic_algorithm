@@ -7,7 +7,7 @@ use std::{
 
 use ontolius::{ontology::HierarchyWalks, TermId};
 
-use crate::conjunctions::Conjunction;
+use super::Conjunction;
 
 pub trait SatisfactionChecker {
     fn is_satisfied(&self, symbol: &str, conjunction: &Conjunction) -> bool;
@@ -86,7 +86,7 @@ mod tests {
     use flate2::bufread::GzDecoder;
     use ontolius::{io::OntologyLoaderBuilder, ontology::csr::MinimalCsrOntology};
 
-    use crate::conjunctions::TermObservation;
+    use crate::logical_formula::TermObservation;
 
     use super::*;
 

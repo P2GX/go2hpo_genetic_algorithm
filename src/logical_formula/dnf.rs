@@ -1,4 +1,4 @@
-use crate::conjunctions::{self, Conjunction};
+use super::conjunctions::{self, Conjunction};
 use bitvec::prelude::*;
 
 pub trait DNF {

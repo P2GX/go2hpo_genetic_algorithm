@@ -1,5 +1,6 @@
 use ontolius::TermId;
 use rand::{seq::SliceRandom, Rng};
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone)]
 pub struct TermObservation {
@@ -34,7 +35,7 @@ pub trait ConjunctionGenerator {
     fn generate(&self) -> Conjunction;
 }
 
-//Creates Conjunctions randomly that might have redundant terms
+/// Creates Conjunctions randomly that might have redundant terms
 pub struct RedundantRandomConjunctionGenerator<'a> {
     n_terms: usize,
     terms: &'a Vec<TermId>,
@@ -65,7 +66,7 @@ impl<'a> RedundantRandomConjunctionGenerator<'a> {
     }
 }
 
-//Creates Conjunctions randomly whith non-repeating terms
+/// Creates Conjunctions randomly whith non-repeating terms
 pub struct RandomConjunctionGenerator<'a> {
     n_terms: usize,
     terms: &'a Vec<TermId>,
@@ -87,6 +88,20 @@ impl<'a> ConjunctionGenerator for RandomConjunctionGenerator<'a> {
         Conjunction {
             term_observations: selected_terms,
         }
+    }
+}
+
+/// Picks some terms from a list of genes
+pub struct GenePickerConjunctionGenerator {
+    max_n_terms: usize,
+
+    //list of genes 
+    symbol_to_direct_annotations: HashMap<String, HashSet<TermId>>,
+}
+
+impl ConjunctionGenerator for GenePickerConjunctionGenerator {
+    fn generate(&self) -> Conjunction {
+        todo!();
     }
 }
 

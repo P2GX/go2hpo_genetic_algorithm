@@ -46,6 +46,20 @@ impl Crossover<Conjunction> for ConjunctionCrossover{
 
 pub struct DNFVecCrossover{
     //TO DO: add a field that makes the choice between the parents unbalanced towards one of the two
+    parent1_fraction: f64, //0.5 for balanced feraction of the parents contribution on the offspring 
+}
+
+impl DNFVecCrossover{
+    pub fn new() -> Self{
+        Self{parent1_fraction: 0.5}
+    }
+
+    pub fn new_with_parent_bias(parent1_fraction: f64) -> Self{
+        if parent1_fraction < 0.0 || parent1_fraction > 1.0{
+            panic!("parent1_prob should be a probability (from 0 to 1). The current value is {}", parent1_fraction);
+        }
+        Self{parent1_fraction}
+    }
 }
 
 impl Crossover<DNFVec> for DNFVecCrossover{
@@ -57,13 +71,16 @@ impl Crossover<DNFVec> for DNFVecCrossover{
         let active_conjunctions1 = parent1.get_active_conjunctions();
         let active_conjunctions2 = parent2.get_active_conjunctions();
         
+        let parent1_amount: usize = ((active_conjunctions1.len() as f64) * self.parent1_fraction).round() as usize;
+        let parent2_amount: usize = ((active_conjunctions2.len() as f64) * (1.0 - self.parent1_fraction)).round() as usize;
+
         // Select random conjunctions from each parent
         let from_parent1 = active_conjunctions1
-            .choose_multiple(&mut rng, active_conjunctions1.len() / 2)
+            .choose_multiple(&mut rng, parent1_amount)
             .copied();
 
         let from_parent2 = active_conjunctions2
-            .choose_multiple(&mut rng, active_conjunctions2.len() / 2)
+            .choose_multiple(&mut rng, parent2_amount)
             .copied();
 
         // Merge conjunctions while avoiding duplicates
@@ -86,6 +103,9 @@ impl DNFBitmaskCrossover{
     }
 
     pub fn new_with_parent_bias(parent1_prob: f64) -> Self{
+        if parent1_prob < 0.0 || parent1_prob > 1.0{
+            panic!("parent1_prob should be a probability (from 0 to 1). The current value is {}", parent1_prob);
+        }
         Self{parent1_prob}
     }
 }

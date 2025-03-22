@@ -1,5 +1,6 @@
 use bitvec::vec::BitVec;
 use rand::prelude::*;
+use std::panic;
 
 use crate::logical_formula::{DNFBitmask, DNFVec, DNF};
 
@@ -24,7 +25,23 @@ pub trait Crossover<T> {
 }
 
 
-pub struct ConjunctionCrossover;
+pub struct ConjunctionCrossover{
+    parent1_fraction: f64, //0.5 for balanced feraction of the parents contribution on the offspring 
+}
+
+impl ConjunctionCrossover{
+    pub fn new() -> Self{
+        Self {parent1_fraction: 0.5}
+    }
+    
+    pub fn new_with_parent_bias(parent1_fraction: f64) -> Self{
+        if parent1_fraction < 0.0 || parent1_fraction > 1.0{
+            panic!("parent1_fraction should be a probability (from 0 to 1). The current value is {}", parent1_fraction);
+        }
+        Self{parent1_fraction}
+    }
+}
+
 
 impl Crossover<Conjunction> for ConjunctionCrossover{
     fn crossover(&self, parent1: &Conjunction, parent2: &Conjunction) -> Conjunction {
@@ -32,8 +49,12 @@ impl Crossover<Conjunction> for ConjunctionCrossover{
 
         let mut offspring_terms = Vec::new();
         
-        let terms_from_parent1 = parent1.term_observations.choose_multiple(&mut rng, parent1.term_observations.len() / 2);
-        let terms_from_parent2 = parent2.term_observations.choose_multiple(&mut rng, parent2.term_observations.len() / 2);
+        let amount_parent1: usize = ((parent1.term_observations.len() as f64) * self.parent1_fraction).round() as usize;
+        let amount_parent2: usize = ((parent2.term_observations.len() as f64) * (1.0 - self.parent1_fraction)).round() as usize;
+
+
+        let terms_from_parent1 = parent1.term_observations.choose_multiple(&mut rng, amount_parent1);
+        let terms_from_parent2 = parent2.term_observations.choose_multiple(&mut rng, amount_parent2);
 
         offspring_terms.extend(terms_from_parent1.cloned());
         offspring_terms.extend(terms_from_parent2.cloned());
@@ -45,7 +66,7 @@ impl Crossover<Conjunction> for ConjunctionCrossover{
 }
 
 pub struct DNFVecCrossover{
-    //TO DO: add a field that makes the choice between the parents unbalanced towards one of the two
+    //this a field that makes the choice between the parents unbalanced towards one of the two
     parent1_fraction: f64, //0.5 for balanced feraction of the parents contribution on the offspring 
 }
 
@@ -56,7 +77,7 @@ impl DNFVecCrossover{
 
     pub fn new_with_parent_bias(parent1_fraction: f64) -> Self{
         if parent1_fraction < 0.0 || parent1_fraction > 1.0{
-            panic!("parent1_prob should be a probability (from 0 to 1). The current value is {}", parent1_fraction);
+            panic!("parent1_fraction should be a probability (from 0 to 1). The current value is {}", parent1_fraction);
         }
         Self{parent1_fraction}
     }
@@ -139,6 +160,24 @@ mod tests {
     use super::*;
     
     #[test]
+    fn test_crossover_field_correct_range(){
+        let wrong_freq_conj_1 = panic::catch_unwind(|| ConjunctionCrossover::new_with_parent_bias(-0.1));
+        assert!(wrong_freq_conj_1.is_err());
+        let wrong_freq_conj_2 = panic::catch_unwind(|| ConjunctionCrossover::new_with_parent_bias(1.1));
+        assert!(wrong_freq_conj_2.is_err());
+
+        let wrong_freq_dnf_vec_1 = panic::catch_unwind(|| DNFVecCrossover::new_with_parent_bias(-0.1));
+        assert!(wrong_freq_dnf_vec_1.is_err());
+        let wrong_freq_dnf_vec_2 = panic::catch_unwind(|| DNFVecCrossover::new_with_parent_bias(1.1));
+        assert!(wrong_freq_dnf_vec_2.is_err());
+
+        let wrong_prob_dnf_bitmask_1 = panic::catch_unwind(|| DNFBitmaskCrossover::new_with_parent_bias(-0.1));
+        assert!(wrong_prob_dnf_bitmask_1.is_err());
+        let wrong_prob_dnf_bitmask_2 = panic::catch_unwind(|| DNFBitmaskCrossover::new_with_parent_bias(1.1));
+        assert!(wrong_prob_dnf_bitmask_2.is_err());
+    }
+
+    #[test]
     fn test_crossover_conjunction_valid_offspring() {
         let t1: TermId = "GO:0051146".parse().unwrap();
         let t2: TermId = "GO:0052693".parse().unwrap();
@@ -159,7 +198,7 @@ mod tests {
             ],
         };
 
-        let crossover = ConjunctionCrossover;
+        let crossover = ConjunctionCrossover::new();
         let offspring = crossover.crossover(&parent1, &parent2);
 
         assert!(!offspring.term_observations.is_empty(), "Offspring should not be empty.");
@@ -200,7 +239,7 @@ mod tests {
             ],
         };
 
-        let crossover = ConjunctionCrossover;
+        let crossover = ConjunctionCrossover::new();
         let offspring = crossover.crossover(&parent1, &parent2);
 
         assert!(

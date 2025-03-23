@@ -30,9 +30,8 @@ impl<T: Clone> ElitesSelector<T> for ElitesByNumberSelector {
 
         if !already_sorted {
             sorted_population.sort_by(|a, b| {
-                b.get()
-                    .expect("The score should already be evaluated")
-                    .partial_cmp(&a.get().expect("The score should already be evaluated"))
+                b.get_score()
+                    .partial_cmp(&a.get_score())
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
         }
@@ -60,7 +59,7 @@ impl<T: Clone> ElitesSelector<T> for ElitesByThresholdSelector {
         _already_sorted: bool,
     ) -> usize {
         let mut elites = previous_population.iter().cloned().filter(|sol| {
-            sol.get().expect("The score should already be evaluated") >= self.elite_cutoff as f64
+            sol.get_score() >= self.elite_cutoff as f64
         });
 
         if let Some(max_n) = self.maximum_number {

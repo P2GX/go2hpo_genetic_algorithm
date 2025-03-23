@@ -1,4 +1,4 @@
-use super::base::{Solution, FitnessScorer}; //to change
+use super::base::{Solution, FitnessScorer, FormulaEvaluator}; //to change
 
 use super::operators::{Selection, Crossover, Mutation, ElitesSelector};
 
@@ -6,8 +6,9 @@ use super::operators::{Selection, Crossover, Mutation, ElitesSelector};
 //GeneticAlgorithm, GAEstimator
 pub struct GeneticAlgorithm<T: Clone> {
     population: Vec<Solution<T>>,
-    scorer: Box<dyn FitnessScorer<T>>,
-    selection: Box<dyn Selection<Solution<T>>>,
+    evaluator: FormulaEvaluator<T>,
+    scorer: Box<dyn FitnessScorer<T>>, // probably this can be removed since there is FormulaEvaluator
+    selection: Box<dyn Selection<T>>,
     crossover: Box<dyn Crossover<Solution<T>>>,
     mutation: Box<dyn Mutation<Solution<T>>>,
     elites_selector: Box<dyn ElitesSelector<T>>,
@@ -25,10 +26,11 @@ impl<T: Clone> GeneticAlgorithm<T> {
     }
 
     pub fn fit(&mut self) -> Solution<T> {
-        //Initialization: Score initial population
-        for solution in self.population.iter_mut() {
-            solution.get_or_score(&*self.scorer);
-        }
+        //Initialization: Score initial population, , there is no need for this anymore because now 
+            // the solution is evaluated in the moment in which it is created
+        // for solution in self.population.iter_mut() {
+        //     solution.get_or_score(&*self.scorer);
+        // }
 
         for _ in 0..self.generations {
             // New population for next generation
@@ -57,10 +59,13 @@ impl<T: Clone> GeneticAlgorithm<T> {
 
             self.population = evolved_population;
 
-            // Score population of current generation
-            for solution in self.population.iter_mut() {
-                solution.get_or_score(&*self.scorer);
-            }
+
+            // Score population of current generation, there is no need for this anymore because now 
+            // the solution is evaluated in the moment in which it is created
+            //
+            // for solution in self.population.iter_mut() {
+            //     solution.get_or_score(&*self.scorer);
+            // }
         }
 
         // Return the solution with the best score, where all the other solutions of the last generation are kept in self.population
@@ -68,9 +73,8 @@ impl<T: Clone> GeneticAlgorithm<T> {
             .population
             .iter()
             .max_by(|a, b| {
-                a.get()
-                    .unwrap()
-                    .partial_cmp(&b.get().unwrap())
+                a.get_score()
+                    .partial_cmp(&b.get_score())
                     .unwrap_or(std::cmp::Ordering::Equal)
             })
             .unwrap()

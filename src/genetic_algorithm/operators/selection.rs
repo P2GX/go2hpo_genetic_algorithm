@@ -111,4 +111,28 @@ impl RouletteWheelSelection{
 }
 
 
+pub struct RankSelection;
 
+impl<T> Selection<T> for RankSelection
+where 
+T: Clone,
+{
+    fn select<'a>(&self, population: &'a Vec<Solution<T>>) -> &'a Solution<T> {
+        let mut ranked_population: Vec<_> = population.iter().collect();
+        ranked_population.sort_unstable_by(|a, b| a.get_score().partial_cmp(&b.get_score()).expect("It should be possible to compare the values"));
+
+        // Sum of the first (ranked_population.len() - 1) natural numbers, which is the sum of all the indexes / ranks
+        let tot: usize = ((ranked_population.len() - 1) * ranked_population.len()) / 2;
+
+        let mut rng = rand::rng();
+        let mut threshold = rng.random_range(0..tot);
+
+        for (rank, &sol) in ranked_population.iter().enumerate(){
+            threshold -= rank;
+            if threshold <= 0{
+                return sol;
+            }
+        }
+        &ranked_population[ranked_population.len() - 1]
+    }
+}

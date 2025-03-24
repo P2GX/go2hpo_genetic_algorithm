@@ -26,18 +26,6 @@ T: Clone{
 }
 
 impl<T: Clone> Solution<T> {
-    // Deprecated, from now on the Solution will always contain a computed score, so the promise change
-    // Now I'm promising always a solution and I don't have to carry the FitnessScorer around to compute
-    // the fitness in case in which it wasn't computed
-    // pub fn get_or_score(&mut self, scorer: &dyn FitnessScorer<T>) -> f64 {
-    //     match self.score {
-    //         Some(val) => return val,
-    //         None => {
-    //             self.score = Some(scorer.fitness(&self.formula));
-    //             return self.score.unwrap();
-    //         }
-    //     }
-    // }
 
     pub fn get_score(&self) -> f64 {
         return self.score;
@@ -59,7 +47,6 @@ impl<T: Clone> PartialOrd for Solution<T> {
         self.score.partial_cmp(&other.score)
     }
 }
-
 
 // FormulaEvaluator and the method is "evaluate" which returns a Solution
 // or 

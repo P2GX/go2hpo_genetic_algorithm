@@ -134,6 +134,7 @@ mod tests {
 
         let conjunction = Conjunction {
             term_observations: term_vec,
+            tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
         let actual = checker.is_satisfied(&symbol, &conjunction);
@@ -152,6 +153,7 @@ mod tests {
 
         let conjunction = Conjunction {
             term_observations: term_vec,
+            tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
         let actual = checker.is_satisfied(&symbol, &conjunction);
@@ -174,6 +176,7 @@ mod tests {
 
         let conjunction = Conjunction {
             term_observations: term_vec,
+            tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
         let actual = checker.is_satisfied(&symbol, &conjunction);
@@ -196,6 +199,7 @@ mod tests {
 
         let conjunction = Conjunction {
             term_observations: term_vec,
+            tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
         let actual = checker.is_satisfied(&symbol, &conjunction);
@@ -218,6 +222,7 @@ mod tests {
 
         let conjunction = Conjunction {
             term_observations: term_vec,
+            tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
         let actual = checker.is_satisfied(&symbol, &conjunction);
@@ -239,6 +244,7 @@ mod tests {
 
         let conjunction = Conjunction {
             term_observations: term_vec,
+            tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
         let actual = checker.is_satisfied(&symbol, &conjunction);
@@ -260,6 +266,7 @@ mod tests {
 
         let conjunction = Conjunction {
             term_observations: term_vec,
+            tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
         let actual = checker.is_satisfied(&symbol, &conjunction);
@@ -278,6 +285,7 @@ mod tests {
 
         let conjunction = Conjunction {
             term_observations: term_vec,
+            tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
         let actual = checker.is_satisfied(&symbol, &conjunction);
@@ -297,6 +305,7 @@ mod tests {
 
         let conjunction = Conjunction {
             term_observations: term_vec,
+            tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
         let actual = checker.is_satisfied(&symbol, &conjunction);

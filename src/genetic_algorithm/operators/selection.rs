@@ -22,12 +22,11 @@ use crate::{
 // Implementations:
 //      TournamentSelection
 //      RouletteWheelSelection
+//      RankSelection
 
 
 
-pub trait Selection<T> 
-where 
-T: Clone,
+pub trait Selection<T>
 {
     fn select<'a>(&self, population: &'a Vec<Solution<T>>) -> &'a Solution<T>;
 }

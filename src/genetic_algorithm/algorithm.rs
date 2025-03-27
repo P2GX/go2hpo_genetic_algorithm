@@ -4,7 +4,7 @@ use super::operators::{Selection, Crossover, Mutation, ElitesSelector};
 
 
 //GeneticAlgorithm, GAEstimator
-pub struct GeneticAlgorithm<T: Clone> {
+pub struct GeneticAlgorithm<T> {
     population: Vec<Solution<T>>,
     evaluator: FormulaEvaluator<T>,
     scorer: Box<dyn FitnessScorer<T>>, // probably this can be removed since there is FormulaEvaluator

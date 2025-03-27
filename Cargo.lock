@@ -208,6 +208,7 @@ version = "0.1.0"
 dependencies = [
  "bitvec",
  "flate2",
+ "gtex_analyzer",
  "lazy_static",
  "ontolius",
  "rand",
@@ -236,6 +237,15 @@ dependencies = [
  "parking_lot",
  "rayon",
  "thiserror",
+]
+
+[[package]]
+name = "gtex_analyzer"
+version = "0.1.0"
+source = "git+https://github.com/loremod/gtex_analyzer?branch=main#9decdc46eb520366de76847aaedcf572ce061ff9"
+dependencies = [
+ "anyhow",
+ "flate2",
 ]
 
 [[package]]

@@ -12,7 +12,7 @@ use ontolius::{
 
 
 use crate::{
-    logical_formula::{Conjunction, TermObservation},
+    logical_formula::{Conjunction, TermObservation, TermExpression, DgeState},
 };
 
 
@@ -42,27 +42,93 @@ impl ConjunctionCrossover{
     }
 }
 
-
-impl Crossover<Conjunction> for ConjunctionCrossover{
-    fn crossover(&self, parent1: &Conjunction, parent2: &Conjunction) -> Conjunction {
+impl ConjunctionCrossover{
+    fn field_crossover<T>(&self, parent1_annots: &Vec<T>, parent2_annots: &Vec<T>) -> Vec<T>
+    where 
+    T: Clone{
         let mut rng = rand::rng();
 
         let mut offspring_terms = Vec::new();
         
-        let amount_parent1: usize = ((parent1.term_observations.len() as f64) * self.parent1_fraction).round() as usize;
-        let amount_parent2: usize = ((parent2.term_observations.len() as f64) * (1.0 - self.parent1_fraction)).round() as usize;
+        let amount_parent1: usize = ((parent1_annots.len() as f64) * self.parent1_fraction).round() as usize;
+        let amount_parent2: usize = ((parent2_annots.len() as f64) * (1.0 - self.parent1_fraction)).round() as usize;
 
 
-        let terms_from_parent1 = parent1.term_observations.choose_multiple(&mut rng, amount_parent1);
-        let terms_from_parent2 = parent2.term_observations.choose_multiple(&mut rng, amount_parent2);
+        let terms_from_parent1 = parent1_annots.choose_multiple(&mut rng, amount_parent1);
+        let terms_from_parent2 = parent2_annots.choose_multiple(&mut rng, amount_parent2);
 
         offspring_terms.extend(terms_from_parent1.cloned());
         offspring_terms.extend(terms_from_parent2.cloned());
+        return offspring_terms;
+    }
+}
 
+
+impl Crossover<Conjunction> for ConjunctionCrossover{
+
+    fn crossover(&self, parent1: &Conjunction, parent2: &Conjunction) -> Conjunction {
+        
+        let new_term_observation = self.field_crossover(&parent1.term_observations, &parent2.term_observations);
+        let new_tissue_expression = self.field_crossover(&parent1.tissue_expressions, &parent2.tissue_expressions);
         Conjunction {
-            term_observations: offspring_terms
+            term_observations: new_term_observation,
+            tissue_expressions: new_tissue_expression,
         }
     }
+
+
+    // fn crossover(&self, parent1: &Conjunction, parent2: &Conjunction) -> Conjunction {
+        
+    //     let new_fields = parent1.iter()
+    //     .zip(parent2.iter())
+    //     .map(|(par1, par2)|{
+    //         if let Some(v1) = par1.downcast_ref::<Vec<TermObservation>>() {
+    //             if let Some(v2) = par2.downcast_ref::<Vec<TermObservation>>() {
+    //                 (v1, v2)
+    //             }else{
+    //                 panic!("Not Same Type");
+    //             }
+    //         } else if let Some(v1) = par1.downcast_ref::<Vec<TermExpression>>() {
+    //             if let Some(v2) = par2.downcast_ref::<Vec<TermObservation>>() {
+    //                 (v1, v2)
+    //             }else{
+    //                 panic!("Not Same Type");
+    //             }
+    //         } else {
+    //             panic!("Unknown Type");
+    //         }
+    //     })
+    //     .map(|(par1,par2)| self.field_crossover(par1, par2) );
+
+    //     // Conjunction {
+    //     //     term_observations: offspring_terms
+            
+    //     // }
+    //     todo!()
+    // }
+
+    // fn crossover(&self, parent1: &Conjunction, parent2: &Conjunction) -> Conjunction {
+    //     let mut rng = rand::rng();
+
+    //     let mut offspring_terms = Vec::new();
+        
+    //     let amount_parent1: usize = ((parent1.term_observations.len() as f64) * self.parent1_fraction).round() as usize;
+    //     let amount_parent2: usize = ((parent2.term_observations.len() as f64) * (1.0 - self.parent1_fraction)).round() as usize;
+
+
+    //     let terms_from_parent1 = parent1.term_observations.choose_multiple(&mut rng, amount_parent1);
+    //     let terms_from_parent2 = parent2.term_observations.choose_multiple(&mut rng, amount_parent2);
+
+    //     offspring_terms.extend(terms_from_parent1.cloned());
+    //     offspring_terms.extend(terms_from_parent2.cloned());
+        
+    //     todo!()
+
+    //     Conjunction {
+    //         term_observations: offspring_terms
+            
+    //     }
+    // }
 }
 
 pub struct DNFVecCrossover{
@@ -189,12 +255,20 @@ mod tests {
                 TermObservation { term_id: t1, is_excluded: false },
                 TermObservation { term_id: t2, is_excluded: true },
             ],
+            tissue_expressions: vec![
+                TermExpression{ term_id: "Heart".to_string(), state: DgeState::Up},
+                TermExpression{ term_id: "Brain".to_string(), state: DgeState::Down}
+            ],
         };
 
         let parent2 = Conjunction {
             term_observations: vec![
                 TermObservation { term_id: t3, is_excluded: false },
                 TermObservation { term_id: t4, is_excluded: true },
+            ],
+            tissue_expressions: vec![
+                TermExpression{ term_id: "Liver".to_string(), state: DgeState::Up},
+                TermExpression{ term_id: "Brain".to_string(), state: DgeState::Up}
             ],
         };
 
@@ -230,6 +304,10 @@ mod tests {
                 TermObservation { term_id: t1, is_excluded: false },
                 TermObservation { term_id: t2, is_excluded: true },
             ],
+            tissue_expressions: vec![
+                TermExpression{ term_id: "Heart".to_string(), state: DgeState::Up},
+                TermExpression{ term_id: "Brain".to_string(), state: DgeState::Down}
+            ],
         };
 
         let parent2 = Conjunction {
@@ -237,6 +315,8 @@ mod tests {
                 TermObservation { term_id: t3, is_excluded: false },
                 TermObservation { term_id: t4, is_excluded: true },
             ],
+            tissue_expressions: vec![
+                TermExpression{ term_id: "Colon".to_string(), state: DgeState::Up}]
         };
 
         let crossover = ConjunctionCrossover::new();

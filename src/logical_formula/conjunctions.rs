@@ -1,13 +1,17 @@
 use ontolius::TermId;
 use rand::{seq::SliceRandom, Rng};
-use std::collections::{HashMap, HashSet};
+use std::{any::Any, collections::{HashMap, HashSet}};
 
+
+
+
+pub trait TermAnnotation{}
 // T should be TermId for TermObservation (GO) and a String (at the moment, maybe something more complicated in the future) for Gtex Expression Data
 // V should be a bool for TermObservation (GO) and an Enum {UP, DOWN, NORMAL} for GtexExpressionData
-pub trait TermAnnotation<T, V>{
-    fn get_term(&self) -> &T;
-    fn is_annotated_as(&self, annotation_type: V) -> bool; 
-}
+// pub trait TermAnnotation<T, V>{
+//     fn get_term(&self) -> &T;
+//     fn is_annotated_as(&self, annotation_type: V) -> bool; 
+// }
 
 #[derive(Debug, Clone)]
 pub struct TermObservation {
@@ -31,14 +35,14 @@ impl PartialEq for TermObservation {
     }
 }
 
-impl TermAnnotation<TermId, bool> for TermObservation{
-    fn get_term(&self) -> &TermId {
-        return &self.term_id;
-    }
-    fn is_annotated_as(&self, is_excluded: bool) -> bool {
-        return self.is_excluded == is_excluded;
-    }
-}
+// impl TermAnnotation<TermId, bool> for TermObservation{
+//     fn get_term(&self) -> &TermId {
+//         return &self.term_id;
+//     }
+//     fn is_annotated_as(&self, is_excluded: bool) -> bool {
+//         return self.is_excluded == is_excluded;
+//     }
+// }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DgeState{
@@ -79,14 +83,14 @@ impl PartialEq for TermExpression {
     }
 }
 
-impl TermAnnotation<String, DgeState> for TermExpression{
-    fn get_term(&self) -> &String {
-        return &self.term_id;
-    }
-    fn is_annotated_as(&self, annotation_type: DgeState) -> bool {
-        return self.state == annotation_type;
-    }
-}
+// impl TermAnnotation<String, DgeState> for TermExpression{
+//     fn get_term(&self) -> &String {
+//         return &self.term_id;
+//     }
+//     fn is_annotated_as(&self, annotation_type: DgeState) -> bool {
+//         return self.state == annotation_type;
+//     }
+// }
 
 
 #[derive(Debug, Clone)]
@@ -108,7 +112,70 @@ impl Conjunction{
     pub fn len(&self) -> usize{
         return self.term_observations.len() + self.tissue_expressions.len();
     }
+
+    pub fn iter(&self) -> ConjunctionIterator{
+        ConjunctionIterator::new(self)
+    }
+
+    pub fn named_iter(&self) -> ConjunctionNamedIterator{
+        ConjunctionNamedIterator::new(self)
+    }
 }
+
+pub struct ConjunctionNamedIterator<'a>{
+    state: usize,
+    conjunction: &'a Conjunction,
+}
+
+impl<'a> ConjunctionNamedIterator<'a>{
+    pub fn new(conjunction: &'a Conjunction) -> Self{
+        Self{state: 0, conjunction: conjunction}
+    }
+}
+
+impl<'a> Iterator for ConjunctionNamedIterator<'a> {
+    type Item = (&'a str, &'a dyn Any);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let result = match self.state {
+            0 => Some(("term_observations", &self.conjunction.term_observations as &dyn Any)),
+            1 => Some(("tissue_expressions", &self.conjunction.tissue_expressions as &dyn Any)),
+            _ => None,
+        };
+
+        self.state += 1;
+        result
+    }
+}
+
+
+pub struct ConjunctionIterator<'a>{
+    state: usize,
+    conjunction: &'a Conjunction,
+}
+
+impl<'a> ConjunctionIterator<'a>{
+    pub fn new(conjunction: &'a Conjunction) -> Self{
+        Self{state: 0, conjunction: conjunction}
+    }
+}
+
+impl<'a> Iterator for ConjunctionIterator<'a> {
+    type Item = &'a dyn Any;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let result = match self.state {
+            0 => Some(&self.conjunction.term_observations as &dyn Any),
+            1 => Some(&self.conjunction.tissue_expressions as &dyn Any),
+            _ => None,
+        };
+
+        self.state += 1;
+        result
+    }
+}
+
+
 
 
 pub trait ConjunctionGenerator {
@@ -326,8 +393,26 @@ mod tests {
 
     }
 
-    // #[test]
-    // fn test_generate(){
-        
-    // }
+    #[test]
+    fn test_generate(){
+        let conj = Conjunction {
+            term_observations: vec![],
+            tissue_expressions: vec![],
+        };
+    
+        let mut iter = ConjunctionNamedIterator::new(&conj);
+    
+        while let Some((field_name, items)) = iter.next() {
+            print!("{}: ", field_name);
+            if let Some(v) = items.downcast_ref::<Vec<TermObservation>>() {
+                println!("Term Observations count = {:?}", v.len());
+            } else if let Some(v) = items.downcast_ref::<Vec<TermExpression>>() {
+                println!("Tissue Expressions count = {:?}", v.len());
+            } else {
+                println!("Unknown Type");
+            }
+        }
+
+
+    }
 }

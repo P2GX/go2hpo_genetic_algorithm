@@ -1,6 +1,7 @@
 use crate::genetic_algorithm::Solution;
 use rand::prelude::*;
-use crate::logical_formula::ConjunctionGenerator;
+use crate::logical_formula::{ConjunctionGenerator, DgeState, TermExpression};
+use gtex_analyzer::expression_analysis::GtexSummary;
 
 use ontolius::term::simple::SimpleMinimalTerm;
 use ontolius::{
@@ -21,11 +22,12 @@ pub trait Mutation<T> {
     fn mutate(&self, formula: &mut T);
 }
 
-pub struct ConjunctionMutation<O> {
-    go: O,
+pub struct ConjunctionMutation<'a, O> {
+    go: &'a O,
+    gtex: &'a GtexSummary,
 }
 
-impl<O> Mutation<Conjunction> for ConjunctionMutation<O>
+impl<O> Mutation<Conjunction> for ConjunctionMutation<'_, O>
 where
     O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
 {
@@ -40,13 +42,13 @@ where
             4 => self.toggle_term_status(formula),
             5 => self.delete_gene_expression_term(formula),
             6 => self.add_gene_expression_term(formula),
-            7 => self.mutate_with_child_term(formula),
+            7 => self.toggle_gene_expression_term(formula),
             _ => panic!("A random number outside of the range has been generated. No associated mutation"),
         }
     }
 }
 
-impl<O> ConjunctionMutation<O>
+impl<O> ConjunctionMutation<'_, O>
 where
     O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
 {
@@ -104,33 +106,57 @@ where
         }
     }
 
-    /// Toggle the status of a gene expression term from lo to hi or vice versa (And also of GO terms with is_excluded)
+    /// Toggle the status of GO terms with is_excluded
     pub fn toggle_term_status(&self, formula: &mut Conjunction) {
-        // Is it better to differentiate between GO terms and Gene Expression toggle mutations by
-        // creating two separate functions or should it be managed by only one function
 
-        // Toggle go terms
         let mut rng = rand::rng();
-        //if this function will manage the toggle of all the different kind of observations, the random number can be
-        // obtained from 0 to the length of ALL the annotation terms of the Conjunction
+
         let rnd_index = rng.random_range(0..formula.term_observations.len());
         let mut term_ob = formula
             .term_observations
             .get_mut(rnd_index)
             .expect("It should return a term");
         term_ob.is_excluded = !term_ob.is_excluded;
-        // To do also for the rest
-        todo!()
     }
 
     /// Delete a gene expression term
     pub fn delete_gene_expression_term(&self, formula: &mut Conjunction) {
-        todo!()
+        let mut rng = rand::rng();
+        let rnd_index = rng.random_range(0..formula.tissue_expressions.len());
+        formula.tissue_expressions.remove(rnd_index);
     }
     /// Add a gene expression term from a random tissue
     pub fn add_gene_expression_term(&self, formula: &mut Conjunction) {
-        todo!()
+        let mut rng = rand::rng();
+        let tissues = self.gtex.metadata.get_tissue_names();
+        
+        let rnd_index = rng.random_range(0..tissues.len());
+        
+        if let Some(tissue_name) = tissues.get(rnd_index){
+            let tissue_expr = TermExpression::new(tissue_name.clone(), DgeState::get_random());
+            formula.tissue_expressions.push(tissue_expr)
+        }
     }
+
+    // toggle of a gene expression term from lo to hi or vice versa
+    pub fn toggle_gene_expression_term(&self, formula: &mut Conjunction) {
+        let mut rng = rand::rng();
+        let rnd_index = rng.random_range(0..formula.tissue_expressions.len());
+        let mut tissue_term = formula.tissue_expressions.get_mut(rnd_index).expect("It should return a TermExpression");
+        
+        let dge_states = [DgeState::Down, DgeState::Normal, DgeState::Up];
+
+        let new_state = match tissue_term.state {
+            DgeState::Down =>  [DgeState::Normal, DgeState::Up].choose(&mut rng).expect("Should return one state"),
+            DgeState::Normal =>  [DgeState::Down, DgeState::Up].choose(&mut rng).expect("Should return one state"),
+            DgeState::Up =>  [DgeState::Normal, DgeState::Down].choose(&mut rng).expect("Should return one state"),
+        };
+
+        tissue_term.state =  new_state.clone();
+        
+    }
+
+    
 }
 
 pub struct SimpleDNFBitmaskMutation;
@@ -148,34 +174,34 @@ impl Mutation<DNFBitmask<'_>> for SimpleDNFBitmaskMutation {
 }
 
 
-pub struct SimpleDNFVecMutation<O, G> 
+pub struct SimpleDNFVecMutation<'a, O, G> 
 where 
 O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
 G: ConjunctionGenerator,
 {
-    conjunction_mutation: ConjunctionMutation<O>,
+    conjunction_mutation: ConjunctionMutation<'a, O>,
     conjunction_generator: G,
 }
 
 
-impl<O, G> Mutation<DNFVec> for SimpleDNFVecMutation<O, G>
+impl<'a, O, G> Mutation<DNFVec> for SimpleDNFVecMutation<'a, O, G>
 where
     O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
     G: ConjunctionGenerator, {
     fn mutate(&self, formula: &mut DNFVec) {
         let mut rng = rand::rng();
-        let rnd_num = rng.random_range(0..=7);
+        let rnd_num = rng.random_range(0..=2);
         match rnd_num {
             0 => self.mutate_conjunction(formula),
             1 => self.add_random_conjunction(formula),
             2 => self.remove_random_conjunction(formula),
-            _ => todo!(),
+            _ => panic!("A random number outside of the range has been generated. No associated mutation"),
         }
     }
 }
 
 
-impl<O, G> SimpleDNFVecMutation<O, G>
+impl<'a, O, G> SimpleDNFVecMutation<'a, O, G>
 where
     O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
     G: ConjunctionGenerator,

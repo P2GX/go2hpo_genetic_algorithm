@@ -171,8 +171,8 @@ mod tests {
 
     #[test]
     fn test_dnf_vec() {
-        let conjunction1 = Conjunction { term_observations: vec![] };
-        let conjunction2 = Conjunction { term_observations: vec![] };
+        let conjunction1 = Conjunction { term_observations: vec![], tissue_expressions: vec![] };
+        let conjunction2 = Conjunction { term_observations: vec![], tissue_expressions: vec![] };
 
         let mut dnf_vec = DNFVec::new();
         dnf_vec.activate_conjunction(conjunction1.clone()).unwrap();
@@ -185,8 +185,8 @@ mod tests {
 
     #[test]
     fn test_dnf_bitmask_valid_index() {
-        let conjunction1 = Conjunction { term_observations: vec![] };
-        let conjunction2 = Conjunction { term_observations: vec![] };
+        let conjunction1 = Conjunction { term_observations: vec![], tissue_expressions: vec![] };
+        let conjunction2 = Conjunction { term_observations: vec![], tissue_expressions: vec![] };
 
         let precomputed_conjunctions = [conjunction1, conjunction2];
         let mut dnf_bitmask = DNFBitmask::new(&precomputed_conjunctions);
@@ -200,8 +200,8 @@ mod tests {
 
     #[test]
     fn test_dnf_bitmask_invalid_index() {
-        let conjunction1 = Conjunction { term_observations: vec![] };
-        let conjunction2 = Conjunction { term_observations: vec![] };
+        let conjunction1 = Conjunction { term_observations: vec![], tissue_expressions: vec![] };
+        let conjunction2 = Conjunction { term_observations: vec![], tissue_expressions: vec![] };
 
         let precomputed_conjunctions = [conjunction1, conjunction2];
         let mut dnf_bitmask = DNFBitmask::new(&precomputed_conjunctions);

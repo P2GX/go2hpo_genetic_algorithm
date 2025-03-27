@@ -1,31 +1,28 @@
 use crate::{
-    logical_formula::{Conjunction, TermObservation},
-    logical_formula::{DNFBitmask, DNF},
+    logical_formula::Conjunction,
+    logical_formula::DNF,
     logical_formula::SatisfactionChecker,
 };
 
-use std::sync::atomic::Ordering;
 
 //Solution, Individual, Chromosome, GeneticIndividual, FormulaWrapper
 // It's just a wrapper over the formula (DNF or Conjunction) to avoid computing the same fitness function more than once 
 // and to keep track of the fitness score without the need of an additional vector
 //make it implement clone
 #[derive(Debug, Clone)]
-pub struct Solution<T: Clone> {
+pub struct Solution<T> {
     pub formula: T,
     score: f64,
 }
 
 
-impl<T> Solution<T>
-where
-T: Clone{
+impl<T> Solution<T>{
     pub fn new(formula: T, score: f64) -> Solution<T>{
         Solution {formula, score}
     }
 }
 
-impl<T: Clone> Solution<T> {
+impl<T> Solution<T> {
 
     pub fn get_score(&self) -> f64 {
         return self.score;
@@ -36,13 +33,13 @@ impl<T: Clone> Solution<T> {
     }
 }
 
-impl<T: Clone> PartialEq for Solution<T> {
+impl<T> PartialEq for Solution<T> {
     fn eq(&self, other: &Self) -> bool {
         self.score == other.score
     }
 }
 
-impl<T: Clone> PartialOrd for Solution<T> {
+impl<T> PartialOrd for Solution<T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.score.partial_cmp(&other.score)
     }
@@ -55,9 +52,7 @@ pub struct FormulaEvaluator<T>{
     scorer: Box<dyn FitnessScorer<T>>,
 }
 
-impl<T> FormulaEvaluator<T>
-where
-T: Clone{
+impl<T> FormulaEvaluator<T> {
     pub fn evaluate(&self, formula: T) -> Solution<T>{
         let score = self.scorer.fitness(&formula);
         Solution::new(formula, score)
@@ -71,7 +66,7 @@ pub trait FitnessScorer<T> {
     fn fitness(&self, formula: &T) -> f64;
 }
 
-pub struct DNFScorer<C: SatisfactionChecker> {
+pub struct DNFScorer<C> {
     checker: C,
 }
 
@@ -81,7 +76,7 @@ impl<C: SatisfactionChecker, T: DNF> FitnessScorer<T> for DNFScorer<C> {
     }
 }
 
-pub struct ConjunctionScorer<C: SatisfactionChecker> {
+pub struct ConjunctionScorer<C> {
     checker: C,
 }
 

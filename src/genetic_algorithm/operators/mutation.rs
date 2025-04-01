@@ -125,6 +125,7 @@ where
         let rnd_index = rng.random_range(0..formula.tissue_expressions.len());
         formula.tissue_expressions.remove(rnd_index);
     }
+    
     /// Add a gene expression term from a random tissue
     pub fn add_gene_expression_term(&self, formula: &mut Conjunction) {
         let mut rng = rand::rng();

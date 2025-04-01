@@ -26,7 +26,7 @@ pub trait Crossover<T> {
 
 
 pub struct ConjunctionCrossover{
-    parent1_fraction: f64, //0.5 for balanced feraction of the parents contribution on the offspring 
+    parent1_fraction: f64, //0.5 for balanced fraction of the parents contribution on the offspring 
 }
 
 impl ConjunctionCrossover{
@@ -76,59 +76,6 @@ impl Crossover<Conjunction> for ConjunctionCrossover{
         }
     }
 
-
-    // fn crossover(&self, parent1: &Conjunction, parent2: &Conjunction) -> Conjunction {
-        
-    //     let new_fields = parent1.iter()
-    //     .zip(parent2.iter())
-    //     .map(|(par1, par2)|{
-    //         if let Some(v1) = par1.downcast_ref::<Vec<TermObservation>>() {
-    //             if let Some(v2) = par2.downcast_ref::<Vec<TermObservation>>() {
-    //                 (v1, v2)
-    //             }else{
-    //                 panic!("Not Same Type");
-    //             }
-    //         } else if let Some(v1) = par1.downcast_ref::<Vec<TermExpression>>() {
-    //             if let Some(v2) = par2.downcast_ref::<Vec<TermObservation>>() {
-    //                 (v1, v2)
-    //             }else{
-    //                 panic!("Not Same Type");
-    //             }
-    //         } else {
-    //             panic!("Unknown Type");
-    //         }
-    //     })
-    //     .map(|(par1,par2)| self.field_crossover(par1, par2) );
-
-    //     // Conjunction {
-    //     //     term_observations: offspring_terms
-            
-    //     // }
-    //     todo!()
-    // }
-
-    // fn crossover(&self, parent1: &Conjunction, parent2: &Conjunction) -> Conjunction {
-    //     let mut rng = rand::rng();
-
-    //     let mut offspring_terms = Vec::new();
-        
-    //     let amount_parent1: usize = ((parent1.term_observations.len() as f64) * self.parent1_fraction).round() as usize;
-    //     let amount_parent2: usize = ((parent2.term_observations.len() as f64) * (1.0 - self.parent1_fraction)).round() as usize;
-
-
-    //     let terms_from_parent1 = parent1.term_observations.choose_multiple(&mut rng, amount_parent1);
-    //     let terms_from_parent2 = parent2.term_observations.choose_multiple(&mut rng, amount_parent2);
-
-    //     offspring_terms.extend(terms_from_parent1.cloned());
-    //     offspring_terms.extend(terms_from_parent2.cloned());
-        
-    //     todo!()
-
-    //     Conjunction {
-    //         term_observations: offspring_terms
-            
-    //     }
-    // }
 }
 
 pub struct DNFVecCrossover{

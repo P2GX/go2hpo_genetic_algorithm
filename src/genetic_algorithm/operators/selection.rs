@@ -31,6 +31,7 @@ pub trait Selection<T>
     fn select<'a>(&self, population: &'a Vec<Solution<T>>) -> &'a Solution<T>;
 }
 
+
 pub struct TournamentSelection{
     tournament_size: usize,
 }

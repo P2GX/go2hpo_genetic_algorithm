@@ -50,6 +50,7 @@ impl<T: Clone> GeneticAlgorithm<T> {
                 let mut offspring = self.crossover.crossover(&parent1, &parent2);
 
                 // Mutate with a certain probability
+                //TO DO: rand::random::<f64>() needs to be changed with a potentially deterministic random
                 if rand::random::<f64>() < self.mutation_rate {
                     self.mutation.mutate(&mut offspring);
                 }

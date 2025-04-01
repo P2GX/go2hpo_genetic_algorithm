@@ -1,4 +1,3 @@
-mod ga_operators;
 mod crossover;
 mod mutation;
 mod selection;

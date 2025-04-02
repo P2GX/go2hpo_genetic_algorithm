@@ -19,21 +19,22 @@ use crate::{
 
 // FORMULA MUTATION OPERATOR
 pub trait Mutation<T> {
-    fn mutate(&self, formula: &mut T);
+    fn mutate(&mut self, formula: &mut T);
 }
 
-pub struct ConjunctionMutation<'a, O> {
+pub struct ConjunctionMutation<'a, O, R: Rng> {
     go: &'a O,
     gtex: &'a GtexSummary,
+    rng: &'a mut R,
 }
 
-impl<O> Mutation<Conjunction> for ConjunctionMutation<'_, O>
+impl<O, R> Mutation<Conjunction> for ConjunctionMutation<'_, O, R>
 where
     O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
+    R: Rng,
 {
-    fn mutate(&self, formula: &mut Conjunction) {
-        let mut rng = rand::rng();
-        let rnd_num = rng.random_range(0..=7);
+    fn mutate(&mut self, formula: &mut Conjunction) {
+        let rnd_num = self.rng.random_range(0..=7);
         match rnd_num {
             0 => self.mutate_with_parent_term(formula),
             1 => self.mutate_with_child_term(formula),
@@ -48,15 +49,15 @@ where
     }
 }
 
-impl<O> ConjunctionMutation<'_, O>
+impl<O, R> ConjunctionMutation<'_, O, R>
 where
     O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
+    R: Rng,
 {
     /// Exchange an HPO term with a parent
-    pub fn mutate_with_parent_term(&self, formula: &mut Conjunction) {
+    pub fn mutate_with_parent_term(&mut self, formula: &mut Conjunction) {
         // Get a term from a random index. Maybe a more sophisticated way will be used in the future
-        let mut rng = rand::rng();
-        let rnd_index = rng.random_range(0..formula.term_observations.len());
+        let rnd_index = self.rng.random_range(0..formula.term_observations.len());
         let mut term_ob = formula
             .term_observations
             .get_mut(rnd_index)
@@ -66,15 +67,14 @@ where
         let parents_ids: Vec<&TermId> = self.go.iter_parent_ids(&term_ob.term_id).collect();
 
         // Select one of them randomly and subsitute it with the current termId in the formula
-        let rnd_index = rng.random_range(0..parents_ids.len());
+        let rnd_index = self.rng.random_range(0..parents_ids.len());
         term_ob.term_id = parents_ids.get(rnd_index).copied().unwrap().clone();
     }
 
     ///  Exchange an HPO term with one of its children
-    pub fn mutate_with_child_term(&self, formula: &mut Conjunction) {
+    pub fn mutate_with_child_term(&mut self, formula: &mut Conjunction) {
         // Get a term from a random index. Maybe a more sophisticated way will be used in the future
-        let mut rng = rand::rng();
-        let rnd_index = rng.random_range(0..formula.term_observations.len());
+        let rnd_index = self.rng.random_range(0..formula.term_observations.len());
         let mut term_ob = formula
             .term_observations
             .get_mut(rnd_index)
@@ -84,34 +84,30 @@ where
         let child_ids: Vec<&TermId> = self.go.iter_child_ids(&term_ob.term_id).collect();
 
         // Select one of them randomly and subsitute it with the current termId in the formula
-        let rnd_index = rng.random_range(0..child_ids.len());
+        let rnd_index = self.rng.random_range(0..child_ids.len());
         term_ob.term_id = child_ids.get(rnd_index).copied().unwrap().clone();
     }
 
     /// Delete an HPO term
-    pub fn delete_random_term(&self, formula: &mut Conjunction) {
+    pub fn delete_random_term(&mut self, formula: &mut Conjunction) {
         // Get a term from a random index. Maybe a more sophisticated way will be used in the future
-        let mut rng = rand::rng();
-        let rnd_index = rng.random_range(0..formula.term_observations.len());
+        let rnd_index = self.rng.random_range(0..formula.term_observations.len());
         formula.term_observations.remove(rnd_index);
     }
 
     /// Add a random HPO term
-    pub fn add_random_term(&self, formula: &mut Conjunction) {
-        let mut rng = rand::rng();
-        let rnd_index = rng.random_range(0..self.go.len());
+    pub fn add_random_term(&mut self, formula: &mut Conjunction) {
+        let rnd_index = self.rng.random_range(0..self.go.len());
         if let Some(new_term) = self.go.iter_term_ids().nth(rnd_index) {
-            let term_obs = TermObservation::new(new_term.clone(), rng.random_bool(0.5));
+            let term_obs = TermObservation::new(new_term.clone(), self.rng.random_bool(0.5));
             formula.term_observations.push(term_obs);
         }
     }
 
     /// Toggle the status of GO terms with is_excluded
-    pub fn toggle_term_status(&self, formula: &mut Conjunction) {
+    pub fn toggle_term_status(&mut self, formula: &mut Conjunction) {
 
-        let mut rng = rand::rng();
-
-        let rnd_index = rng.random_range(0..formula.term_observations.len());
+        let rnd_index = self.rng.random_range(0..formula.term_observations.len());
         let mut term_ob = formula
             .term_observations
             .get_mut(rnd_index)
@@ -120,18 +116,16 @@ where
     }
 
     /// Delete a gene expression term
-    pub fn delete_gene_expression_term(&self, formula: &mut Conjunction) {
-        let mut rng = rand::rng();
-        let rnd_index = rng.random_range(0..formula.tissue_expressions.len());
+    pub fn delete_gene_expression_term(&mut self, formula: &mut Conjunction) {
+        let rnd_index = self.rng.random_range(0..formula.tissue_expressions.len());
         formula.tissue_expressions.remove(rnd_index);
     }
-    
+
     /// Add a gene expression term from a random tissue
-    pub fn add_gene_expression_term(&self, formula: &mut Conjunction) {
-        let mut rng = rand::rng();
+    pub fn add_gene_expression_term(&mut self, formula: &mut Conjunction) {
         let tissues = self.gtex.metadata.get_tissue_names();
         
-        let rnd_index = rng.random_range(0..tissues.len());
+        let rnd_index = self.rng.random_range(0..tissues.len());
         
         if let Some(tissue_name) = tissues.get(rnd_index){
             let tissue_expr = TermExpression::new(tissue_name.clone(), DgeState::get_random());
@@ -140,17 +134,16 @@ where
     }
 
     // toggle of a gene expression term from lo to hi or vice versa
-    pub fn toggle_gene_expression_term(&self, formula: &mut Conjunction) {
-        let mut rng = rand::rng();
-        let rnd_index = rng.random_range(0..formula.tissue_expressions.len());
+    pub fn toggle_gene_expression_term(&mut self, formula: &mut Conjunction) {
+        let rnd_index = self.rng.random_range(0..formula.tissue_expressions.len());
         let mut tissue_term = formula.tissue_expressions.get_mut(rnd_index).expect("It should return a TermExpression");
         
         let dge_states = [DgeState::Down, DgeState::Normal, DgeState::Up];
 
         let new_state = match tissue_term.state {
-            DgeState::Down =>  [DgeState::Normal, DgeState::Up].choose(&mut rng).expect("Should return one state"),
-            DgeState::Normal =>  [DgeState::Down, DgeState::Up].choose(&mut rng).expect("Should return one state"),
-            DgeState::Up =>  [DgeState::Normal, DgeState::Down].choose(&mut rng).expect("Should return one state"),
+            DgeState::Down =>  [DgeState::Normal, DgeState::Up].choose(&mut self.rng).expect("Should return one state"),
+            DgeState::Normal =>  [DgeState::Down, DgeState::Up].choose(&mut self.rng).expect("Should return one state"),
+            DgeState::Up =>  [DgeState::Normal, DgeState::Down].choose(&mut self.rng).expect("Should return one state"),
         };
 
         tissue_term.state =  new_state.clone();
@@ -160,13 +153,14 @@ where
     
 }
 
-pub struct SimpleDNFBitmaskMutation;
+pub struct SimpleDNFBitmaskMutation<'a, R: Rng>{
+    rng: &'a mut R,
+}
 
-impl Mutation<DNFBitmask<'_>> for SimpleDNFBitmaskMutation {
-    fn mutate(&self, formula: &mut DNFBitmask) {
+impl<'a, R: Rng> Mutation<DNFBitmask<'_>> for SimpleDNFBitmaskMutation<'a, R> {
+    fn mutate(&mut self, formula: &mut DNFBitmask) {
         let n_conjunctions = formula.total_conjunctions_count();
-        let mut rng = rand::rng();
-        let rnd_index = rng.random_range(0..n_conjunctions);
+        let rnd_index = self.rng.random_range(0..n_conjunctions);
 
         formula
             .toggle_conjunction(rnd_index)
@@ -175,23 +169,25 @@ impl Mutation<DNFBitmask<'_>> for SimpleDNFBitmaskMutation {
 }
 
 
-pub struct SimpleDNFVecMutation<'a, O, G> 
+pub struct SimpleDNFVecMutation<'a, O, G, R> 
 where 
 O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
 G: ConjunctionGenerator,
+R: Rng,
 {
-    conjunction_mutation: ConjunctionMutation<'a, O>,
+    conjunction_mutation: ConjunctionMutation<'a, O, R>,
     conjunction_generator: G,
+    rng: &'a mut R,
 }
 
 
-impl<'a, O, G> Mutation<DNFVec> for SimpleDNFVecMutation<'a, O, G>
+impl<'a, O, G, R> Mutation<DNFVec> for SimpleDNFVecMutation<'a, O, G, R>
 where
     O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
-    G: ConjunctionGenerator, {
-    fn mutate(&self, formula: &mut DNFVec) {
-        let mut rng = rand::rng();
-        let rnd_num = rng.random_range(0..=2);
+    G: ConjunctionGenerator,
+    R: Rng, {
+    fn mutate(&mut self, formula: &mut DNFVec) {
+        let rnd_num = self.rng.random_range(0..=2);
         match rnd_num {
             0 => self.mutate_conjunction(formula),
             1 => self.add_random_conjunction(formula),
@@ -202,16 +198,16 @@ where
 }
 
 
-impl<'a, O, G> SimpleDNFVecMutation<'a, O, G>
+impl<'a, O, G, R> SimpleDNFVecMutation<'a, O, G, R>
 where
     O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
     G: ConjunctionGenerator,
+    R: Rng,
 {
     /// Choose one conjunction randomly and then modifies it with ConjunctionMutation
-    pub fn mutate_conjunction(&self, formula: &mut DNFVec) {
+    pub fn mutate_conjunction(&mut self, formula: &mut DNFVec) {
         let mut conjunctions = formula.get_mut_active_conjunctions();
-        let mut rng = rand::rng();
-        let rnd_index = rng.random_range(0..conjunctions.len());
+        let rnd_index = self.rng.random_range(0..conjunctions.len());
         let mut conjunction = conjunctions
             .get_mut(rnd_index)
             .expect("It should return a conjunction");
@@ -226,11 +222,10 @@ where
     }
 
     /// Removes a conjunction randommly
-    pub fn remove_random_conjunction(&self, formula: &mut DNFVec){
+    pub fn remove_random_conjunction(&mut self, formula: &mut DNFVec){
         //In a next implementation the probability of being removed might depend on the conjunction performance
         let mut conjunctions = formula.get_mut_active_conjunctions();
-        let mut rng = rand::rng();
-        let rnd_index = rng.random_range(0..conjunctions.len());
+        let rnd_index = self.rng.random_range(0..conjunctions.len());
         conjunctions.remove(rnd_index);
     }
 }
@@ -238,7 +233,7 @@ where
 pub struct BiasedDNFMutation;
 
 impl Mutation<DNFBitmask<'_>> for BiasedDNFMutation {
-    fn mutate(&self, formula: &mut DNFBitmask) {
+    fn mutate(&mut self, formula: &mut DNFBitmask) {
         todo!()
     }
 }

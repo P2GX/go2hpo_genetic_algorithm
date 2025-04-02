@@ -1,5 +1,7 @@
-use clap::Parser;
-use std::path::PathBuf;
+use flate2::bufread::GzDecoder;
+use std::{fs::File, hash::Hash, io::BufReader};
+
+use ontolius::io::OntologyLoaderBuilder;
 
 use ontolius::ontology::csr::MinimalCsrOntology;
 use go2hpo_genetic_algorithm::logical_formula::NaiveSatisfactionChecker;
@@ -52,7 +54,17 @@ fn test_gene_annotations () {
         }
     }
 
-    let checker : NaiveSatisfactionChecker<MinimalCsrOntology>;
+    
+    let go_path = "data/go/go.toy.json.gz";
+    let reader = GzDecoder::new(BufReader::new(
+        File::open(go_path).expect("The file should be in the repo"),
+    ));
+    
+    let loader = OntologyLoaderBuilder::new().obographs_parser().build();
+    let go: MinimalCsrOntology = loader
+    .load_from_read(reader)
+    .expect("Toy ontology should be OK");
 
+    // let checker : NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go, annot_map);
 
 }

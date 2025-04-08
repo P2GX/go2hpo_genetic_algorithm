@@ -1,10 +1,13 @@
+use rand::Rng;
+
 use super::base::{Solution, FitnessScorer, FormulaEvaluator}; //to change
 
 use super::operators::{Selection, Crossover, Mutation, ElitesSelector};
 
 
 //GeneticAlgorithm, GAEstimator
-pub struct GeneticAlgorithm<T> {
+pub struct GeneticAlgorithm<T, R> {
+    
     population: Vec<Solution<T>>,
     evaluator: FormulaEvaluator<T>,
     scorer: Box<dyn FitnessScorer<T>>, // probably this can be removed since there is FormulaEvaluator
@@ -14,9 +17,10 @@ pub struct GeneticAlgorithm<T> {
     elites_selector: Box<dyn ElitesSelector<T>>,
     mutation_rate: f64,
     generations: usize,
+    rng: R,
 }
 
-impl<T: Clone> GeneticAlgorithm<T> {
+impl<T: Clone, R: Rng> GeneticAlgorithm<T, R> {
     //TO DO: Two constructors:
     //      - One in which the initial population of solution is passed
     //      - One in which only the cardinality of the set of solutions per generation is passed (initizialize_population will be called)
@@ -51,7 +55,7 @@ impl<T: Clone> GeneticAlgorithm<T> {
 
                 // Mutate with a certain probability
                 //TO DO: rand::random::<f64>() needs to be changed with a potentially deterministic random
-                if rand::random::<f64>() < self.mutation_rate {
+                if self.rng.random::<f64>() < self.mutation_rate {
                     self.mutation.mutate(&mut offspring);
                 }
 

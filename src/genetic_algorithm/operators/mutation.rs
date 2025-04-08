@@ -128,7 +128,7 @@ where
         let rnd_index = self.rng.random_range(0..tissues.len());
         
         if let Some(tissue_name) = tissues.get(rnd_index){
-            let tissue_expr = TermExpression::new(tissue_name.clone(), DgeState::get_random());
+            let tissue_expr = TermExpression::new(tissue_name.clone(), DgeState::get_random(self.rng));
             formula.tissue_expressions.push(tissue_expr)
         }
     }
@@ -215,7 +215,7 @@ where
     }
 
     /// creates a new conjunction and assigns it to the formula
-    pub fn add_random_conjunction(&self, formula: &mut DNFVec) {
+    pub fn add_random_conjunction(&mut self, formula: &mut DNFVec) {
         // In a future implementatio the conjunction might be copied from one of the already existing and best performing
         let conjunction: Conjunction = self.conjunction_generator.generate();
         formula.activate_conjunction(conjunction).expect("The conjunction should be added without errors")

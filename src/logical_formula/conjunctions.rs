@@ -5,6 +5,7 @@ use std::{any::Any, collections::{HashMap, HashSet}};
 
 
 
+
 pub trait TermAnnotation{}
 // T should be TermId for TermObservation (GO) and a String (at the moment, maybe something more complicated in the future) for Gtex Expression Data
 // V should be a bool for TermObservation (GO) and an Enum {UP, DOWN, NORMAL} for GtexExpressionData
@@ -52,8 +53,8 @@ pub enum DgeState{
 }
 
 impl DgeState{
-    pub fn get_random() -> Self{
-        let mut rng = rand::rng();
+    pub fn get_random<R: Rng>(rng: &mut R) -> Self{
+        // let mut rng = rand::rng();
         let rnd_state_i  = rng.random_range(0..3);
         match  rnd_state_i{
             0 => DgeState::Down,
@@ -179,19 +180,23 @@ impl<'a> Iterator for ConjunctionIterator<'a> {
 
 
 pub trait ConjunctionGenerator {
-    fn generate(&self) -> Conjunction;
+    fn generate(&mut self) -> Conjunction;
 }
 
 /// Creates Conjunctions randomly that might have redundant terms
-pub struct RedundantRandomConjunctionGenerator<'a> {
+pub struct RedundantRandomConjunctionGenerator<'a, R> {
     n_go_terms: usize,
     go_terms: &'a Vec<TermId>,
     n_tissue_terms: usize,
     tissue_terms: &'a Vec<String>,
+    rng: R,
 }
 
-impl<'a> ConjunctionGenerator for RedundantRandomConjunctionGenerator<'a> {
-    fn generate(&self) -> Conjunction {
+impl<'a, R> ConjunctionGenerator for RedundantRandomConjunctionGenerator<'a, R> 
+where
+    R: Rng,
+{
+    fn generate(&mut self) -> Conjunction {
         let mut go_terms: Vec<TermObservation> = Vec::new();
         // Select go terms randomly
         for _ in 0..self.n_go_terms {
@@ -210,59 +215,63 @@ impl<'a> ConjunctionGenerator for RedundantRandomConjunctionGenerator<'a> {
     }
 }
 
-impl<'a> RedundantRandomConjunctionGenerator<'a> {
+impl<'a, R> RedundantRandomConjunctionGenerator<'a, R> 
+where 
+    R: Rng,
+{
     //randomly generate a TermObeservation
-    fn select_random_observation(&self) -> TermObservation {
+    fn select_random_observation(&mut self) -> TermObservation {
         //randomly pick a term
-        let mut rng = rand::rng();
-        let term_id = self.go_terms[rng.random_range(0..self.go_terms.len())].clone();
+        let term_id = self.go_terms[self.rng.random_range(0..self.go_terms.len())].clone();
         //randomly choose whether true or false
-        let is_excluded: bool = rng.random();
+        let is_excluded: bool = self.rng.random();
         return TermObservation::new(term_id, is_excluded);
     }
 
     //randomly generate a TermExpression
-    fn select_random_tissue_annot(&self) -> TermExpression {
-        let mut rng = rand::rng();
-        let term_id = self.tissue_terms[rng.random_range(0..self.tissue_terms.len())].clone();
+    fn select_random_tissue_annot(&mut self) -> TermExpression {
+        let term_id = self.tissue_terms[self.rng.random_range(0..self.tissue_terms.len())].clone();
 
-        let state = DgeState::get_random();
+        let state = DgeState::get_random(&mut self.rng);
 
         return TermExpression::new(term_id, state);
     }
 }
 
 /// Creates Conjunctions randomly whith non-repeating terms
-pub struct RandomConjunctionGenerator<'a> {
+pub struct RandomConjunctionGenerator<'a, R> {
     n_go_terms: usize,
     go_terms: &'a Vec<TermId>,
     n_tissue_terms: usize,
     tissue_terms: &'a Vec<String>,
+    rng: R,
 }
 
-impl<'a> ConjunctionGenerator for RandomConjunctionGenerator<'a> {
-    fn generate(&self) -> Conjunction {
-        let mut rng = rand::rng();
+impl<'a, R> ConjunctionGenerator for RandomConjunctionGenerator<'a, R> 
+where 
+    R: Rng,
+{
+    fn generate(&mut self) -> Conjunction {
 
         // Shuffle the annotation vectors
         let mut shuffled_go_terms = self.go_terms.clone();
-        shuffled_go_terms.shuffle(&mut rng);
+        shuffled_go_terms.shuffle(&mut self.rng);
 
         let mut shuffled_tissue_terms = self.tissue_terms.clone();
-        shuffled_tissue_terms.shuffle(&mut rng);
+        shuffled_tissue_terms.shuffle(&mut self.rng);
 
 
         // Take the first n according to the value specified in the relative field
         let chosen_go_terms: Vec<TermObservation> = shuffled_go_terms
             .iter()
             .take(self.n_go_terms)
-            .map(|term_id| TermObservation::new(term_id.clone(), rng.random()))
+            .map(|term_id| TermObservation::new(term_id.clone(), self.rng.random()))
             .collect();
 
         let chosen_tissues: Vec<TermExpression> = shuffled_tissue_terms
         .iter()
         .take(self.n_go_terms)
-        .map(|term_id| TermExpression::new(term_id.clone(), DgeState::get_random()))
+        .map(|term_id| TermExpression::new(term_id.clone(), DgeState::get_random(&mut self.rng)))
         .collect();
 
 
@@ -283,7 +292,7 @@ pub struct GenePickerConjunctionGenerator {
 }
 
 impl ConjunctionGenerator for GenePickerConjunctionGenerator {
-    fn generate(&self) -> Conjunction {
+    fn generate(&mut self) -> Conjunction {
         todo!();
     }
 }
@@ -294,6 +303,7 @@ impl ConjunctionGenerator for GenePickerConjunctionGenerator {
 mod tests {
     use super::*;
     use lazy_static::lazy_static;
+    use rand::rng;
 
     lazy_static! {
         static ref small_test_terms: Vec<TermId> = vec!["GO:0051146", "GO:0052693", "GO:0005634"]
@@ -311,11 +321,12 @@ mod tests {
     #[test]
     fn test_randomly_pick() {
         // let small_test_terms:Vec<TermId> = vec!["GO:0051146", "GO:0052693", "GO:0005634"].into_iter().map(|s| s.parse().unwrap()).collect();
-        let generator = RedundantRandomConjunctionGenerator {
+        let mut generator = RedundantRandomConjunctionGenerator {
             n_go_terms: 2,
             go_terms: &small_test_terms,
             n_tissue_terms: 2,
             tissue_terms: &small_test_tissues,
+            rng: rng(),
         };
 
         let observation = generator.select_random_observation();
@@ -337,11 +348,12 @@ mod tests {
 
     #[test]
     fn test_generate_redundant_random() {
-        let generator = RedundantRandomConjunctionGenerator {
+        let mut generator = RedundantRandomConjunctionGenerator {
             n_go_terms: 2,
             go_terms: &small_test_terms,
             n_tissue_terms: 2,
             tissue_terms: &small_test_tissues,
+            rng: rng(),
         };
         let conjunction: Conjunction = generator.generate();
         println!("{:?}", conjunction);
@@ -366,11 +378,12 @@ mod tests {
 
     #[test]
     fn test_generate_random() {
-        let generator = RedundantRandomConjunctionGenerator {
+        let mut generator = RedundantRandomConjunctionGenerator {
             n_go_terms: 2,
             go_terms: &small_test_terms,
             n_tissue_terms: 2,
             tissue_terms: &small_test_tissues,
+            rng: rng(), 
         };
         let conjunction: Conjunction = generator.generate();
         println!("{:?}", conjunction);

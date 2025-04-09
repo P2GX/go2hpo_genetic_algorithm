@@ -307,6 +307,7 @@ dependencies = [
  "flate2",
  "gtex_analyzer",
  "lazy_static",
+ "num",
  "oboannotation",
  "ontolius 0.5.2",
  "rand",

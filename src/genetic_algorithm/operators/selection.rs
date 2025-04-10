@@ -26,7 +26,7 @@ use crate::{
 //      RankSelection
 
 pub trait Selection<T> {
-    fn select<'a>(&mut self, population: &'a Vec<Solution<T>>) -> &'a Solution<T>;
+    fn select(&mut self, population: &Vec<Solution<T>>) -> Solution<T>;
 }
 
 pub struct TournamentSelection<'a, R: Rng> {
@@ -57,7 +57,7 @@ where
     T: Clone,
     R: Rng,
 {
-    fn select<'b>(&mut self, population: &'b Vec<Solution<T>>) -> &'b Solution<T> {
+    fn select(&mut self, population: & Vec<Solution<T>>) -> Solution<T>{
         let rand_index = self.rng.random_range(0..population.len());
         let mut best: &Solution<T> = population
             .get(rand_index)
@@ -73,132 +73,138 @@ where
                 best = opponent;
             }
         }
-
-        best
+        best.clone()
     }
 }
 
-pub struct RouletteWheelSelection<'a, R: Rng> {
+pub struct RouletteWheelSelection<'a, T, R: Rng> {
     rng: &'a mut R,
     transform: Box<dyn Fn(f64) -> f64>,
-    roulette_wheel: &'a mut RouletteWheel<f64>,
+    
+    ref_population: Option<*const Vec<Solution<T>>>,
+    scores: Vec<f64>,
+    tot: Option<f64>,
 }
 
-impl<'a, T, R> Selection<T> for RouletteWheelSelection<'a, R>
+impl<'a, T, R> Selection<T> for RouletteWheelSelection<'a,T,  R>
 where
     T: Clone,
     R: Rng,
 {
-    fn select<'b>(&mut self, population: &'b Vec<Solution<T>>) -> &'b Solution<T> {
+    fn select(&mut self, population: &Vec<Solution<T>>) -> Solution<T> 
+    {
+        if !self.is_population_same(population) {
+            self.initialize(population);
+        }
 
-        // check that the Roulette Wheel is initialized
-        match self.roulette_wheel.get_tot() {
-            Some(_) => {},
-            None => {
-                let scores: Vec<f64> = population
-                    .iter()
-                    .map(|sol| sol.get_score())
-                    .map(|score| (self.transform)(score))
-                    .collect();
-                self.roulette_wheel.initialize(scores);
-            }
-        };
-
-        let index = self.roulette_wheel.select_random_index(self.rng);
-        &population[index]
+        let index = self.select_random_index();
+        population[index].clone()
     }
 }
 
-impl<'a, R> RouletteWheelSelection<'a, R>
+impl<'a, T, R> RouletteWheelSelection<'a, T, R>
 where
     R: Rng,
 {
-    pub fn new(rng: &'a mut R, transform: Box<dyn Fn(f64) -> f64>, roulette_wheel: &'a mut RouletteWheel<f64>) -> Self {
-        Self { rng, transform, roulette_wheel }
+    pub fn new(rng: &'a mut R, transform: Box<dyn Fn(f64) -> f64>) -> Self {
+        Self { rng, transform, ref_population: None, scores: Vec::new(), tot: None}
     }
 
-    pub fn default(rng: &'a mut R, roulette_wheel: &'a mut RouletteWheel<f64>) -> Self {
+    pub fn default(rng: &'a mut R) -> Self {
         let identity = Box::new(|x: f64| x);
-        RouletteWheelSelection::new(rng, identity, roulette_wheel)
+        RouletteWheelSelection::new(rng, identity)
     }
+
+    pub fn initialize(&mut self, population: &Vec<Solution<T>>) {
+        self.ref_population = Some(population);
+        self.scores = population
+        .iter()
+        .map(|sol| sol.get_score())
+        .map(|score| (self.transform)(score))
+        .collect();
+        self.tot = Some(self.scores.iter().copied().sum());
+    }
+
+    // check if ref_population and population point to the same vector
+    pub fn is_population_same(&self, population: & Vec<Solution<T>>) -> bool {
+        match self.ref_population {
+            Some(ptr) => std::ptr::eq(ptr, population),
+            None => false,
+        }
+    }
+
+    fn select_random_index(&mut self) -> usize{
+        let mut threshold = self.rng.random_range(0.0..self.tot.expect("It should be Some"));
+
+        for (index, &score) in self.scores.iter().enumerate() {
+            threshold -= score;
+            if threshold <= 0.0 {
+                return index;
+            }
+        }
+        return (self.scores.len() - 1);
+    }
+    
 }
 
-pub struct RankSelection<'a, R: Rng> {
+pub struct RankSelection<'a, T, R: Rng> {
     rng: &'a mut R,
+
+    ref_population: Option<*const Vec<Solution<T>>>,
+    ranked_population: Option<Vec<Solution<T>>>,
+    tot: Option<usize>,
 }
 
-impl<'a, R, T> Selection<T> for RankSelection<'a, R>
+impl<'a, R, T> Selection<T> for RankSelection<'a, T, R>
 where
     T: Clone,
     R: Rng,
 {
-    fn select<'b>(&mut self, population: &'b Vec<Solution<T>>) -> &'b Solution<T> {
-        let mut ranked_population: Vec<_> = population.iter().collect();
-        ranked_population.sort_unstable_by(|a, b| {
+    fn select<'b>(&mut self, population: &'b Vec<Solution<T>>) -> Solution<T> {
+        if !self.is_population_same(population) {
+            self.initialize(population);
+        }
+
+        let mut threshold = self.rng.random_range(0..self.tot.expect("Tot should be Some"));
+        let ranked = self.ranked_population.as_ref().expect("ranked_population should be Some");
+        for (rank, sol) in ranked.iter().enumerate() {
+            threshold -= rank;
+            if threshold <= 0 {
+                return sol.clone();
+            }
+        }
+        ranked[ranked.len() - 1].clone()
+    }
+}
+
+impl<'a, T, R> RankSelection<'a, T, R>
+where 
+    R: Rng,
+    T: Clone,
+{
+    pub fn new(rng: &'a mut R) -> Self {
+        Self { rng: rng, ref_population: None, ranked_population: None, tot: None }
+    }
+
+    pub fn initialize(&mut self, population: &Vec<Solution<T>>) {
+        self.ref_population = Some(population);
+        
+        let mut ranked: Vec<Solution<T>> = population.iter().cloned().collect();
+        ranked.sort_unstable_by(|a, b| {
             a.get_score()
                 .partial_cmp(&b.get_score())
                 .expect("It should be possible to compare the values")
         });
+        self.ranked_population = Some(ranked);
 
-        // Sum of the first (ranked_population.len() - 1) natural numbers, which is the sum of all the indexes / ranks
-        let tot: usize = ((ranked_population.len() - 1) * ranked_population.len()) / 2;
+        self.tot = Some(((population.len() - 1) * population.len()) / 2);
+    }
 
-        let mut threshold = self.rng.random_range(0..tot);
-
-        for (rank, &sol) in ranked_population.iter().enumerate() {
-            threshold -= rank;
-            if threshold <= 0 {
-                return sol;
-            }
+    // check if ref_population and population point to the same vector
+    pub fn is_population_same(&self, population: &Vec<Solution<T>>) -> bool {
+        match self.ref_population {
+            Some(ptr) => std::ptr::eq(ptr, population),
+            None => false,
         }
-        &ranked_population[ranked_population.len() - 1]
-    }
-}
-
-pub struct RouletteWheel<T> {
-    scores: Vec<T>,
-    tot: Option<T>,
-}
-
-impl<T> RouletteWheel<T>
-where
-    T: Num + Copy + Sum<T> + PartialOrd + SampleUniform + SubAssign,
-{
-    pub fn new() -> Self {
-        RouletteWheel {
-            scores: Vec::new(),
-            tot: None,
-        }
-    }
-
-    pub fn get_tot(&self) -> Option<T> {
-        return self.tot;
-    }
-
-    pub fn initialize(&mut self, scores: Vec<T>) {
-        self.scores = scores;
-        self.tot = Some(self.scores.iter().copied().sum());
-    }
-
-    /// get the index of the randomly selected element
-    pub fn select_random_index<R: Rng>(&self, rng: &mut R) -> usize {
-        let total = self
-            .tot
-            .expect("Tot should be already initialized before calling select");
-
-        let mut threshold = rng.random_range(T::zero()..total);
-
-        for (index, &score) in self.scores.iter().enumerate() {
-            threshold -= score;
-            if threshold <= T::zero() {
-                return index;
-            }
-        }
-
-        return (self.scores.len() - 1);
-    }
-
-    pub fn get_scores(&self) -> &Vec<T> {
-        return &self.scores;
     }
 }

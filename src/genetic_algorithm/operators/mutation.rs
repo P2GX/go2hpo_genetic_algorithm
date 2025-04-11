@@ -1,6 +1,6 @@
 use crate::genetic_algorithm::Solution;
 use rand::prelude::*;
-use crate::logical_formula::{ConjunctionGenerator, DgeState, TermExpression};
+use crate::logical_formula::{ConjunctionGenerator, DgeState, TissueExpression};
 use gtex_analyzer::expression_analysis::GtexSummary;
 
 use ontolius::term::simple::SimpleMinimalTerm;
@@ -128,7 +128,7 @@ where
         let rnd_index = self.rng.random_range(0..tissues.len());
         
         if let Some(tissue_name) = tissues.get(rnd_index){
-            let tissue_expr = TermExpression::new(tissue_name.clone(), DgeState::get_random(self.rng));
+            let tissue_expr = TissueExpression::new(tissue_name.clone(), DgeState::get_random(self.rng));
             formula.tissue_expressions.push(tissue_expr)
         }
     }
@@ -136,7 +136,7 @@ where
     // toggle of a gene expression term from lo to hi or vice versa
     pub fn toggle_gene_expression_term(&mut self, formula: &mut Conjunction) {
         let rnd_index = self.rng.random_range(0..formula.tissue_expressions.len());
-        let mut tissue_term = formula.tissue_expressions.get_mut(rnd_index).expect("It should return a TermExpression");
+        let mut tissue_term = formula.tissue_expressions.get_mut(rnd_index).expect("It should return a TissueExpression");
         
         let dge_states = [DgeState::Down, DgeState::Normal, DgeState::Up];
 

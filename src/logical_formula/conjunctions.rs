@@ -66,25 +66,25 @@ impl DgeState{
 }
 
 #[derive(Debug, Clone)]
-pub struct TermExpression{
+pub struct TissueExpression{
     pub term_id: String,
     pub state: DgeState,
 }
 
-impl TermExpression {
+impl TissueExpression {
     pub fn new(term_id: String, state: DgeState) -> Self{
         Self {term_id, state}
     }
 }
 
-impl PartialEq for TermExpression {
+impl PartialEq for TissueExpression {
     fn eq(&self, other: &Self) -> bool {
         // Define custom equality criteria here
         self.term_id == other.term_id && self.state == other.state
     }
 }
 
-// impl TermAnnotation<String, DgeState> for TermExpression{
+// impl TermAnnotation<String, DgeState> for TissueExpression{
 //     fn get_term(&self) -> &String {
 //         return &self.term_id;
 //     }
@@ -97,7 +97,7 @@ impl PartialEq for TermExpression {
 #[derive(Debug, Clone)]
 pub struct Conjunction {
     pub term_observations: Vec<TermObservation>,
-    pub tissue_expressions: Vec<TermExpression>,
+    pub tissue_expressions: Vec<TissueExpression>,
 }
 
 impl PartialEq for Conjunction{
@@ -203,7 +203,7 @@ where
             go_terms.push(self.select_random_observation());
         }
 
-        let mut tissue_annots: Vec<TermExpression> = Vec::new();
+        let mut tissue_annots: Vec<TissueExpression> = Vec::new();
         // Select tissues annotations randomly
         for _ in 0..self.n_tissue_terms {
             tissue_annots.push(self.select_random_tissue_annot());
@@ -228,13 +228,13 @@ where
         return TermObservation::new(term_id, is_excluded);
     }
 
-    //randomly generate a TermExpression
-    fn select_random_tissue_annot(&mut self) -> TermExpression {
+    //randomly generate a TissueExpression
+    fn select_random_tissue_annot(&mut self) -> TissueExpression {
         let term_id = self.tissue_terms[self.rng.random_range(0..self.tissue_terms.len())].clone();
 
         let state = DgeState::get_random(&mut self.rng);
 
-        return TermExpression::new(term_id, state);
+        return TissueExpression::new(term_id, state);
     }
 }
 
@@ -268,10 +268,10 @@ where
             .map(|term_id| TermObservation::new(term_id.clone(), self.rng.random()))
             .collect();
 
-        let chosen_tissues: Vec<TermExpression> = shuffled_tissue_terms
+        let chosen_tissues: Vec<TissueExpression> = shuffled_tissue_terms
         .iter()
         .take(self.n_go_terms)
-        .map(|term_id| TermExpression::new(term_id.clone(), DgeState::get_random(&mut self.rng)))
+        .map(|term_id| TissueExpression::new(term_id.clone(), DgeState::get_random(&mut self.rng)))
         .collect();
 
 
@@ -419,7 +419,7 @@ mod tests {
             print!("{}: ", field_name);
             if let Some(v) = items.downcast_ref::<Vec<TermObservation>>() {
                 println!("Term Observations count = {:?}", v.len());
-            } else if let Some(v) = items.downcast_ref::<Vec<TermExpression>>() {
+            } else if let Some(v) = items.downcast_ref::<Vec<TissueExpression>>() {
                 println!("Tissue Expressions count = {:?}", v.len());
             } else {
                 println!("Unknown Type");

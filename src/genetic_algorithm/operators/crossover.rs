@@ -12,7 +12,7 @@ use ontolius::{
 
 
 use crate::{
-    logical_formula::{Conjunction, TermObservation, TermExpression, DgeState},
+    logical_formula::{Conjunction, TermObservation, TissueExpression, DgeState},
 };
 
 
@@ -225,8 +225,8 @@ fn test_crossover_field_correct_range() {
                 TermObservation { term_id: t2, is_excluded: true },
             ],
             tissue_expressions: vec![
-                TermExpression{ term_id: "Heart".to_string(), state: DgeState::Up},
-                TermExpression{ term_id: "Brain".to_string(), state: DgeState::Down}
+                TissueExpression{ term_id: "Heart".to_string(), state: DgeState::Up},
+                TissueExpression{ term_id: "Brain".to_string(), state: DgeState::Down}
             ],
         };
 
@@ -236,8 +236,8 @@ fn test_crossover_field_correct_range() {
                 TermObservation { term_id: t4, is_excluded: true },
             ],
             tissue_expressions: vec![
-                TermExpression{ term_id: "Liver".to_string(), state: DgeState::Up},
-                TermExpression{ term_id: "Brain".to_string(), state: DgeState::Up}
+                TissueExpression{ term_id: "Liver".to_string(), state: DgeState::Up},
+                TissueExpression{ term_id: "Brain".to_string(), state: DgeState::Up}
             ],
         };
         let mut rng = rng();
@@ -276,8 +276,8 @@ fn test_crossover_field_correct_range() {
                 TermObservation { term_id: t2, is_excluded: true },
             ],
             tissue_expressions: vec![
-                TermExpression{ term_id: "Heart".to_string(), state: DgeState::Up},
-                TermExpression{ term_id: "Brain".to_string(), state: DgeState::Down}
+                TissueExpression{ term_id: "Heart".to_string(), state: DgeState::Up},
+                TissueExpression{ term_id: "Brain".to_string(), state: DgeState::Down}
             ],
         };
 
@@ -287,7 +287,7 @@ fn test_crossover_field_correct_range() {
                 TermObservation { term_id: t4, is_excluded: true },
             ],
             tissue_expressions: vec![
-                TermExpression{ term_id: "Colon".to_string(), state: DgeState::Up}]
+                TissueExpression{ term_id: "Colon".to_string(), state: DgeState::Up}]
         };
 
         let mut rng = rng();

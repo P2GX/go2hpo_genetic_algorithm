@@ -155,6 +155,8 @@ pub struct RankSelection<'a, T, R: Rng> {
     tot: Option<usize>,
 }
 
+
+
 impl<'a, R, T> Selection<T> for RankSelection<'a, T, R>
 where
     T: Clone,

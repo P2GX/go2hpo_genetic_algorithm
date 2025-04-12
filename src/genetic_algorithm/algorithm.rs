@@ -12,8 +12,8 @@ pub struct GeneticAlgorithm<T, R> {
     evaluator: FormulaEvaluator<T>,
     scorer: Box<dyn FitnessScorer<T>>, // probably this can be removed since there is FormulaEvaluator
     selection: Box<dyn Selection<T>>,
-    crossover: Box<dyn Crossover<Solution<T>>>,
-    mutation: Box<dyn Mutation<Solution<T>>>,
+    crossover: Box<dyn Crossover<T>>,
+    mutation: Box<dyn Mutation<T>>,
     elites_selector: Box<dyn ElitesSelector<T>>,
     mutation_rate: f64,
     generations: usize,
@@ -51,12 +51,11 @@ impl<T: Clone, R: Rng> GeneticAlgorithm<T, R> {
                 // Selection and crossover
                 let parent1 = self.selection.select(&self.population);
                 let parent2 = self.selection.select(&self.population);
-                let mut offspring = self.crossover.crossover(&parent1, &parent2);
+                let mut new_formula = self.crossover.crossover(parent1.get_formula(), parent2.get_formula());
 
                 // Mutate with a certain probability
-                //TO DO: rand::random::<f64>() needs to be changed with a potentially deterministic random
                 if self.rng.random::<f64>() < self.mutation_rate {
-                    self.mutation.mutate(&mut offspring);
+                    self.mutation.mutate(&mut new_formula);
                 }
 
                 evolved_population.push(offspring);

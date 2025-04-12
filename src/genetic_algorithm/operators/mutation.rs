@@ -41,15 +41,15 @@ where
             2 => self.delete_random_term(formula),
             3 => self.add_random_term(formula),
             4 => self.toggle_term_status(formula),
-            5 => self.delete_gene_expression_term(formula),
-            6 => self.add_gene_expression_term(formula),
-            7 => self.toggle_gene_expression_term(formula),
+            5 => self.delete_tissue_expression_term(formula),
+            6 => self.add_tissue_expression_term(formula),
+            7 => self.toggle_tissue_expression_state(formula),
             _ => panic!("A random number outside of the range has been generated. No associated mutation"),
         }
     }
 }
 
-impl<O, R> ConjunctionMutation<'_, O, R>
+impl<'a, O, R> ConjunctionMutation<'a, O, R>
 where
     O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
     R: Rng,
@@ -116,13 +116,13 @@ where
     }
 
     /// Delete a gene expression term
-    pub fn delete_gene_expression_term(&mut self, formula: &mut Conjunction) {
+    pub fn delete_tissue_expression_term(&mut self, formula: &mut Conjunction) {
         let rnd_index = self.rng.random_range(0..formula.tissue_expressions.len());
         formula.tissue_expressions.remove(rnd_index);
     }
 
     /// Add a gene expression term from a random tissue
-    pub fn add_gene_expression_term(&mut self, formula: &mut Conjunction) {
+    pub fn add_tissue_expression_term(&mut self, formula: &mut Conjunction) {
         let tissues = self.gtex.metadata.get_tissue_names();
         
         let rnd_index = self.rng.random_range(0..tissues.len());
@@ -133,8 +133,8 @@ where
         }
     }
 
-    // toggle of a gene expression term from lo to hi or vice versa
-    pub fn toggle_gene_expression_term(&mut self, formula: &mut Conjunction) {
+    // toggle of a tissue expression state from lo to hi or vice versa
+    pub fn toggle_tissue_expression_state(&mut self, formula: &mut Conjunction) {
         let rnd_index = self.rng.random_range(0..formula.tissue_expressions.len());
         let mut tissue_term = formula.tissue_expressions.get_mut(rnd_index).expect("It should return a TissueExpression");
         

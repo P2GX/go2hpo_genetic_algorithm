@@ -11,6 +11,7 @@ pub trait DNF {
     fn len(&self) -> usize;
 }
 
+#[derive(Clone, Debug)]
 pub struct DNFVec {
     conjunctions: Vec<Conjunction>,
 }

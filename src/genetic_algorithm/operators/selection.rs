@@ -170,7 +170,7 @@ where
         let mut threshold = self.rng.random_range(0..self.tot.expect("Tot should be Some"));
         let ranked = self.ranked_population.as_ref().expect("ranked_population should be Some");
         for (rank, sol) in ranked.iter().enumerate() {
-            threshold -= rank;
+            threshold = threshold.saturating_sub(rank);
             if threshold <= 0 {
                 return sol.clone();
             }
@@ -209,4 +209,174 @@ where
             None => false,
         }
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::rngs::mock::StepRng;
+    use rand::rngs::SmallRng;
+
+    use rand::Rng;
+    use std::cell::RefCell;
+    use rand::distr::uniform;
+
+    #[test]
+    fn test_selection_solution_from_population_tournament() {  
+        let population: Vec<Solution<DNFVec>>  = (0..10)
+            .map(|i| i as f64 / 10.0)
+            .map(|fake_score| Solution::new(DNFVec::new(), fake_score))
+            .collect();
+        
+        // let mut rng = StepRng::new(1, 4); // deterministic
+        let mut rng = SmallRng::seed_from_u64(42);
+        // let mut rng = rand::rng(); // non deterministic
+        let mut selector = TournamentSelection::new(5, &mut rng);
+
+        let selected = selector.select(&population);
+        assert!(population.contains(&selected));
+    }
+
+    #[test]
+    fn test_selection_solution_from_population_roulette() {  
+        let population: Vec<Solution<DNFVec>>  = (0..10)
+            .map(|i| i as f64 / 10.0)
+            .map(|fake_score| Solution::new(DNFVec::new(), fake_score))
+            .collect();
+        
+        // let mut rng = StepRng::new(1, 4); // deterministic
+        let mut rng = SmallRng::seed_from_u64(42);
+        // let mut rng = rand::rng(); // non deterministic
+        let mut selector = RouletteWheelSelection::default(&mut rng);
+
+        let selected = selector.select(&population);
+        assert!(population.contains(&selected));
+    }
+
+    #[test]
+    fn test_selection_solution_from_population_rank() {  
+        let population: Vec<Solution<DNFVec>>  = (0..10)
+            .map(|i| i as f64 / 10.0)
+            .map(|fake_score| Solution::new(DNFVec::new(), fake_score))
+            .collect();
+        
+        // let mut rng = StepRng::new(1, 4); // deterministic
+        let mut rng = SmallRng::seed_from_u64(42);
+        // let mut rng = rand::rng(); // non deterministic
+        let mut selector = RankSelection::new(&mut rng);
+
+        let selected = selector.select(&population);
+        assert!(population.contains(&selected));
+    }
+
+    #[test]
+    fn test_selection_best_tournament(){
+        let predefined_seed = 42;
+        let tournament_size = 5;
+
+        let population: Vec<Solution<DNFVec>>  = (0..10)
+            .map(|i| i as f64 / 10.0)
+            .map(|fake_score| Solution::new(DNFVec::new(), fake_score))
+            .collect();
+        
+        let mut rng_pre = SmallRng::seed_from_u64(predefined_seed);
+        let mut max = 0;
+        for _ in (0..tournament_size){
+            let next_rand = rng_pre.random_range(0..population.len());
+            if next_rand > max{
+                max = next_rand;
+            }
+        }
+
+        let mut rng = SmallRng::seed_from_u64(predefined_seed);
+        let mut selector = TournamentSelection::new(tournament_size, &mut rng);
+        
+        let selected = selector.select(&population);
+        assert_eq!(selected.get_score(), max as f64 / 10.0)
+
+    }
+
+
+    #[test]
+    fn test_selection_best_roulette(){
+        let predefined_seed = 42;
+        let tournament_size = 5;
+
+        let population: Vec<Solution<DNFVec>>  = (0..10)
+            .map(|i| i as f64 / 10.0)
+            .map(|fake_score| Solution::new(DNFVec::new(), fake_score))
+            .collect();
+        
+        let mut rng_pre = SmallRng::seed_from_u64(predefined_seed);
+        let mut index = population.len() - 1;
+        let tot = population.iter().map(|sol| sol.get_score()).sum();
+        let mut threshold = rng_pre.random_range(0.0..tot);
+
+        let scores = population.iter().map(|sol| sol.get_score());
+        for (i, score) in scores.enumerate() {
+            threshold -= score;
+            if threshold <= 0.0 {
+                index = i;
+            }
+        }
+
+        let mut rng = SmallRng::seed_from_u64(predefined_seed);
+        let mut selector = RouletteWheelSelection::default( &mut rng);
+        
+        let selected = selector.select(&population);
+        assert_eq!(selected, population[index])
+
+    }
+
+
+    #[test]
+    fn test_selection_best_rank(){
+        let predefined_seed = 42;
+        let tournament_size = 5;
+
+        let population: Vec<Solution<DNFVec>>  = (0..10)
+            .map(|i| i as f64 / 10.0)
+            .map(|fake_score| Solution::new(DNFVec::new(), fake_score))
+            .collect();
+        
+        let mut ranked: Vec<Solution<DNFVec>> = population.iter().cloned().collect();
+        ranked.sort_unstable_by(|a, b| {
+                a.get_score()
+                    .partial_cmp(&b.get_score())
+                    .expect("It should be possible to compare the values")
+            });
+
+        let mut rng_pre = SmallRng::seed_from_u64(predefined_seed);
+        let mut choice  = ranked[ranked.len() - 1].clone();
+        let tot = ((ranked.len() - 1) * ranked.len()) / 2;
+        let mut threshold = rng_pre.random_range(0..tot);
+
+        for (rank, sol) in ranked.iter().enumerate() {
+            threshold = threshold.saturating_sub(rank);
+            if threshold <= 0 {
+                choice = sol.clone();
+                break;
+            }
+        }
+
+        let mut rng = SmallRng::seed_from_u64(predefined_seed);
+        let mut selector = RankSelection::new(&mut rng);
+        
+        let selected = selector.select(&population);
+        assert_eq!(selected, choice);
+
+    }
+
+
+    #[test]
+    fn test_panics_if_tournament_size_zero() {
+        let result = std::panic::catch_unwind(|| {
+            let mut rng = StepRng::new(0, 1);
+            TournamentSelection::new(0, &mut rng);
+        });
+        assert!(result.is_err());
+    }
+
+
 }

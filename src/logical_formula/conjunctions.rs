@@ -108,6 +108,11 @@ impl PartialEq for Conjunction{
 
 
 impl Conjunction{
+    
+    pub fn new() -> Self{
+        Self { term_observations: vec![], tissue_expressions: vec![] }
+    }
+    
     // Sum of all the annotation vectors
     /// Total length of all the annotation terms present in the conjunction
     pub fn len(&self) -> usize{

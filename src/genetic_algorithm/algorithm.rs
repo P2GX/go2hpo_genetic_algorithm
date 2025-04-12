@@ -58,6 +58,9 @@ impl<T: Clone, R: Rng> GeneticAlgorithm<T, R> {
                     self.mutation.mutate(&mut new_formula);
                 }
 
+                //Evaluate the the new formula
+                let offspring = self.evaluator.evaluate(new_formula);
+
                 evolved_population.push(offspring);
             }
 

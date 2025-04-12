@@ -179,6 +179,10 @@ where
     }
 }
 
+
+
+
+
 impl<'a, T, R> RankSelection<'a, T, R>
 where 
     R: Rng,
@@ -222,68 +226,64 @@ mod tests {
     use std::cell::RefCell;
     use rand::distr::uniform;
 
-    #[test]
-    fn test_selection_solution_from_population_tournament() {  
-        let population: Vec<Solution<DNFVec>>  = (0..10)
-            .map(|i| i as f64 / 10.0)
-            .map(|fake_score| Solution::new(DNFVec::new(), fake_score))
-            .collect();
+
+    use lazy_static::lazy_static;
+
+    lazy_static! {
+        static ref SMALL_POPULATION: Vec<Solution<DNFVec>>  = (0..10)
+        .map(|i| i as f64 / 10.0)
+        .map(|fake_score| Solution::new(DNFVec::new(), fake_score))
+        .collect();
+
+        static ref SEED_LIST: Vec<usize> = vec![2, 9, 12, 15, 17, 18, 21, 30, 42];
+    }
+  
+    // #[test]
+    fn test_selection_solution_from_population_tournament(seed: u64) {  
         
         // let mut rng = StepRng::new(1, 4); // deterministic
-        let mut rng = SmallRng::seed_from_u64(42);
+        let mut rng = SmallRng::seed_from_u64(seed);
         // let mut rng = rand::rng(); // non deterministic
         let mut selector = TournamentSelection::new(5, &mut rng);
 
-        let selected = selector.select(&population);
-        assert!(population.contains(&selected));
+        let selected = selector.select(&SMALL_POPULATION);
+        assert!(SMALL_POPULATION.contains(&selected));
     }
 
-    #[test]
-    fn test_selection_solution_from_population_roulette() {  
-        let population: Vec<Solution<DNFVec>>  = (0..10)
-            .map(|i| i as f64 / 10.0)
-            .map(|fake_score| Solution::new(DNFVec::new(), fake_score))
-            .collect();
+    // #[test]
+    fn test_selection_solution_from_population_roulette(seed: u64) {  
         
         // let mut rng = StepRng::new(1, 4); // deterministic
-        let mut rng = SmallRng::seed_from_u64(42);
+        let mut rng = SmallRng::seed_from_u64(seed);
         // let mut rng = rand::rng(); // non deterministic
         let mut selector = RouletteWheelSelection::default(&mut rng);
 
-        let selected = selector.select(&population);
-        assert!(population.contains(&selected));
+        let selected = selector.select(&SMALL_POPULATION);
+        assert!(SMALL_POPULATION.contains(&selected));
     }
 
-    #[test]
-    fn test_selection_solution_from_population_rank() {  
-        let population: Vec<Solution<DNFVec>>  = (0..10)
-            .map(|i| i as f64 / 10.0)
-            .map(|fake_score| Solution::new(DNFVec::new(), fake_score))
-            .collect();
-        
+    // #[test]
+    fn test_selection_solution_from_population_rank(seed: u64) {  
+                
         // let mut rng = StepRng::new(1, 4); // deterministic
-        let mut rng = SmallRng::seed_from_u64(42);
+        let mut rng = SmallRng::seed_from_u64(seed);
         // let mut rng = rand::rng(); // non deterministic
         let mut selector = RankSelection::new(&mut rng);
 
-        let selected = selector.select(&population);
-        assert!(population.contains(&selected));
+        let selected = selector.select(&SMALL_POPULATION);
+        assert!(SMALL_POPULATION.contains(&selected));
     }
 
-    #[test]
-    fn test_selection_best_tournament(){
-        let predefined_seed = 42;
+    // #[test]
+    fn test_selection_best_tournament(seed: u64){
+        let predefined_seed = seed;
         let tournament_size = 5;
 
-        let population: Vec<Solution<DNFVec>>  = (0..10)
-            .map(|i| i as f64 / 10.0)
-            .map(|fake_score| Solution::new(DNFVec::new(), fake_score))
-            .collect();
-        
+                
         let mut rng_pre = SmallRng::seed_from_u64(predefined_seed);
         let mut max = 0;
         for _ in (0..tournament_size){
-            let next_rand = rng_pre.random_range(0..population.len());
+            let next_rand = rng_pre.random_range(0..SMALL_POPULATION.len());
             if next_rand > max{
                 max = next_rand;
             }
@@ -292,55 +292,48 @@ mod tests {
         let mut rng = SmallRng::seed_from_u64(predefined_seed);
         let mut selector = TournamentSelection::new(tournament_size, &mut rng);
         
-        let selected = selector.select(&population);
+        let selected = selector.select(&SMALL_POPULATION);
         assert_eq!(selected.get_score(), max as f64 / 10.0)
 
     }
 
 
-    #[test]
-    fn test_selection_best_roulette(){
-        let predefined_seed = 42;
+    // #[test]
+    fn test_selection_best_roulette(seed: u64){
+        let predefined_seed = seed;
         let tournament_size = 5;
 
-        let population: Vec<Solution<DNFVec>>  = (0..10)
-            .map(|i| i as f64 / 10.0)
-            .map(|fake_score| Solution::new(DNFVec::new(), fake_score))
-            .collect();
-        
+                
         let mut rng_pre = SmallRng::seed_from_u64(predefined_seed);
-        let mut index = population.len() - 1;
-        let tot = population.iter().map(|sol| sol.get_score()).sum();
+        let mut index = SMALL_POPULATION.len() - 1;
+        let tot = SMALL_POPULATION.iter().map(|sol| sol.get_score()).sum();
         let mut threshold = rng_pre.random_range(0.0..tot);
 
-        let scores = population.iter().map(|sol| sol.get_score());
+        let scores = SMALL_POPULATION.iter().map(|sol| sol.get_score());
         for (i, score) in scores.enumerate() {
             threshold -= score;
             if threshold <= 0.0 {
                 index = i;
+                break;
             }
         }
 
         let mut rng = SmallRng::seed_from_u64(predefined_seed);
         let mut selector = RouletteWheelSelection::default( &mut rng);
         
-        let selected = selector.select(&population);
-        assert_eq!(selected, population[index])
+        let selected = selector.select(&SMALL_POPULATION);
+        assert_eq!(selected, SMALL_POPULATION[index])
 
     }
 
 
-    #[test]
-    fn test_selection_best_rank(){
-        let predefined_seed = 42;
+    // #[test]
+    fn test_selection_best_rank(seed: u64){
+        let predefined_seed = seed;
         let tournament_size = 5;
 
-        let population: Vec<Solution<DNFVec>>  = (0..10)
-            .map(|i| i as f64 / 10.0)
-            .map(|fake_score| Solution::new(DNFVec::new(), fake_score))
-            .collect();
-        
-        let mut ranked: Vec<Solution<DNFVec>> = population.iter().cloned().collect();
+                
+        let mut ranked: Vec<Solution<DNFVec>> = SMALL_POPULATION.iter().cloned().collect();
         ranked.sort_unstable_by(|a, b| {
                 a.get_score()
                     .partial_cmp(&b.get_score())
@@ -363,20 +356,90 @@ mod tests {
         let mut rng = SmallRng::seed_from_u64(predefined_seed);
         let mut selector = RankSelection::new(&mut rng);
         
-        let selected = selector.select(&population);
+        let selected = selector.select(&SMALL_POPULATION);
         assert_eq!(selected, choice);
 
     }
 
 
-    #[test]
-    fn test_panics_if_tournament_size_zero() {
+    // #[test]
+    fn test_panics_if_tournament_size_zero(seed: u64) {
         let result = std::panic::catch_unwind(|| {
-            let mut rng = StepRng::new(0, 1);
+            // let mut rng = StepRng::new(0, 1);
+            let mut rng = SmallRng::seed_from_u64(seed);
             TournamentSelection::new(0, &mut rng);
         });
         assert!(result.is_err());
     }
+
+
+    macro_rules! seed_test {
+        ($name:ident, $func:ident, $seed:expr) => {
+            #[test]
+            fn $name() {
+                $func($seed);
+            }
+        };
+    }
+
+
+    //test_selection_solution_from_population_tournament
+    seed_test!(test_selection_solution_from_population_tournament_9, test_selection_solution_from_population_tournament, 9);
+    seed_test!(test_selection_solution_from_population_tournament_12, test_selection_solution_from_population_tournament, 12);
+    seed_test!(test_selection_solution_from_population_tournament_15, test_selection_solution_from_population_tournament, 15);
+    seed_test!(test_selection_solution_from_population_tournament_18, test_selection_solution_from_population_tournament, 18);
+    seed_test!(test_selection_solution_from_population_tournament_30, test_selection_solution_from_population_tournament, 30);
+
+
+    //test_selection_solution_from_population_roulette
+    seed_test!(test_selection_solution_from_population_roulette_9, test_selection_solution_from_population_roulette, 9);
+    seed_test!(test_selection_solution_from_population_roulette_12, test_selection_solution_from_population_roulette, 12);
+    seed_test!(test_selection_solution_from_population_roulette_15, test_selection_solution_from_population_roulette, 15);
+    seed_test!(test_selection_solution_from_population_roulette_18, test_selection_solution_from_population_roulette, 18);
+    seed_test!(test_selection_solution_from_population_roulette_30, test_selection_solution_from_population_roulette, 30);
+
+
+    //test_selection_solution_from_population_rank
+    seed_test!(test_selection_solution_from_population_rank_9, test_selection_solution_from_population_rank, 9);
+    seed_test!(test_selection_solution_from_population_rank_12, test_selection_solution_from_population_rank, 12);
+    seed_test!(test_selection_solution_from_population_rank_15, test_selection_solution_from_population_rank, 15);
+    seed_test!(test_selection_solution_from_population_rank_18, test_selection_solution_from_population_rank, 18);
+    seed_test!(test_selection_solution_from_population_rank_30, test_selection_solution_from_population_rank, 30);
+
+
+    //test_selection_best_tournament
+    seed_test!(test_selection_best_tournament_9, test_selection_best_tournament, 9);
+    seed_test!(test_selection_best_tournament_12, test_selection_best_tournament, 12);
+    seed_test!(test_selection_best_tournament_15, test_selection_best_tournament, 15);
+    seed_test!(test_selection_best_tournament_18, test_selection_best_tournament, 18);
+    seed_test!(test_selection_best_tournament_30, test_selection_best_tournament, 30);   
+
+
+    //test_selection_best_roulette
+    seed_test!(test_selection_best_roulette_9, test_selection_best_roulette, 9);
+    seed_test!(test_selection_best_roulette_12, test_selection_best_roulette, 12);
+    seed_test!(test_selection_best_roulette_15, test_selection_best_roulette, 15);
+    seed_test!(test_selection_best_roulette_18, test_selection_best_roulette, 18);
+    seed_test!(test_selection_best_roulette_30, test_selection_best_roulette, 30);  
+
+    
+    //test_selection_best_rank
+    seed_test!(test_selection_best_rank_9, test_selection_best_rank, 9);
+    seed_test!(test_selection_best_rank_12, test_selection_best_rank, 12);
+    seed_test!(test_selection_best_rank_15, test_selection_best_rank, 15);
+    seed_test!(test_selection_best_rank_18, test_selection_best_rank, 18);
+    seed_test!(test_selection_best_rank_30, test_selection_best_rank, 30);  
+    
+
+    //test_panics_if_tournament_size_zero
+    seed_test!(test_panics_if_tournament_size_zero_9, test_panics_if_tournament_size_zero, 9);
+    seed_test!(test_panics_if_tournament_size_zero_12, test_panics_if_tournament_size_zero, 12);
+    seed_test!(test_panics_if_tournament_size_zero_15, test_panics_if_tournament_size_zero, 15);
+    seed_test!(test_panics_if_tournament_size_zero_18, test_panics_if_tournament_size_zero, 18);
+    seed_test!(test_panics_if_tournament_size_zero_30, test_panics_if_tournament_size_zero, 30);  
+    
+
+    
 
 
 }

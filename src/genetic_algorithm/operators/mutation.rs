@@ -150,6 +150,9 @@ where
         
     }
 
+    pub fn new(go: &'a O, gtex: &'a GtexSummary, rng: &'a mut R,) -> Self{
+        Self{go, gtex, rng}
+    }
     
 }
 
@@ -236,4 +239,88 @@ impl Mutation<DNFBitmask<'_>> for BiasedDNFMutation {
     fn mutate(&mut self, formula: &mut DNFBitmask) {
         todo!()
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use lazy_static::lazy_static;
+
+    use super::*;
+
+    use std::{fs::File, io::BufReader};
+
+    use flate2::bufread::GzDecoder;
+    use ontolius::{
+        io::OntologyLoaderBuilder,
+        ontology::csr::MinimalCsrOntology,
+    };
+
+    use ontolius::ontology::OntologyTerms;
+    use gtex_analyzer::expression_analysis::GtexSummaryLoader;
+
+
+    fn get_go() -> MinimalCsrOntology{
+        let go_path = "data/go/go.toy.json.gz";
+        let reader = GzDecoder::new(BufReader::new(
+            File::open(go_path).expect("The file should be in the repo"),
+        ));
+
+        let parser = OntologyLoaderBuilder::new().obographs_parser().build();
+        let go: MinimalCsrOntology = parser
+            .load_from_read(reader)
+            .expect("The ontology file should be OK");
+        go
+    }
+
+    fn get_gtex_summary() -> GtexSummary{
+        let file_path: &str = "data/gtex/GTEx_RNASeq_gene_median_tpm_HEAD.gct";
+
+        let file = File::open(file_path).expect("The gtex file should open");
+        let reader = BufReader::new(file);
+
+        let summary_loader = GtexSummaryLoader::new(Some(10), None);
+        let summary = summary_loader.load_summary(reader);
+        summary.unwrap()
+    }
+
+
+    #[test]
+    fn test_toggle_tissue_expression_state(){
+        let mut uber_rng = SmallRng::seed_from_u64(30);
+        let tiss_exprs : Vec<TissueExpression> = (0..10)
+                        .map(|i| (i,DgeState::get_random(&mut uber_rng)))
+                        .map(|(i, state)| TissueExpression::new(format!("tissue_{}", i), state))
+                        .collect();
+        let seed_list: Vec<u64> = vec![9, 12, 15, 18, 30];
+        for seed in seed_list{
+            let mut formula = Conjunction::new();
+            formula.tissue_expressions = tiss_exprs.clone();
+            let go = get_go(); 
+            let gtex =  get_gtex_summary();
+            let mut rng = SmallRng::seed_from_u64(seed);
+            let mut conjunction_mutation = ConjunctionMutation::new(&go, &gtex, &mut rng);
+            
+    
+    
+            let mut rng_twin = SmallRng::seed_from_u64(seed);
+            let rnd_index = rng_twin.random_range(0..formula.tissue_expressions.len());
+            
+            // let tissue_expr = formula.tissue_expressions.get(rnd_index).expect("It should be Some").clone();
+            
+            conjunction_mutation.toggle_tissue_expression_state(&mut formula);
+            
+            for i in (0..tiss_exprs.len()){
+                if i == rnd_index{
+                    assert_ne!(tiss_exprs.get(rnd_index).expect("It should be Some").state,formula.tissue_expressions.get(rnd_index).expect("it should be Some").state)
+                }else{
+                    assert_eq!(tiss_exprs.get(i).expect("It should be Some").state,formula.tissue_expressions.get(i).expect("it should be Some").state)
+                }
+            }
+        }
+        
+    }
+
+
+
 }

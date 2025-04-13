@@ -245,6 +245,7 @@ impl Mutation<DNFBitmask<'_>> for BiasedDNFMutation {
 #[cfg(test)]
 mod tests {
     use lazy_static::lazy_static;
+    use num::Saturating;
 
     use super::*;
 
@@ -253,12 +254,24 @@ mod tests {
     use flate2::bufread::GzDecoder;
     use ontolius::{
         io::OntologyLoaderBuilder,
-        ontology::csr::MinimalCsrOntology,
+        ontology::csr::{CsrOntology, MinimalCsrOntology},
     };
 
-    use ontolius::ontology::OntologyTerms;
+    // use ontolius::ontology::OntologyTerms;
     use gtex_analyzer::expression_analysis::GtexSummaryLoader;
 
+
+    lazy_static! {
+        // static ref GO: ontolius::ontology::csr::CsrOntology<u32, SimpleMinimalTerm> = get_go(); 
+        static ref small_test_terms: Vec<TermId> = vec!["GO:0051146", "GO:0052693", "GO:0005634"]
+            .into_iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        static ref GTEX: GtexSummary =  get_gtex_summary();
+        static ref SMALL_TISS_EXPR_LIST: Vec<TissueExpression> = get_tissue_express_vec(30, 10);
+        static ref SMALL_TERM_OBS_LIST: Vec<TermObservation> = get_term_obs_vec(30, 10, small_test_terms.to_vec());
+        static ref SEED_LIST: Vec<u64> = vec![9, 12, 15, 18, 30];
+    }
 
     fn get_go() -> MinimalCsrOntology{
         let go_path = "data/go/go.toy.json.gz";
@@ -284,40 +297,142 @@ mod tests {
         summary.unwrap()
     }
 
-
-    #[test]
-    fn test_toggle_tissue_expression_state(){
-        let mut uber_rng = SmallRng::seed_from_u64(30);
-        let tiss_exprs : Vec<TissueExpression> = (0..10)
+    fn get_tissue_express_vec(seed: u64, size: usize) -> Vec<TissueExpression>{
+        let mut uber_rng = SmallRng::seed_from_u64(seed);
+        let tiss_exprs : Vec<TissueExpression> = (0..size)
                         .map(|i| (i,DgeState::get_random(&mut uber_rng)))
                         .map(|(i, state)| TissueExpression::new(format!("tissue_{}", i), state))
                         .collect();
-        let seed_list: Vec<u64> = vec![9, 12, 15, 18, 30];
-        for seed in seed_list{
+        tiss_exprs
+    }
+
+    fn get_term_obs_vec(seed: u64, size: usize, term_ids: Vec<TermId>) -> Vec<TermObservation>{
+        let mut uber_rng = SmallRng::seed_from_u64(seed);
+        let mut term_chooser = SmallRng::seed_from_u64(seed);
+        let term_obs : Vec<TermObservation> = (0..size)
+                        .map(|i| (i, uber_rng.random_bool(0.5)))
+                        .map(|(i, state)| TermObservation::new(term_ids.choose(&mut term_chooser).unwrap().clone(), state))
+                        .collect();
+        term_obs
+    }
+
+
+    #[test]
+    fn test_toggle_tissue_expression_state(){
+        let go = get_go(); 
+        for seed in SEED_LIST.to_vec(){
             let mut formula = Conjunction::new();
-            formula.tissue_expressions = tiss_exprs.clone();
-            let go = get_go(); 
-            let gtex =  get_gtex_summary();
+            formula.tissue_expressions = SMALL_TISS_EXPR_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
-            let mut conjunction_mutation = ConjunctionMutation::new(&go, &gtex, &mut rng);
-            
-    
+            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, &mut rng);
     
             let mut rng_twin = SmallRng::seed_from_u64(seed);
             let rnd_index = rng_twin.random_range(0..formula.tissue_expressions.len());
             
-            // let tissue_expr = formula.tissue_expressions.get(rnd_index).expect("It should be Some").clone();
-            
             conjunction_mutation.toggle_tissue_expression_state(&mut formula);
             
-            for i in (0..tiss_exprs.len()){
+            for i in (0..SMALL_TISS_EXPR_LIST.len()){
                 if i == rnd_index{
-                    assert_ne!(tiss_exprs.get(rnd_index).expect("It should be Some").state,formula.tissue_expressions.get(rnd_index).expect("it should be Some").state)
+                    assert_ne!(SMALL_TISS_EXPR_LIST.get(rnd_index).expect("It should be Some").state,formula.tissue_expressions.get(rnd_index).expect("it should be Some").state)
                 }else{
-                    assert_eq!(tiss_exprs.get(i).expect("It should be Some").state,formula.tissue_expressions.get(i).expect("it should be Some").state)
+                    assert_eq!(SMALL_TISS_EXPR_LIST.get(i).expect("It should be Some").state,formula.tissue_expressions.get(i).expect("it should be Some").state)
                 }
             }
         }
+        
+    }
+
+    #[test]
+    fn test_add_tissue_expression_term(){
+        let go = get_go(); 
+        for seed in SEED_LIST.to_vec(){
+            let mut formula = Conjunction::new();
+            formula.tissue_expressions = SMALL_TISS_EXPR_LIST.clone();
+            let mut rng = SmallRng::seed_from_u64(seed);
+            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, &mut rng);
+            
+            conjunction_mutation.add_tissue_expression_term(&mut formula);
+            
+            assert_eq!(SMALL_TISS_EXPR_LIST.len() + 1, formula.tissue_expressions.len())
+        }
+    }
+
+    #[test]
+    fn test_delete_tissue_expression_term(){
+        let go = get_go(); 
+        for seed in SEED_LIST.to_vec(){
+            let mut formula = Conjunction::new();
+            formula.tissue_expressions = SMALL_TISS_EXPR_LIST.clone();
+            let mut rng = SmallRng::seed_from_u64(seed);
+            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, &mut rng);
+            
+            conjunction_mutation.delete_tissue_expression_term(&mut formula);
+            
+            assert_eq!(SMALL_TISS_EXPR_LIST.len().saturating_sub(1), formula.tissue_expressions.len())
+        }
+    }
+
+    #[test]
+    fn test_toggle_term_status(){
+        let go = get_go(); 
+        for seed in SEED_LIST.to_vec(){
+            let mut formula = Conjunction::new();
+            formula.term_observations = SMALL_TERM_OBS_LIST.clone();
+            let mut rng = SmallRng::seed_from_u64(seed);
+            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, &mut rng);
+    
+            let mut rng_twin = SmallRng::seed_from_u64(seed);
+            let rnd_index = rng_twin.random_range(0..formula.term_observations.len());
+            
+            conjunction_mutation.toggle_term_status(&mut formula);
+            
+            for i in (0..SMALL_TERM_OBS_LIST.len()){
+                if i == rnd_index{
+                    assert_ne!(SMALL_TERM_OBS_LIST.get(rnd_index).expect("It should be Some").is_excluded, formula.term_observations.get(rnd_index).expect("it should be Some").is_excluded)
+                }else{
+                    assert_eq!(SMALL_TERM_OBS_LIST.get(i).expect("It should be Some").is_excluded, formula.term_observations.get(i).expect("it should be Some").is_excluded)
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_add_random_term(){
+        let go = get_go(); 
+        for seed in SEED_LIST.to_vec(){
+            let mut formula = Conjunction::new();
+            formula.term_observations = SMALL_TERM_OBS_LIST.clone();
+            let mut rng = SmallRng::seed_from_u64(seed);
+            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, &mut rng);
+                
+            conjunction_mutation.add_random_term(&mut formula);
+            
+            assert_eq!(SMALL_TERM_OBS_LIST.len() + 1, formula.term_observations.len())
+        }
+    }
+
+    #[test]
+    fn test_delete_random_term(){
+        let go = get_go(); 
+        for seed in SEED_LIST.to_vec(){
+            let mut formula = Conjunction::new();
+            formula.term_observations = SMALL_TERM_OBS_LIST.clone();
+            let mut rng = SmallRng::seed_from_u64(seed);
+            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, &mut rng);
+            
+            conjunction_mutation.delete_random_term(&mut formula);
+            
+            assert_eq!(SMALL_TERM_OBS_LIST.len().saturating_sub(1), formula.term_observations.len())
+        }
+    }
+
+    #[test]
+    fn test_mutate_with_child_term(){
+        
+    }
+
+    #[test]
+    fn test_mutate_with_parent_term(){
         
     }
 

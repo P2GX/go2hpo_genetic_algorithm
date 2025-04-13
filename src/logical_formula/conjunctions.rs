@@ -36,6 +36,7 @@ impl PartialEq for TermObservation {
     }
 }
 
+
 // impl TermAnnotation<TermId, bool> for TermObservation{
 //     fn get_term(&self) -> &TermId {
 //         return &self.term_id;

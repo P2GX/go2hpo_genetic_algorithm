@@ -3,6 +3,7 @@ use rand::Rng;
 use super::base::{Solution, FitnessScorer, FormulaEvaluator}; //to change
 
 use super::operators::{Selection, Crossover, Mutation, ElitesSelector};
+use crate::logical_formula::FormulaGenerator;
 
 
 //GeneticAlgorithm, GAEstimator
@@ -15,6 +16,7 @@ pub struct GeneticAlgorithm<T, R> {
     crossover: Box<dyn Crossover<T>>,
     mutation: Box<dyn Mutation<T>>,
     elites_selector: Box<dyn ElitesSelector<T>>,
+    formula_generator: Box<dyn FormulaGenerator<Output = T>>,
     mutation_rate: f64,
     generations: usize,
     rng: R,
@@ -23,10 +25,14 @@ pub struct GeneticAlgorithm<T, R> {
 impl<T: Clone, R: Rng> GeneticAlgorithm<T, R> {
     //TO DO: Two constructors:
     //      - One in which the initial population of solution is passed
-    //      - One in which only the cardinality of the set of solutions per generation is passed (initizialize_population will be called)
+    //      - One in which only the population size is passed (initizialize_population will be called)
 
     pub fn initialize_population(&mut self, len: usize) -> Result<(), String> {
-        todo!()
+        self.population = (0..len)
+                        .map(|_| self.formula_generator.generate())
+                        .map(|formula| self.evaluator.evaluate(formula))
+                        .collect();
+        Ok(())
     }
 
     pub fn fit(&mut self) -> Solution<T> {

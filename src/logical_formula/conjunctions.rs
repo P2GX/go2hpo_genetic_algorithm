@@ -275,10 +275,10 @@ where
             .collect();
 
         let chosen_tissues: Vec<TissueExpression> = shuffled_tissue_terms
-        .iter()
-        .take(self.n_go_terms)
-        .map(|term_id| TissueExpression::new(term_id.clone(), DgeState::get_random(&mut self.rng)))
-        .collect();
+            .iter()
+            .take(self.n_go_terms)
+            .map(|term_id| TissueExpression::new(term_id.clone(), DgeState::get_random(&mut self.rng)))
+            .collect();
 
 
         Conjunction {
@@ -352,46 +352,8 @@ mod tests {
 
     }
 
-    #[test]
-    fn test_generate_redundant_random() {
-        let mut generator = RedundantRandomConjunctionGenerator {
-            n_go_terms: 2,
-            go_terms: &small_test_terms,
-            n_tissue_terms: 2,
-            tissue_terms: &small_test_tissues,
-            rng: rng(),
-        };
-        let conjunction: Conjunction = generator.generate();
-        println!("{:?}", conjunction);
-
-        assert_eq!(conjunction.len(), 4, "The real number of terms differs from the expected one");
-        
-        for term_obs in conjunction.term_observations.iter(){
-            assert!(
-                small_test_terms.contains(&term_obs.term_id),
-                "Term ID is not in the list"
-            );
-        }
-
-        for tissue_term in conjunction.tissue_expressions{
-            assert!(
-                small_test_tissues.contains(&tissue_term.term_id),
-                "Term ID is not in the list"
-            );
-        }
-
-    }
-
-    #[test]
-    fn test_generate_random() {
-        let mut generator = RedundantRandomConjunctionGenerator {
-            n_go_terms: 2,
-            go_terms: &small_test_terms,
-            n_tissue_terms: 2,
-            tissue_terms: &small_test_tissues,
-            rng: rng(), 
-        };
-        let conjunction: Conjunction = generator.generate();
+    fn _test_generate_random_conjunction<T: ConjunctionGenerator>(conjunction_generator: &mut T){
+        let conjunction: Conjunction = conjunction_generator.generate();
         println!("{:?}", conjunction);
 
         assert_eq!(conjunction.len(), 4, "The real number of terms differs from the expected one");
@@ -409,7 +371,30 @@ mod tests {
                 "Term ID is not in the list"
             );
         }
+    }
 
+    #[test]
+    fn test_generate_random_conjunction_redundant() {
+        let mut generator = RedundantRandomConjunctionGenerator {
+            n_go_terms: 2,
+            go_terms: &small_test_terms,
+            n_tissue_terms: 2,
+            tissue_terms: &small_test_tissues,
+            rng: rng(), 
+        };
+        _test_generate_random_conjunction(&mut generator);
+    }
+
+    #[test]
+    fn test_generate_random_conjunction() {
+        let mut generator = RandomConjunctionGenerator {
+            n_go_terms: 2,
+            go_terms: &small_test_terms,
+            n_tissue_terms: 2,
+            tissue_terms: &small_test_tissues,
+            rng: rng(), 
+        };
+        _test_generate_random_conjunction(&mut generator);
     }
 
     #[test]

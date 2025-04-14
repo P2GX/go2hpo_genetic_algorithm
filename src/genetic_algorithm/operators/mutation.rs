@@ -64,11 +64,13 @@ where
             .expect("It should return a term");
 
         // Get the parents' term IDs, I collect them to know the length without consuming it
-        let parents_ids: Vec<&TermId> = self.go.iter_parent_ids(&term_ob.term_id).collect();
+        let parents_ids: Vec<&TermId> = self.go.iter_parent_ids(&term_ob.term_id).collect(); //or go.iter_ancestor_ids(term)
 
-        // Select one of them randomly and subsitute it with the current termId in the formula
-        let rnd_index = self.rng.random_range(0..parents_ids.len());
-        term_ob.term_id = parents_ids.get(rnd_index).copied().unwrap().clone();
+        if parents_ids.len() > 0{
+            // Select one of them randomly and subsitute it with the current termId in the formula
+            let rnd_index = self.rng.random_range(0..parents_ids.len());
+            term_ob.term_id = parents_ids.get(rnd_index).copied().unwrap().clone();
+        }
     }
 
     ///  Exchange an HPO term with one of its children
@@ -80,12 +82,14 @@ where
             .get_mut(rnd_index)
             .expect("It should return a term");
 
-        // Get the parents' term IDs, I collect them to know the length without consuming it
-        let child_ids: Vec<&TermId> = self.go.iter_child_ids(&term_ob.term_id).collect();
+        // Get the childrens' term IDs, I collect them to know the length without consuming it
+        let child_ids: Vec<&TermId> = self.go.iter_child_ids(&term_ob.term_id).collect(); //or go.iter_descendant_ids(term)
 
-        // Select one of them randomly and subsitute it with the current termId in the formula
-        let rnd_index = self.rng.random_range(0..child_ids.len());
-        term_ob.term_id = child_ids.get(rnd_index).copied().unwrap().clone();
+        if child_ids.len() > 0{   
+            // Select one of them randomly and subsitute it with the current termId in the formula
+            let rnd_index = self.rng.random_range(0..child_ids.len());
+            term_ob.term_id = child_ids.get(rnd_index).copied().unwrap().clone();
+        }
     }
 
     /// Delete an HPO term
@@ -254,7 +258,7 @@ mod tests {
     use flate2::bufread::GzDecoder;
     use ontolius::{
         io::OntologyLoaderBuilder,
-        ontology::csr::{CsrOntology, MinimalCsrOntology},
+        ontology::{csr::{CsrOntology, MinimalCsrOntology}, HierarchyQueries},
     };
 
     // use ontolius::ontology::OntologyTerms;
@@ -263,7 +267,7 @@ mod tests {
 
     lazy_static! {
         // static ref GO: ontolius::ontology::csr::CsrOntology<u32, SimpleMinimalTerm> = get_go(); 
-        static ref small_test_terms: Vec<TermId> = vec!["GO:0051146", "GO:0052693", "GO:0005634"]
+        static ref small_test_terms: Vec<TermId> = vec!["GO:0048856","GO:0110165","GO:0051146", "GO:0042692","GO:0052693", "GO:0030154","GO:0005634"]
             .into_iter()
             .map(|s| s.parse().unwrap())
             .collect();
@@ -374,7 +378,7 @@ mod tests {
 
     #[test]
     fn test_toggle_term_status(){
-        let go = get_go(); 
+        let go: MinimalCsrOntology = get_go(); 
         for seed in SEED_LIST.to_vec(){
             let mut formula = Conjunction::new();
             formula.term_observations = SMALL_TERM_OBS_LIST.clone();
@@ -428,12 +432,115 @@ mod tests {
 
     #[test]
     fn test_mutate_with_child_term(){
-        
+        let go: MinimalCsrOntology = get_go(); 
+        for seed in SEED_LIST.to_vec(){
+            let mut formula = Conjunction::new();
+            formula.term_observations = SMALL_TERM_OBS_LIST.clone();
+            let mut rng = SmallRng::seed_from_u64(seed);
+            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, &mut rng);
+    
+            let mut rng_twin = SmallRng::seed_from_u64(seed);
+            let rnd_index = rng_twin.random_range(0..formula.term_observations.len());
+            
+            conjunction_mutation.mutate_with_child_term(&mut formula);
+            
+            for i in (0..SMALL_TERM_OBS_LIST.len()){
+                if i == rnd_index{
+                    let parent = SMALL_TERM_OBS_LIST.get(rnd_index).expect("It should be Some").term_id.clone();
+                    let children_ids: Vec<&TermId> = go.iter_child_ids(&parent).collect();
+                    if children_ids.len() > 0{
+                        let child = formula.term_observations.get(rnd_index).expect("It should be Some").term_id.clone();
+                        assert!(go.is_child_of(&child, &parent));
+                    }
+                }else{
+                    assert_eq!(SMALL_TERM_OBS_LIST.get(i).expect("It should be Some"), formula.term_observations.get(i).expect("it should be Some"))
+                }
+            }
+        }
     }
 
     #[test]
     fn test_mutate_with_parent_term(){
-        
+        let go: MinimalCsrOntology = get_go(); 
+        for seed in SEED_LIST.to_vec(){
+            let mut formula = Conjunction::new();
+            formula.term_observations = SMALL_TERM_OBS_LIST.clone();
+            let mut rng = SmallRng::seed_from_u64(seed);
+            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, &mut rng);
+    
+            let mut rng_twin = SmallRng::seed_from_u64(seed);
+            let rnd_index = rng_twin.random_range(0..formula.term_observations.len());
+            
+            conjunction_mutation.mutate_with_parent_term(&mut formula);
+            
+            for i in (0..SMALL_TERM_OBS_LIST.len()){
+                if i == rnd_index{
+                    let child = SMALL_TERM_OBS_LIST.get(rnd_index).expect("It should be Some").term_id.clone();
+                    let parent_ids: Vec<&TermId> = go.iter_parent_ids(&child).collect();
+                    if parent_ids.len() > 0{
+                        let parent = formula.term_observations.get(rnd_index).expect("It should be Some").term_id.clone();
+                        assert!(go.is_parent_of(&parent, &child));
+                    }
+                }else{
+                    assert_eq!(SMALL_TERM_OBS_LIST.get(i).expect("It should be Some"), formula.term_observations.get(i).expect("it should be Some"))
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_mutate_dnfbitmask(){
+        let go: MinimalCsrOntology = get_go(); 
+        for seed in SEED_LIST.to_vec(){
+            let mut formula = Conjunction::new();
+            formula.term_observations = SMALL_TERM_OBS_LIST.clone();
+            let mut rng = SmallRng::seed_from_u64(seed);
+            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, &mut rng);
+    
+            let mut rng_twin = SmallRng::seed_from_u64(seed);
+            let rnd_index = rng_twin.random_range(0..formula.term_observations.len());
+            
+            conjunction_mutation.mutate_with_parent_term(&mut formula);
+            
+            for i in (0..SMALL_TERM_OBS_LIST.len()){
+                if i == rnd_index{
+                    let child = SMALL_TERM_OBS_LIST.get(rnd_index).expect("It should be Some").term_id.clone();
+                    let parent_ids: Vec<&TermId> = go.iter_parent_ids(&child).collect();
+                    if parent_ids.len() > 0{
+                        let parent = formula.term_observations.get(rnd_index).expect("It should be Some").term_id.clone();
+                        assert!(go.is_parent_of(&parent, &child));
+                    }
+                }else{
+                    assert_eq!(SMALL_TERM_OBS_LIST.get(i).expect("It should be Some"), formula.term_observations.get(i).expect("it should be Some"))
+                }
+            }
+        }
+    }
+
+
+
+    // #[test]
+    fn test_go_terms(){
+        let seed = 64;
+        let go: MinimalCsrOntology = get_go(); 
+        dbg!(go.len());
+        let mut rng = SmallRng::seed_from_u64(seed);
+        let rnd_index = rng.random_range(0..go.len());
+
+        // let result_term = go.iter_term_ids().nth(rnd_index);
+
+        // if let Some(new_term) = result_term{
+        //     dbg!(new_term);
+        //     let children_terms: Vec<&TermId>  = go.iter_child_ids(new_term).collect();
+        //     dbg!(children_terms.len());
+        // }
+
+        for term in go.iter_term_ids(){
+            dbg!(go.iter_child_ids(dbg!(term)).count());
+            dbg!(go.iter_descendant_ids(term).count());
+            dbg!(go.iter_parent_ids(term).count());
+            dbg!(go.iter_ancestor_ids(term).count());
+        }
     }
 
 

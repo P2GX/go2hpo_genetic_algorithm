@@ -12,3 +12,4 @@ pub use satisfaction_checker::{SatisfactionChecker, NaiveSatisfactionChecker};
 
 pub use formula_generator::FormulaGenerator;
 pub use formula_generator::{ConjunctionGenerator,GenePickerConjunctionGenerator,RandomConjunctionGenerator,RedundantRandomConjunctionGenerator};
+pub use formula_generator::{RandomDNFBistmaskGenerator};

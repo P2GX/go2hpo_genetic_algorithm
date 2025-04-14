@@ -1,8 +1,9 @@
-use super::{Conjunction, TermObservation, TissueExpression};
+use super::{Conjunction, DNFBitmask, DNFVec, TermObservation, TissueExpression, DNF};
 use super::DgeState;
 use ontolius::TermId;
 use rand::{seq::SliceRandom, Rng};
 use std::{collections::{HashMap, HashSet}};
+use bitvec::prelude::BitVec;
 
 pub trait FormulaGenerator {
     type Output;
@@ -12,6 +13,11 @@ pub trait FormulaGenerator {
 
 
 pub trait ConjunctionGenerator: FormulaGenerator<Output = Conjunction> {}
+
+pub trait DNFGenerator<T>: FormulaGenerator<Output = T>
+where
+    T: DNF,
+{}
 
 
 /// Creates Conjunctions randomly that might have redundant terms
@@ -121,6 +127,16 @@ where
 
 impl<'a, R> ConjunctionGenerator for RandomConjunctionGenerator<'a, R> where R: Rng {}
 
+impl<'a, R> RandomConjunctionGenerator<'a, R> 
+where 
+    R: Rng,
+{
+    pub fn new(n_go_terms: usize, go_terms: &'a Vec<TermId>, n_tissue_terms: usize, tissue_terms: &'a Vec<String>, rng: R) -> Self{
+        Self {n_go_terms, go_terms, n_tissue_terms, tissue_terms, rng}
+    }
+}
+
+
 /// Picks some terms from a list of genes
 pub struct GenePickerConjunctionGenerator {
     max_n_go_terms: usize,
@@ -140,7 +156,82 @@ impl FormulaGenerator for GenePickerConjunctionGenerator {
 
 impl ConjunctionGenerator for GenePickerConjunctionGenerator{}
 
-//TO DO: fare dei test per testare anche RandomConjunctionGenerator
+
+//DNFBitmask Generators
+
+pub struct RandomDNFBistmaskGenerator<'a, R> {
+    conjunction_list: &'a [Conjunction],
+    rng: R,
+}
+
+impl<'a, R> FormulaGenerator for RandomDNFBistmaskGenerator<'a, R>
+where
+    R: Rng,
+{
+    type Output = DNFBitmask<'a>;
+
+    fn generate(&mut self) -> Self::Output {
+        let mut mask = BitVec::repeat(false, self.conjunction_list.len());
+        for i in 0..mask.len() {
+            if self.rng.random_bool(0.5) {
+                mask.set(i, true);
+            }
+        }
+
+        DNFBitmask::new_with_bitmask(self.conjunction_list, mask)
+    }
+}
+
+impl<'a, R> RandomDNFBistmaskGenerator<'a, R>
+where
+    R: Rng,
+{
+    pub fn new(conjunction_list: &'a [Conjunction], rng: R) -> Self {
+        Self { conjunction_list, rng }
+    }
+
+}
+
+impl<'a, R> DNFGenerator<DNFBitmask<'a>> for RandomDNFBistmaskGenerator<'a, R> where R: Rng {}
+
+//DNFVec Generators
+
+pub struct RandomDNFVecGenerator<'a, CG, R>
+where 
+    CG: ConjunctionGenerator{
+    conjunction_generator: &'a mut  CG,
+    num_conjunctions: usize,
+    rng: R,
+}
+
+impl<'a, CG, R> FormulaGenerator for RandomDNFVecGenerator<'a, CG, R>
+where
+    CG: ConjunctionGenerator, 
+    R: Rng,
+{
+    type Output = DNFVec;
+    
+    fn generate(&mut self) -> Self::Output {
+        let conjunctions: Vec<Conjunction> = (0..self.num_conjunctions).map(|_| self.conjunction_generator.generate()).collect();
+        DNFVec::from_conjunctions(conjunctions)
+    }
+}
+
+impl<'a, CG, R> RandomDNFVecGenerator<'a, CG, R>
+where
+    CG: ConjunctionGenerator, 
+    R: Rng,
+{
+    pub fn new(conjunction_generator: &'a mut  CG, num_conjunctions: usize, rng: R) -> Self {
+        Self { conjunction_generator, num_conjunctions, rng }
+    }
+
+}
+
+
+
+
+//TO DO: fare dei test per testare anche RandomDNFBistmaskGenerator e Generators
 
 #[cfg(test)]
 mod tests {

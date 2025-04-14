@@ -175,6 +175,12 @@ impl<'a, R: Rng> Mutation<DNFBitmask<'_>> for SimpleDNFBitmaskMutation<'a, R> {
     }
 }
 
+impl<'a, R: Rng> SimpleDNFBitmaskMutation<'a, R> {
+    pub fn new(rng: &'a mut R) -> Self{
+        Self {rng}
+    }
+}
+
 
 pub struct SimpleDNFVecMutation<'a, O, G, R> 
 where 
@@ -251,6 +257,8 @@ mod tests {
     use lazy_static::lazy_static;
     use num::Saturating;
 
+    use crate::logical_formula::{FormulaGenerator, RandomConjunctionGenerator, RandomDNFBistmaskGenerator};
+
     use super::*;
 
     use std::{fs::File, io::BufReader};
@@ -267,6 +275,11 @@ mod tests {
 
     lazy_static! {
         // static ref GO: ontolius::ontology::csr::CsrOntology<u32, SimpleMinimalTerm> = get_go(); 
+        static ref small_test_tissues: Vec<String> = vec!["Colon_Transverse_Muscularis".to_string(),
+                                                         "Colon_Transverse_Mixed_Cell".to_string(),
+                                                          "Colon_Transverse_Muscularis".to_string(),
+                                                          "Testis".to_string(),
+                                                          "Small_Intestine_Terminal_Ileum_Mixed_Cell".to_string()];
         static ref small_test_terms: Vec<TermId> = vec!["GO:0048856","GO:0110165","GO:0051146", "GO:0042692","GO:0052693", "GO:0030154","GO:0005634"]
             .into_iter()
             .map(|s| s.parse().unwrap())
@@ -275,6 +288,7 @@ mod tests {
         static ref SMALL_TISS_EXPR_LIST: Vec<TissueExpression> = get_tissue_express_vec(30, 10);
         static ref SMALL_TERM_OBS_LIST: Vec<TermObservation> = get_term_obs_vec(30, 10, small_test_terms.to_vec());
         static ref SEED_LIST: Vec<u64> = vec![9, 12, 15, 18, 30];
+        static ref SMALL_CONJUNCTION_LIST: Vec<Conjunction> = get_random_conjunction_list(10, 2, &small_test_terms.to_vec(), 2, &small_test_tissues.to_vec(), 64);
     }
 
     fn get_go() -> MinimalCsrOntology{
@@ -320,6 +334,12 @@ mod tests {
         term_obs
     }
 
+    fn get_random_conjunction_list<'a>(list_size: usize,n_go_terms: usize, go_terms: &'a Vec<TermId>, n_tissue_terms: usize, tissue_terms: &'a Vec<String>, seed: u64) -> Vec<Conjunction>{
+        let mut uber_rng = SmallRng::seed_from_u64(seed);
+        let mut random_conjunction_generator = RandomConjunctionGenerator::new(n_go_terms, go_terms, n_tissue_terms, tissue_terms, uber_rng);
+        let small_conjunction_list: Vec<Conjunction> = (0..list_size).map(|_| random_conjunction_generator.generate()).collect(); 
+        small_conjunction_list
+    }
 
     #[test]
     fn test_toggle_tissue_expression_state(){
@@ -490,30 +510,22 @@ mod tests {
 
     #[test]
     fn test_mutate_dnfbitmask(){
-        let go: MinimalCsrOntology = get_go(); 
+        let go: MinimalCsrOntology = get_go();
+        // let conjunction_generator = 
+        let conjunctions = SMALL_CONJUNCTION_LIST.to_vec();
         for seed in SEED_LIST.to_vec(){
-            let mut formula = Conjunction::new();
-            formula.term_observations = SMALL_TERM_OBS_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
-            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, &mut rng);
-    
-            let mut rng_twin = SmallRng::seed_from_u64(seed);
-            let rnd_index = rng_twin.random_range(0..formula.term_observations.len());
+            let mut dnfbitmask_generator = RandomDNFBistmaskGenerator::new(&conjunctions, &mut rng);
+            let mut formula = dnfbitmask_generator.generate();
             
-            conjunction_mutation.mutate_with_parent_term(&mut formula);
-            
-            for i in (0..SMALL_TERM_OBS_LIST.len()){
-                if i == rnd_index{
-                    let child = SMALL_TERM_OBS_LIST.get(rnd_index).expect("It should be Some").term_id.clone();
-                    let parent_ids: Vec<&TermId> = go.iter_parent_ids(&child).collect();
-                    if parent_ids.len() > 0{
-                        let parent = formula.term_observations.get(rnd_index).expect("It should be Some").term_id.clone();
-                        assert!(go.is_parent_of(&parent, &child));
-                    }
-                }else{
-                    assert_eq!(SMALL_TERM_OBS_LIST.get(i).expect("It should be Some"), formula.term_observations.get(i).expect("it should be Some"))
-                }
-            }
+            let count_before = formula.len();
+
+            let mut dnfbitmask_mutation = SimpleDNFBitmaskMutation::new(&mut rng);
+            dnfbitmask_mutation.mutate(&mut formula);
+
+            let count_after = formula.len();
+
+            assert_eq!(count_after.abs_diff(count_before), 1)
         }
     }
 

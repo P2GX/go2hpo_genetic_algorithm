@@ -529,7 +529,7 @@ mod tests {
         }
     }
 
-
+    // TO DO: make a test for DNFVecGenerator
 
     // #[test]
     fn test_go_terms(){

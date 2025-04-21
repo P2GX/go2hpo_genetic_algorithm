@@ -8,10 +8,12 @@ bitvec = "1.0.1"
 gtex_analyzer = { git = "https://github.com/loremod/gtex_analyzer", branch = "main", version = "0.1.0" }
 lazy_static = "1.5.0"
 oboannotation = { git = "https://github.com/P2GX/oboannotation", version = "0.1.2" }
+hpo2gene_mapper = { git = "https://github.com/loremod/hpo2gene_mapper", version = "0.1.0" }
 ontolius = "0.5"
 rand = "0.9.0"
 num = "0.4"
 anyhow = "1.0.97"
+
 
 [dev-dependencies]
 flate2 = "1.1.0"

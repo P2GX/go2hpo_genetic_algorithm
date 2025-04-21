@@ -2,7 +2,7 @@ use super::{Conjunction, DNFBitmask, DNFVec, TermObservation, TissueExpression, 
 use super::DgeState;
 use ontolius::TermId;
 use rand::{seq::SliceRandom, Rng};
-use std::{collections::{HashMap, HashSet}};
+use std::collections::{HashMap, HashSet};
 use bitvec::prelude::BitVec;
 
 pub trait FormulaGenerator {

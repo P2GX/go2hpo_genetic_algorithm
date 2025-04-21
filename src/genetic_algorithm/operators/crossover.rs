@@ -11,9 +11,7 @@ use ontolius::{
 };
 
 
-use crate::{
-    logical_formula::{Conjunction, TermObservation, TissueExpression, DgeState},
-};
+use crate::logical_formula::{Conjunction, TermObservation, TissueExpression, DgeState};
 
 
 

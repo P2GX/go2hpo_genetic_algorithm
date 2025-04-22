@@ -46,7 +46,7 @@ impl PartialEq for TermObservation {
 //     }
 // }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DgeState{
     Up,
     Down,
@@ -66,7 +66,7 @@ impl DgeState{
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, Hash)]
 pub struct TissueExpression{
     pub term_id: String,
     pub state: DgeState,
@@ -75,6 +75,14 @@ pub struct TissueExpression{
 impl TissueExpression {
     pub fn new(term_id: String, state: DgeState) -> Self{
         Self {term_id, state}
+    }
+
+    pub fn into_down(&self) -> Self{
+        TissueExpression { term_id: self.term_id.clone(), state: DgeState::Down }
+    }
+
+    pub fn into_up(&self) -> Self{
+        TissueExpression { term_id: self.term_id.clone(), state: DgeState::Up }
     }
 }
 
@@ -187,8 +195,6 @@ impl<'a> Iterator for ConjunctionIterator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lazy_static::lazy_static;
-    use rand::rng;
 
     #[test]
     fn test_generate(){

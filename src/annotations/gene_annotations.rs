@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::{cmp::min, collections::{HashMap, HashSet}};
 use crate::logical_formula::{DgeState, TissueExpression};
 use ontolius::TermId;
 
@@ -7,14 +7,17 @@ use crate::logical_formula::Conjunction;
 
 pub struct GeneAnnotations{
     id: String,
-    symbol: String,
+    // symbol: String,
     term_annotations: HashSet<TermId>,
     tissue_expressions: HashSet<TissueExpression>,
 }
 
 impl GeneAnnotations{
-    pub fn contains_term_annotation(&self, term_id: TermId) -> bool{
-        todo!()
+    pub fn new(id: String, term_annotations: HashSet<TermId>, tissue_expressions: HashSet<TissueExpression>) -> Self{
+        Self {id, term_annotations, tissue_expressions}
+    }
+    pub fn contains_term_annotation(&self, term_id: &TermId) -> bool{
+        self.term_annotations.contains(term_id)
     }
 
     pub fn contains_tissue_expressions(&self, tissue_expr: &TissueExpression) -> bool{
@@ -24,6 +27,14 @@ impl GeneAnnotations{
             DgeState::Normal => !self.tissue_expressions.contains(&tissue_expr.into_down()) && !self.tissue_expressions.contains(&tissue_expr.into_up()),
         }
     }
+
+    pub fn get_term_annotations(&self) -> &HashSet<TermId>{
+        return &self.term_annotations;
+    }
+
+    pub fn get_tissue_expressions(&self) -> &HashSet<TissueExpression>{
+        return &self.tissue_expressions;
+    }
 }
 
 
@@ -32,8 +43,23 @@ pub struct GeneSetAnnotations{
 }
 
 impl GeneSetAnnotations{
-    pub fn new(symbol_to_direct_annotations: HashMap<String, HashSet<TermId>>, gene_tissue_expressions: HashMap<String, HashSet<TissueExpression>>) -> Self{
-         todo!()
+    pub fn from(symbol_to_direct_annotations: HashMap<String, HashSet<TermId>>, gene_tissue_expressions: HashMap<String, HashSet<TissueExpression>>) -> Self{
+        // let keys = GeneSetAnnotations::get_keys_intersection(&symbol_to_direct_annotations, &gene_tissue_expressions);
+        let mut gene_annotations: HashMap<String, GeneAnnotations> = HashMap::new();
+        let intersect_annotations = symbol_to_direct_annotations.iter()
+                                .map(|(gene, terms)| (gene, terms, gene_tissue_expressions.get(gene)))
+                                .filter(|(gene, terms, tissues)| tissues.is_some())
+                                .map(|(gene, terms, tissues)| (gene, terms, tissues.unwrap()));
+
+        for (gene, terms, tissues) in intersect_annotations{
+            gene_annotations.insert(gene.to_string(), GeneAnnotations::new(gene.to_string(), terms.clone(), tissues.clone()));
+        }
+
+        Self { gene_annotations }
+    }
+
+    pub fn contains_key(&self, gene: &str) -> bool{
+        self.gene_annotations.contains_key(gene)
     }
 
     pub fn get(&self, gene: &str) -> Option<&GeneAnnotations>{

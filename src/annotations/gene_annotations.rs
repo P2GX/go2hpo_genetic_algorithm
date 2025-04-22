@@ -20,6 +20,7 @@ impl GeneAnnotations{
         self.term_annotations.contains(term_id)
     }
 
+    //TO DO: to test
     pub fn contains_tissue_expressions(&self, tissue_expr: &TissueExpression) -> bool{
         match tissue_expr.state{
             DgeState::Up => self.tissue_expressions.contains(tissue_expr), 
@@ -58,11 +59,11 @@ impl GeneSetAnnotations{
         Self { gene_annotations }
     }
 
-    pub fn contains_key(&self, gene: &str) -> bool{
+    pub fn contains_gene(&self, gene: &str) -> bool{
         self.gene_annotations.contains_key(gene)
     }
 
-    pub fn get(&self, gene: &str) -> Option<&GeneAnnotations>{
+    pub fn get_gene_annotations(&self, gene: &str) -> Option<&GeneAnnotations>{
         self.gene_annotations.get(gene)
     }
 

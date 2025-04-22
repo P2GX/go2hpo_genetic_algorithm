@@ -7,7 +7,9 @@ use std::{
 
 use ontolius::{ontology::HierarchyWalks, TermId};
 
-use super::Conjunction;
+use crate::annotations::{GeneAnnotations, GeneSetAnnotations};
+
+use super::{Conjunction, TissueExpression};
 
 pub trait SatisfactionChecker {
     fn is_satisfied(&self, symbol: &str, conjunction: &Conjunction) -> bool;
@@ -16,67 +18,76 @@ pub trait SatisfactionChecker {
 
 pub struct NaiveSatisfactionChecker<O> {
     go: O,
-    symbol_to_direct_annotations: HashMap<String, HashSet<TermId>>,
+    // symbol_to_direct_annotations: HashMap<String, HashSet<TermId>>,
+    gene_set_annotations: GeneSetAnnotations, 
 }
 impl<O> SatisfactionChecker for NaiveSatisfactionChecker<O>
 where
     O: HierarchyWalks,
 {
     fn is_satisfied(&self, symbol: &str, conjunction: &Conjunction) -> bool {
-        let result = self.symbol_to_direct_annotations.get(symbol);
-        match result {
-            Some(go_annots_set) => {
-                for term_ob in &conjunction.term_observations {
-                    // let term_desc: HashSet<TermId> = self.go.get_descendants(&term_ob.term_id);
-                    // let term_desc: OnceCell<HashSet<&TermId>> = OnceCell::new();
-                    //LONGER VERSION:
-                    match term_ob.is_excluded {
-                        true => {
-                            if go_annots_set.contains(&term_ob.term_id)
-                                || self
-                                    .go
-                                    .iter_descendant_ids(&term_ob.term_id)
-                                    .any(|desc| go_annots_set.contains(desc))
-                            {
-                                // Not satisfied because the gene has a direct or undirect annotation to term_ob, which is excluded.
-                                return false;
-                            }
-                        }
-                        false => {
-                            // self.go.
-                            if !go_annots_set.contains(&term_ob.term_id)
-                                && !self
-                                    .go
-                                    .iter_descendant_ids(&term_ob.term_id)
-                                    .any(|desc| go_annots_set.contains(desc))
-                            {
-                                return false;
-                            }
-                        }
-                    }
-
-                    // // SHORTER VERSION: (PREFERRED)
-                    // if term_ob.is_excluded == go_annots_set.contains(&term_ob.term_id){
-                    //     return false;
-                    // }
-                    // else if term_ob.is_excluded == !go_annots_set.is_disjoint(&term_desc){
-                    //     return false;
-                    // }
-                }
-                true
-            }
-            None => panic!("We could not find gene symbol: {}.", symbol),
+        let gene_annotations_lookup = self.gene_set_annotations.get_gene_annotations(symbol);
+        match gene_annotations_lookup{
+            Some(gene_annotations) => {
+                if self.are_term_annotations_satisfied(gene_annotations, conjunction) == false {return false;}
+                if self.are_tissue_expressions_satisfied(gene_annotations, conjunction) == false {return false;}
+                return true;
+            },
+            None => panic!("Couldn't find the gene ID in the Gene Annotation Set"),
         }
+        todo!()
     }
 }
 
-impl<O> NaiveSatisfactionChecker<O> {
-    pub fn new(go: O, map: HashMap<String, HashSet<TermId>>) -> Self {
+impl<O> NaiveSatisfactionChecker<O> 
+where
+    O: HierarchyWalks,{
+    pub fn new(go: O, gene_set_annotations: GeneSetAnnotations) -> Self {
         Self {
             go,
-            symbol_to_direct_annotations: map,
+            gene_set_annotations,
         }
     }
+
+    pub fn are_term_annotations_satisfied(&self, gene_annotations: &GeneAnnotations, conjunction: &Conjunction) -> bool{
+        let direct_annotations = gene_annotations.get_term_annotations();
+        for term_ob in &conjunction.term_observations {
+            //LONGER VERSION:
+            match term_ob.is_excluded {
+                true => {
+                    if direct_annotations.contains(&term_ob.term_id)
+                        || self
+                            .go
+                            .iter_descendant_ids(&term_ob.term_id)
+                            .any(|desc| direct_annotations.contains(desc))
+                    {
+                        // Not satisfied because the gene has a direct or undirect annotation to term_ob, which is excluded.
+                        return false;
+                    }
+                }
+                false => {
+                    // self.go.
+                    if !direct_annotations.contains(&term_ob.term_id)
+                        && !self
+                            .go
+                            .iter_descendant_ids(&term_ob.term_id)
+                            .any(|desc| direct_annotations.contains(desc))
+                    {
+                        return false;
+                    }
+                }
+            }
+            // I can change the match with a shorter version (see notes)
+        }
+        true
+    }
+
+    pub fn are_tissue_expressions_satisfied(&self, gene_annotations: &GeneAnnotations, conjunction: &Conjunction) -> bool{
+        conjunction.tissue_expressions
+            .iter()
+            .all(|tissue_expr| gene_annotations.contains_tissue_expressions(tissue_expr))
+    }
+
 }
 
 #[cfg(test)]
@@ -115,10 +126,16 @@ mod tests {
         gene1_hashset.insert(t1.clone());
         gene1_hashset.insert(t2.clone());
 
-        let mut map = HashMap::new();
-        map.insert(symbol1.clone(), gene1_hashset);
+        let mut term_map = HashMap::new();
+        term_map.insert(symbol1.clone(), gene1_hashset);
 
-        NaiveSatisfactionChecker::new(go, map)
+        // TO DO: add something for tissue expression
+        let mut tissue_map = HashMap::new();
+        tissue_map.insert(symbol1.clone(), HashSet::new());
+
+        let gene_set = GeneSetAnnotations::from(term_map, tissue_map);
+
+        NaiveSatisfactionChecker::new(go, gene_set)
     }
 
     #[test]
@@ -140,6 +157,8 @@ mod tests {
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
+
+        //TO DO: test also tissue expression part
     }
 
     #[test]

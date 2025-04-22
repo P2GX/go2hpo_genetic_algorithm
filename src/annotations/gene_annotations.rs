@@ -36,12 +36,32 @@ impl GeneSetAnnotations{
          todo!()
     }
 
-    pub fn contains(gene: String) -> bool{
-        todo!()
+    pub fn get(&self, gene: &str) -> Option<&GeneAnnotations>{
+        self.gene_annotations.get(gene)
     }
 
-    pub fn get(gene: String) -> GeneAnnotations{
-        todo!()
+
+    /// to check how many keys between the two hashmaps are shared. Useful to detect diffent ID types/formats
+    pub fn get_keys_intersection<T, U>(
+        set1: &HashMap<String, T>,
+        set2: &HashMap<String, U>,
+    ) -> HashSet<String> {
+        let keys1: HashSet<_> = set1.keys().cloned().collect();
+        let keys2: HashSet<_> = set2.keys().cloned().collect();
+    
+        keys1
+            .intersection(&keys2)
+            .cloned()
+            .collect()
+    }
+
+    pub fn get_keys_intersection_percentage<T, U>(
+        set1: &HashMap<String, T>,
+        set2: &HashMap<String, U>,
+    )-> f64 {
+        let intersect_size = GeneSetAnnotations::get_keys_intersection(set1, set2).len();
+        let smaller_set_size = min(set1.len(), set2.len());
+        return intersect_size as f64 / smaller_set_size as f64;
     }
 }
 

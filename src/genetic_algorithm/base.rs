@@ -45,6 +45,7 @@ impl<T> PartialOrd for Solution<T> {
     }
 }
 
+// Possible names:
 // FormulaEvaluator and the method is "evaluate" which returns a Solution
 // or 
 // SolutionGenerator and the method is "generate" which returns a Solution
@@ -84,4 +85,10 @@ impl<C: SatisfactionChecker> FitnessScorer<Conjunction> for ConjunctionScorer<C>
     fn fitness(&self, formula: &Conjunction) -> f64 {
         1.0
     }
+}
+
+pub struct AccuracyConjunctionScorer<C> { //<C, GO, EXPR, HPO>
+    checker: C,
+    
+
 }

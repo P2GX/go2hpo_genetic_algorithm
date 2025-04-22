@@ -1,3 +1,4 @@
 pub mod logical_formula;
 pub mod genetic_algorithm;
+pub mod annotations;
 

@@ -1,3 +1,4 @@
+use ontolius::TermId;
 use rand::Rng;
 
 use super::base::{Solution, FitnessScorer, FormulaEvaluator}; //to change
@@ -10,8 +11,8 @@ use crate::logical_formula::FormulaGenerator;
 pub struct GeneticAlgorithm<T, R> {
     
     population: Vec<Solution<T>>,
-    evaluator: FormulaEvaluator<T>,
-    scorer: Box<dyn FitnessScorer<T>>, // probably this can be removed since there is FormulaEvaluator
+    evaluator: FormulaEvaluator<T, TermId>,
+    // scorer: Box<dyn FitnessScorer<T, TermId>>, // probably this can be removed since there is FormulaEvaluator
     selection: Box<dyn Selection<T>>,
     crossover: Box<dyn Crossover<T>>,
     mutation: Box<dyn Mutation<T>>,
@@ -20,6 +21,7 @@ pub struct GeneticAlgorithm<T, R> {
     mutation_rate: f64,
     generations: usize,
     rng: R,
+    phenotype: TermId,
 }
 
 impl<T: Clone, R: Rng> GeneticAlgorithm<T, R> {

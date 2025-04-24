@@ -1,6 +1,7 @@
 use std::{cmp::min, collections::{HashMap, HashSet}};
 use crate::logical_formula::{DgeState, TissueExpression};
 use ontolius::TermId;
+use std::collections::hash_map;
 
 use crate::logical_formula::Conjunction;
 
@@ -8,13 +9,18 @@ use crate::logical_formula::Conjunction;
 pub struct GeneAnnotations{
     id: String,
     // symbol: String,
+    
+    // Annotations
     term_annotations: HashSet<TermId>,
     tissue_expressions: HashSet<TissueExpression>,
+
+    // Phenotype (HPO)
+    phenotypes: HashSet<TermId>,
 }
 
 impl GeneAnnotations{
-    pub fn new(id: String, term_annotations: HashSet<TermId>, tissue_expressions: HashSet<TissueExpression>) -> Self{
-        Self {id, term_annotations, tissue_expressions}
+    pub fn new(id: String, term_annotations: HashSet<TermId>, tissue_expressions: HashSet<TissueExpression>, phenotypes: HashSet<TermId>) -> Self{
+        Self {id, term_annotations, tissue_expressions, phenotypes}
     }
     pub fn contains_term_annotation(&self, term_id: &TermId) -> bool{
         self.term_annotations.contains(term_id)
@@ -29,12 +35,20 @@ impl GeneAnnotations{
         }
     }
 
+    pub fn contains_phenotype(&self, phenotype: &TermId) -> bool{
+        self.phenotypes.contains(phenotype)
+    }
+
     pub fn get_term_annotations(&self) -> &HashSet<TermId>{
         return &self.term_annotations;
     }
 
     pub fn get_tissue_expressions(&self) -> &HashSet<TissueExpression>{
         return &self.tissue_expressions;
+    }
+
+    pub fn get_phenotypes(&self) -> &HashSet<TermId>{
+        return &self.phenotypes;
     }
 }
 
@@ -44,24 +58,37 @@ pub struct GeneSetAnnotations{
 }
 
 impl GeneSetAnnotations{
-    pub fn from(symbol_to_direct_annotations: HashMap<String, HashSet<TermId>>, gene_tissue_expressions: HashMap<String, HashSet<TissueExpression>>) -> Self{
+    pub fn from(symbol_to_direct_annotations: HashMap<String, HashSet<TermId>>, gene_tissue_expressions: HashMap<String, HashSet<TissueExpression>>, genes_to_phenotype: HashMap<String, HashSet<TermId>>) -> Self{
         // let keys = GeneSetAnnotations::get_keys_intersection(&symbol_to_direct_annotations, &gene_tissue_expressions);
         let mut gene_annotations: HashMap<String, GeneAnnotations> = HashMap::new();
         let intersect_annotations = symbol_to_direct_annotations.iter()
-                                .map(|(gene, terms)| (gene, terms, gene_tissue_expressions.get(gene)))
-                                .filter(|(gene, terms, tissues)| tissues.is_some())
-                                .map(|(gene, terms, tissues)| (gene, terms, tissues.unwrap()));
+                                .map(|(gene, terms)| (gene, terms, gene_tissue_expressions.get(gene), genes_to_phenotype.get(gene)))
+                                .filter(|(gene, terms, tissues, phenotypes)| tissues.is_some() && phenotypes.is_some())
+                                .map(|(gene, terms, tissues, phenotypes)| (gene, terms, tissues.unwrap(), phenotypes.unwrap()));
 
-        for (gene, terms, tissues) in intersect_annotations{
-            gene_annotations.insert(gene.to_string(), GeneAnnotations::new(gene.to_string(), terms.clone(), tissues.clone()));
+        for (gene, terms, tissues, phenotypes) in intersect_annotations{
+            gene_annotations.insert(gene.to_string(), GeneAnnotations::new(gene.to_string(), terms.clone(), tissues.clone(), phenotypes.clone()));
         }
 
         Self { gene_annotations }
     }
 
+    pub fn get_gene_annotations_map(&self) -> &HashMap<String, GeneAnnotations>{
+        &self.gene_annotations
+    }
+    
+    // pub fn iter(&self) -> hash_map::Iter<'_, String, GeneAnnotations>{
+    //     self.gene_annotations.iter()
+    // }
+
+    pub fn len(&self) -> usize{
+        return self.gene_annotations.len();
+    }
+
     pub fn contains_gene(&self, gene: &str) -> bool{
         self.gene_annotations.contains_key(gene)
     }
+
 
     pub fn get_gene_annotations(&self, gene: &str) -> Option<&GeneAnnotations>{
         self.gene_annotations.get(gene)
@@ -90,5 +117,7 @@ impl GeneSetAnnotations{
         let smaller_set_size = min(set1.len(), set2.len());
         return intersect_size as f64 / smaller_set_size as f64;
     }
+
+
 }
 

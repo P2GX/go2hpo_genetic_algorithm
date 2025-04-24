@@ -1,7 +1,8 @@
+use hpo2gene_mapper::GenePhenotypeMapping;
+use ontolius::TermId;
+
 use crate::{
-    logical_formula::Conjunction,
-    logical_formula::DNF,
-    logical_formula::SatisfactionChecker,
+    annotations::GeneSetAnnotations, logical_formula::{Conjunction, SatisfactionChecker, DNF}
 };
 
 
@@ -49,13 +50,13 @@ impl<T> PartialOrd for Solution<T> {
 // FormulaEvaluator and the method is "evaluate" which returns a Solution
 // or 
 // SolutionGenerator and the method is "generate" which returns a Solution
-pub struct FormulaEvaluator<T>{
-    scorer: Box<dyn FitnessScorer<T>>,
+pub struct FormulaEvaluator<T, P>{
+    scorer: Box<dyn FitnessScorer<T, P>>,
 }
 
-impl<T> FormulaEvaluator<T> {
-    pub fn evaluate(&self, formula: T) -> Solution<T>{
-        let score = self.scorer.fitness(&formula);
+impl<T, P> FormulaEvaluator<T, P> {
+    pub fn evaluate(&self, formula: T, phenotype: P) -> Solution<T>{
+        let score = self.scorer.fitness(&formula, &phenotype);
         Solution::new(formula, score)
     } 
 }
@@ -63,17 +64,21 @@ impl<T> FormulaEvaluator<T> {
 
 // FITNESS SCORER
 
-pub trait FitnessScorer<T> {
-    fn fitness(&self, formula: &T) -> f64;
+pub trait FitnessScorer<T, P> {
+    fn fitness(&self, formula: &T, phenotype: &P) -> f64; //I pass the phenotype by argument, that very likely will always be a HPO TermId term. In this way sperimenting with different phenotypes can be easier
 }
+
+// pub trait ConjunctionScorer: FitnessScorer<Conjunction, TermId> {}
+
 
 pub struct DNFScorer<C> {
     checker: C,
+    gene_set : &'static GeneSetAnnotations,
 }
 
-impl<C: SatisfactionChecker, T: DNF> FitnessScorer<T> for DNFScorer<C> {
-    fn fitness(&self, formula: &T) -> f64 {
-        1.0
+impl<C: SatisfactionChecker, T: DNF> FitnessScorer<T, TermId> for DNFScorer<C> {
+    fn fitness(&self, formula: &T, phenotype: &TermId) -> f64 {
+        todo!()
     }
 }
 

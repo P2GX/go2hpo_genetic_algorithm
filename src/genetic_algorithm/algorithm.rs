@@ -32,7 +32,7 @@ impl<T: Clone, R: Rng> GeneticAlgorithm<T, R> {
     pub fn initialize_population(&mut self, len: usize) -> Result<(), String> {
         self.population = (0..len)
                         .map(|_| self.formula_generator.generate())
-                        .map(|formula| self.evaluator.evaluate(formula))
+                        .map(|formula| self.evaluator.evaluate(formula, self.phenotype.clone()))
                         .collect();
         Ok(())
     }
@@ -67,7 +67,7 @@ impl<T: Clone, R: Rng> GeneticAlgorithm<T, R> {
                 }
 
                 //Evaluate the the new formula
-                let offspring = self.evaluator.evaluate(new_formula);
+                let offspring = self.evaluator.evaluate(new_formula, self.phenotype.clone());
 
                 evolved_population.push(offspring);
             }

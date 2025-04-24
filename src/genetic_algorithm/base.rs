@@ -82,18 +82,67 @@ impl<C: SatisfactionChecker, T: DNF> FitnessScorer<T, TermId> for DNFScorer<C> {
     }
 }
 
-pub struct ConjunctionScorer<C> {
+
+
+pub struct AccuracyConjunctionScorer<C> { 
     checker: C,
+    gene_set : &'static GeneSetAnnotations,
 }
 
-impl<C: SatisfactionChecker> FitnessScorer<Conjunction> for ConjunctionScorer<C> {
-    fn fitness(&self, formula: &Conjunction) -> f64 {
-        1.0
+impl<C: SatisfactionChecker> FitnessScorer<Conjunction, TermId> for AccuracyConjunctionScorer<C> {
+    fn fitness(&self, formula: &Conjunction, phenotype: &TermId) -> f64 {
+        let genes_satisfaction = self.checker.all_satisfactions(formula);
+        let n_tot = self.gene_set.len();
+        let correct_predictions = self.gene_set.get_gene_annotations_map().iter()
+            .filter(|(gene, gene_annotation)| gene_annotation.contains_phenotype(phenotype) == *genes_satisfaction.get(*gene).expect("There should be an entry for the gene"))
+            .count();
+        return correct_predictions as f64 / n_tot as f64;
     }
 }
 
-pub struct AccuracyConjunctionScorer<C> { //<C, GO, EXPR, HPO>
-    checker: C,
-    
+impl<C>  AccuracyConjunctionScorer<C>{
+    pub fn new(checker: C, gene_set : &'static GeneSetAnnotations) -> Self{
+        Self { checker, gene_set }
+    }
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    use crate::logical_formula::{FormulaGenerator, RedundantRandomConjunctionGenerator};
+
+    use super::*;
+    use lazy_static::lazy_static;
+    use rand::{rng, rngs::SmallRng, SeedableRng};
+
+    lazy_static! {
+        static ref small_test_terms: Vec<TermId> = vec!["GO:0051146", "GO:0052693", "GO:0005634"]
+            .into_iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+
+        static ref small_test_tissues: Vec<String> = vec!["Colon_Transverse_Muscularis".to_string(),
+                                                         "Colon_Transverse_Mixed_Cell".to_string(),
+                                                          "Colon_Transverse_Muscularis".to_string(),
+                                                          "Testis".to_string(),
+                                                          "Small_Intestine_Terminal_Ileum_Mixed_Cell".to_string()];
+    }
+
+    #[test]
+    fn test_fitness_score() {
+        let seed = 42;
+        // let mut rng = SmallRng::seed_from_u64(seed);
+        // let mut generator = RedundantRandomConjunctionGenerator::new( 
+        //     2,
+        //     &small_test_terms,
+        //     2,
+        //     &small_test_tissues,
+        //     rng);
+        //     let conjunction: Conjunction = generator.generate();
+
+    }
+
+
 
 }

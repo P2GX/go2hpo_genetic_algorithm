@@ -13,18 +13,20 @@ use super::{Conjunction, TissueExpression};
 
 pub trait SatisfactionChecker {
     fn is_satisfied(&self, symbol: &str, conjunction: &Conjunction) -> bool;
+    fn all_satisfactions(&self, conjunction: &Conjunction) -> HashMap<String, bool>;
 }
 
 
 pub struct NaiveSatisfactionChecker<O> {
     go: O,
     // symbol_to_direct_annotations: HashMap<String, HashSet<TermId>>,
-    gene_set_annotations: GeneSetAnnotations, 
+    gene_set_annotations: &'static GeneSetAnnotations, 
 }
 impl<O> SatisfactionChecker for NaiveSatisfactionChecker<O>
 where
     O: HierarchyWalks,
 {
+    /// Checks if a gene satisfies the annotations of a conjunction
     fn is_satisfied(&self, symbol: &str, conjunction: &Conjunction) -> bool {
         let gene_annotations_lookup = self.gene_set_annotations.get_gene_annotations(symbol);
         match gene_annotations_lookup{
@@ -35,19 +37,33 @@ where
             },
             None => panic!("Couldn't find the gene ID in the Gene Annotation Set"),
         }
-        todo!()
+    }
+
+    /// Checks satisfaction for all genes wrt to a conjunction and returns a HashMap of gene symbols 
+    /// and boolean value indicating the satisfaction
+    fn all_satisfactions(&self, conjunction: &Conjunction) -> HashMap<String, bool> {
+        self.gene_set_annotations
+            .get_gene_annotations_map()
+            .iter()
+            .map(|(symbol, gene_annotations)| {
+                let satisfied = self.are_term_annotations_satisfied(gene_annotations, conjunction)
+                    && self.are_tissue_expressions_satisfied(gene_annotations, conjunction);
+                (symbol.clone(), satisfied)
+            })
+            .collect()
     }
 }
 
 impl<O> NaiveSatisfactionChecker<O> 
 where
     O: HierarchyWalks,{
-    pub fn new(go: O, gene_set_annotations: GeneSetAnnotations) -> Self {
+    pub fn new(go: O, gene_set_annotations: &'static GeneSetAnnotations) -> Self {
         Self {
             go,
             gene_set_annotations,
         }
     }
+
 
     pub fn are_term_annotations_satisfied(&self, gene_annotations: &GeneAnnotations, conjunction: &Conjunction) -> bool{
         let direct_annotations = gene_annotations.get_term_annotations();
@@ -133,8 +149,12 @@ mod tests {
         let mut tissue_map = HashMap::new();
         tissue_map.insert(symbol1.clone(), HashSet::new());
 
-        let gene_set = GeneSetAnnotations::from(term_map, tissue_map);
+        //TO DO: ass something for phenotypes
+        let mut phenotypes = HashMap::new();
+        phenotypes.insert(symbol1.clone(), HashSet::new());
 
+        let gene_set = Box::leak(Box::new(GeneSetAnnotations::from(term_map, tissue_map, phenotypes)));
+        
         NaiveSatisfactionChecker::new(go, gene_set)
     }
 

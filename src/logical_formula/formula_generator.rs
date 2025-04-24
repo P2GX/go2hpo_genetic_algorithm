@@ -77,6 +77,14 @@ where
 
         return TissueExpression::new(term_id, state);
     }
+    
+    pub fn new(n_go_terms: usize,
+            go_terms: &'a Vec<TermId>,
+            n_tissue_terms: usize,
+            tissue_terms: &'a Vec<String>,
+            rng: R,) -> Self{
+        Self { n_go_terms, go_terms, n_tissue_terms, tissue_terms, rng }
+    }
 }
 
 /// Creates Conjunctions randomly whith non-repeating terms

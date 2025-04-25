@@ -198,7 +198,6 @@ impl<'a> Iterator for ConjunctionIterator<'a> {
 mod tests {
     use super::*;
 
-    #[test]
     fn test_generate(){
         let conj = Conjunction {
             term_observations: vec![],
@@ -217,5 +216,102 @@ mod tests {
                 println!("Unknown Type");
             }
         }
+    }
+
+    #[test]
+    fn test_new() {
+        let expr = TissueExpression::new("TISSUE1".to_string(), DgeState::Up);
+        assert_eq!(expr.term_id, "TISSUE1");
+        assert_eq!(expr.state, DgeState::Up);
+    }
+
+    #[test]
+    fn test_into_down() {
+        let expr = TissueExpression::new("TISSUE1".to_string(), DgeState::Up);
+        let down_expr = expr.into_down();
+        assert_eq!(down_expr.term_id, "TISSUE1");
+        assert_eq!(down_expr.state, DgeState::Down);
+    }
+
+    #[test]
+    fn test_into_up() {
+        let expr = TissueExpression::new("TISSUE1".to_string(), DgeState::Down);
+        let up_expr = expr.into_up();
+        assert_eq!(up_expr.term_id, "TISSUE1");
+        assert_eq!(up_expr.state, DgeState::Up);
+    }
+
+    #[test]
+    fn test_equality() {
+        let expr1 = TissueExpression::new("TISSUE1".to_string(), DgeState::Up);
+        let expr2 = TissueExpression::new("TISSUE1".to_string(), DgeState::Up);
+        let expr3 = TissueExpression::new("TISSUE1".to_string(), DgeState::Down);
+        assert_eq!(expr1, expr2);
+        assert_ne!(expr1, expr3);
+    }
+
+    #[test]
+    fn test_new_term_observation() {
+        let term_id: TermId = "GO:0051146".parse().unwrap();
+        let obs = TermObservation::new(term_id.clone(), true);
+        assert_eq!(obs.term_id, term_id);
+        assert!(obs.is_excluded);
+    }
+
+    #[test]
+    fn test_term_observation_equality() {
+        let t1: TermId = "GO:0051146".parse().unwrap();
+        let t2: TermId = "GO:0051146".parse().unwrap();
+        let t3: TermId = "GO:0008150".parse().unwrap();
+
+        let obs1 = TermObservation::new(t1, false);
+        let obs2 = TermObservation::new(t2, false);
+        let obs3 = TermObservation::new(t3, true);
+
+        assert_eq!(obs1, obs2);
+        assert_ne!(obs1, obs3);
+    }
+
+    #[test]
+    fn test_new_conjunction_is_empty() {
+        let conj = Conjunction::new();
+        assert!(conj.term_observations.is_empty());
+        assert!(conj.tissue_expressions.is_empty());
+        assert_eq!(conj.len(), 0);
+    }
+
+    #[test]
+    fn test_conjunction_equality() {
+        let t1: TermId = "GO:0008150".parse().unwrap();
+        let t2: TermId = "GO:0051146".parse().unwrap();
+
+        let term_obs1 = TermObservation::new(t1.clone(), false);
+        let term_obs2 = TermObservation::new(t2.clone(), true);
+
+        let expr1 = TissueExpression::new("TISSUE1".to_string(), DgeState::Up);
+        let expr2 = TissueExpression::new("TISSUE2".to_string(), DgeState::Down);
+        let expr3 = TissueExpression::new("TISSUE3".to_string(), DgeState::Down);
+
+        let mut conj1 = Conjunction::new();
+        conj1.term_observations.push(term_obs1.clone());
+        conj1.term_observations.push(term_obs2.clone());
+        conj1.tissue_expressions.push(expr1.clone());
+        conj1.tissue_expressions.push(expr2.clone());
+
+        let mut conj2 = Conjunction::new();
+        conj2.term_observations.push(term_obs1.clone());
+        conj2.term_observations.push(term_obs2.clone());
+        conj2.tissue_expressions.push(expr1.clone());
+        conj2.tissue_expressions.push(expr2.clone());
+
+        let mut conj3 = Conjunction::new();
+        conj3.term_observations.push(term_obs1.clone());
+        conj3.term_observations.push(term_obs2.clone());
+        conj3.tissue_expressions.push(expr1.clone());
+        conj3.tissue_expressions.push(expr3.clone());
+
+        assert_eq!(conj1, conj2);
+        assert_eq!(conj1.len(), 4);
+        assert_ne!(conj1, conj3);
     }
 }

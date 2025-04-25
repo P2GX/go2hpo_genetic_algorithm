@@ -7,12 +7,12 @@ use std::{
 
 use ontolius::{ontology::HierarchyWalks, TermId};
 
-use crate::annotations::{GeneAnnotations, GeneSetAnnotations};
+use crate::annotations::{GeneAnnotations, GeneId, GeneSetAnnotations};
 
 use super::{Conjunction, TissueExpression};
 
 pub trait SatisfactionChecker {
-    fn is_satisfied(&self, symbol: &str, conjunction: &Conjunction) -> bool;
+    fn is_satisfied(&self, symbol: &GeneId, conjunction: &Conjunction) -> bool;
     fn all_satisfactions(&self, conjunction: &Conjunction) -> HashMap<String, bool>;
 }
 
@@ -27,7 +27,7 @@ where
     O: HierarchyWalks,
 {
     /// Checks if a gene satisfies the annotations of a conjunction
-    fn is_satisfied(&self, symbol: &str, conjunction: &Conjunction) -> bool {
+    fn is_satisfied(&self, symbol: &GeneId, conjunction: &Conjunction) -> bool {
         let gene_annotations_lookup = self.gene_set_annotations.get_gene_annotations(symbol);
         match gene_annotations_lookup{
             Some(gene_annotations) => {
@@ -103,7 +103,6 @@ where
             .iter()
             .all(|tissue_expr| gene_annotations.contains_tissue_expressions(tissue_expr))
     }
-
 }
 
 #[cfg(test)]

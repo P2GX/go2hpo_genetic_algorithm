@@ -66,14 +66,16 @@ impl DgeState{
     }
 }
 
+pub type TissueId = String;
+
 #[derive(Debug, Clone, Eq, Hash)]
 pub struct TissueExpression{
-    pub term_id: String,
+    pub term_id: TissueId,
     pub state: DgeState,
 }
 
 impl TissueExpression {
-    pub fn new(term_id: String, state: DgeState) -> Self{
+    pub fn new(term_id: TissueId, state: DgeState) -> Self{
         Self {term_id, state}
     }
 

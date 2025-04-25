@@ -5,9 +5,10 @@ use std::collections::hash_map;
 
 use crate::logical_formula::Conjunction;
 
+pub type GeneId = String; 
 
 pub struct GeneAnnotations{
-    id: String,
+    id: GeneId,
     // symbol: String,
     
     // Annotations
@@ -19,7 +20,7 @@ pub struct GeneAnnotations{
 }
 
 impl GeneAnnotations{
-    pub fn new(id: String, term_annotations: HashSet<TermId>, tissue_expressions: HashSet<TissueExpression>, phenotypes: HashSet<TermId>) -> Self{
+    pub fn new(id: GeneId, term_annotations: HashSet<TermId>, tissue_expressions: HashSet<TissueExpression>, phenotypes: HashSet<TermId>) -> Self{
         Self {id, term_annotations, tissue_expressions, phenotypes}
     }
     pub fn contains_term_annotation(&self, term_id: &TermId) -> bool{
@@ -54,11 +55,11 @@ impl GeneAnnotations{
 
 
 pub struct GeneSetAnnotations{
-    gene_annotations: HashMap<String, GeneAnnotations>
+    gene_annotations: HashMap<GeneId, GeneAnnotations>
 }
 
 impl GeneSetAnnotations{
-    pub fn from(symbol_to_direct_annotations: HashMap<String, HashSet<TermId>>, gene_tissue_expressions: HashMap<String, HashSet<TissueExpression>>, genes_to_phenotype: HashMap<String, HashSet<TermId>>) -> Self{
+    pub fn from(symbol_to_direct_annotations: HashMap<GeneId, HashSet<TermId>>, gene_tissue_expressions: HashMap<GeneId, HashSet<TissueExpression>>, genes_to_phenotype: HashMap<GeneId, HashSet<TermId>>) -> Self{
         // let keys = GeneSetAnnotations::get_keys_intersection(&symbol_to_direct_annotations, &gene_tissue_expressions);
         let mut gene_annotations: HashMap<String, GeneAnnotations> = HashMap::new();
         let intersect_annotations = symbol_to_direct_annotations.iter()
@@ -85,12 +86,12 @@ impl GeneSetAnnotations{
         return self.gene_annotations.len();
     }
 
-    pub fn contains_gene(&self, gene: &str) -> bool{
+    pub fn contains_gene(&self, gene: &GeneId) -> bool{
         self.gene_annotations.contains_key(gene)
     }
 
 
-    pub fn get_gene_annotations(&self, gene: &str) -> Option<&GeneAnnotations>{
+    pub fn get_gene_annotations(&self, gene: &GeneId) -> Option<&GeneAnnotations>{
         self.gene_annotations.get(gene)
     }
 

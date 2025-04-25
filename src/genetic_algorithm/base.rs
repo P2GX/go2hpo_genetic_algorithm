@@ -54,10 +54,12 @@ pub struct FormulaEvaluator<T, P>{
     scorer: Box<dyn FitnessScorer<T, P>>,
 }
 
-impl<T, P> FormulaEvaluator<T, P> {
-    pub fn evaluate(&self, formula: T, phenotype: P) -> Solution<T>{
-        let score = self.scorer.fitness(&formula, &phenotype);
-        Solution::new(formula, score)
+impl<T, P> FormulaEvaluator<T, P> 
+where 
+T: Clone{
+    pub fn evaluate(&self, formula: &T, phenotype: &P) -> Solution<T>{
+        let score = self.scorer.fitness(formula, phenotype);
+        Solution::new(formula.clone(), score)
     } 
 }
 

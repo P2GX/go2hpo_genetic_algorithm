@@ -12,7 +12,6 @@ pub struct GeneticAlgorithm<T, R> {
     
     population: Vec<Solution<T>>,
     evaluator: FormulaEvaluator<T, TermId>,
-    // scorer: Box<dyn FitnessScorer<T, TermId>>, // probably this can be removed since there is FormulaEvaluator
     selection: Box<dyn Selection<T>>,
     crossover: Box<dyn Crossover<T>>,
     mutation: Box<dyn Mutation<T>>,
@@ -32,17 +31,17 @@ impl<T: Clone, R: Rng> GeneticAlgorithm<T, R> {
     pub fn initialize_population(&mut self, len: usize) -> Result<(), String> {
         self.population = (0..len)
                         .map(|_| self.formula_generator.generate())
-                        .map(|formula| self.evaluator.evaluate(formula, self.phenotype.clone()))
+                        .map(|formula| self.evaluator.evaluate(&formula, &self.phenotype))
                         .collect();
         Ok(())
     }
 
     pub fn fit(&mut self) -> Solution<T> {
-        //Initialization: Score initial population, , there is no need for this anymore because now 
+        
+        //TO DO: initialize population if not already initialized
+        //Initialization: Score initial population
             // the solution is evaluated in the moment in which it is created
-        // for solution in self.population.iter_mut() {
-        //     solution.get_or_score(&*self.scorer);
-        // }
+
 
         for _ in 0..self.generations {
             // New population for next generation
@@ -67,20 +66,13 @@ impl<T: Clone, R: Rng> GeneticAlgorithm<T, R> {
                 }
 
                 //Evaluate the the new formula
-                let offspring = self.evaluator.evaluate(new_formula, self.phenotype.clone());
+                let offspring = self.evaluator.evaluate(&new_formula, &self.phenotype);
 
                 evolved_population.push(offspring);
             }
 
             self.population = evolved_population;
 
-
-            // Score population of current generation, there is no need for this anymore because now 
-            // the solution is evaluated in the moment in which it is created
-            //
-            // for solution in self.population.iter_mut() {
-            //     solution.get_or_score(&*self.scorer);
-            // }
         }
 
         // Return the solution with the best score, where all the other solutions of the last generation are kept in self.population

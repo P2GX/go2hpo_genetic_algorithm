@@ -4,7 +4,7 @@ mod satisfaction_checker;
 mod formula_generator;
 
 
-pub use conjunctions::{Conjunction,TermObservation, TissueExpression, DgeState};
+pub use conjunctions::{Conjunction,TermObservation, TissueExpression, DgeState, TissueId};
 
 pub use dnf::{DNF,DNFBitmask,DNFVec};
 

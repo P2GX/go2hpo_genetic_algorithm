@@ -1,8 +1,10 @@
+use std::collections::HashMap;
+
 use hpo2gene_mapper::GenePhenotypeMapping;
 use ontolius::TermId;
 
 use crate::{
-    annotations::GeneSetAnnotations, logical_formula::{Conjunction, SatisfactionChecker, DNF}
+    annotations::{GeneId, GeneSetAnnotations}, logical_formula::{Conjunction, SatisfactionChecker, DNF}
 };
 
 
@@ -70,7 +72,12 @@ pub trait FitnessScorer<T, P> {
     fn fitness(&self, formula: &T, phenotype: &P) -> f64; //I pass the phenotype by argument, that very likely will always be a HPO TermId term. In this way sperimenting with different phenotypes can be easier
 }
 
-// pub trait ConjunctionScorer: FitnessScorer<Conjunction, TermId> {}
+pub enum ScoreMetric {
+    Accuracy,
+    Precision,
+    Recall,
+    FScore(f64),
+}
 
 
 pub struct DNFScorer<C> {
@@ -85,27 +92,104 @@ impl<C: SatisfactionChecker, T: DNF> FitnessScorer<T, TermId> for DNFScorer<C> {
 }
 
 
-
-pub struct AccuracyConjunctionScorer<C> { 
+pub struct ConjunctionScorer<C> { 
     checker: C,
     gene_set : &'static GeneSetAnnotations,
+    score_metric: ScoreMetric,
 }
 
-impl<C: SatisfactionChecker> FitnessScorer<Conjunction, TermId> for AccuracyConjunctionScorer<C> {
+impl<C: SatisfactionChecker> FitnessScorer<Conjunction, TermId> for ConjunctionScorer<C> {
     fn fitness(&self, formula: &Conjunction, phenotype: &TermId) -> f64 {
-        let genes_satisfaction = self.checker.all_satisfactions(formula);
+        let genes_satisfaction: HashMap<GeneId, bool> = self.checker.all_satisfactions(formula);
+        match self.score_metric {
+            ScoreMetric::Accuracy => self.accuracy(&genes_satisfaction, phenotype),
+            ScoreMetric::Precision => self.precision(&genes_satisfaction, phenotype),
+            ScoreMetric::Recall => self.recall(&genes_satisfaction, phenotype),
+            ScoreMetric::FScore(beta) => self.FScore(&genes_satisfaction, phenotype),
+        }
+    }
+}
+
+impl<C>  ConjunctionScorer<C>{
+    pub fn new(checker: C, gene_set : &'static GeneSetAnnotations, score_metric: ScoreMetric) -> Self{
+        Self { checker, gene_set, score_metric }
+    }
+
+    pub fn accuracy(&self, genes_satisfaction: &HashMap<GeneId, bool>, phenotype: &TermId) -> f64{
         let n_tot = self.gene_set.len();
+        if n_tot == 0 { panic!("Gene Set is empty") }
+
         let correct_predictions = self.gene_set.get_gene_annotations_map().iter()
             .filter(|(gene, gene_annotation)| gene_annotation.contains_phenotype(phenotype) == *genes_satisfaction.get(*gene).expect("There should be an entry for the gene"))
             .count();
+
         return correct_predictions as f64 / n_tot as f64;
     }
-}
 
-impl<C>  AccuracyConjunctionScorer<C>{
-    pub fn new(checker: C, gene_set : &'static GeneSetAnnotations) -> Self{
-        Self { checker, gene_set }
+    pub fn precision(&self, genes_satisfaction: &HashMap<GeneId, bool>, phenotype: &TermId) -> f64{
+        let mut tp = 0; //true positives
+        let mut fp = 0; //false positives
+
+        for (gene, gene_annotation) in self.gene_set.get_gene_annotations_map() {
+            let predicted = *genes_satisfaction.get(gene).expect("Missing prediction for gene");
+            let actual = gene_annotation.contains_phenotype(phenotype);
+
+            if predicted {
+                if actual {
+                    tp += 1;
+                } else {
+                    fp += 1;
+                }
+            }
+        }
+
+        if tp + fp == 0 { // denominator is 0
+            return 0.0;  //No positive predictions, return 0.0
+        }
+
+        return tp as f64 / (tp + fp) as f64;
     }
+
+    pub fn recall(&self, genes_satisfaction: &HashMap<GeneId, bool>, phenotype: &TermId) -> f64{
+        let mut tp = 0;  //true positives
+        let mut fn_ = 0; //false negatives
+    
+        for (gene, gene_annotation) in self.gene_set.get_gene_annotations_map() {
+            let predicted = *genes_satisfaction.get(gene).expect("Missing prediction for gene");
+            let actual = gene_annotation.contains_phenotype(phenotype);
+    
+            if actual {
+                if predicted {
+                    tp += 1;
+                } else {
+                    fn_ += 1;
+                }
+            }
+        }
+    
+        if tp + fn_ == 0 {
+            return 0.0; 
+        }
+    
+        tp as f64 / (tp + fn_) as f64
+    }
+    
+    pub fn FScore(&self, genes_satisfaction: &HashMap<GeneId, bool>, phenotype: &TermId) -> f64{
+        if let ScoreMetric::FScore(beta) = self.score_metric {
+            let precision = self.precision(genes_satisfaction, phenotype);
+            let recall = self.recall(genes_satisfaction, phenotype);
+    
+            if precision + recall == 0.0 {
+                return 0.0;
+            }
+    
+            let beta_sq = beta * beta;
+            (1.0 + beta_sq) * (precision * recall) / (beta_sq * precision + recall)
+        } else {
+            panic!("FScore was called with wrong score metric");
+        }
+    }
+
 }
 
 

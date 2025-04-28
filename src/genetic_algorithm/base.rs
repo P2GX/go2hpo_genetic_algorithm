@@ -79,16 +79,48 @@ pub enum ScoreMetric {
     FScore(f64),
 }
 
-
 pub struct DNFScorer<C> {
-    checker: C,
-    gene_set : &'static GeneSetAnnotations,
+    conjunction_scorer: ConjunctionScorer<C>,
 }
 
 impl<C: SatisfactionChecker, T: DNF> FitnessScorer<T, TermId> for DNFScorer<C> {
     fn fitness(&self, formula: &T, phenotype: &TermId) -> f64 {
-        todo!()
+        let genes_satisfaction: HashMap<GeneId, bool> = match self.get_genes_satisfaction_for_dnf(formula){
+            Ok(satisfactions) => satisfactions,
+            _ => return 0.0,
+        };
+        match self.conjunction_scorer.score_metric {
+            ScoreMetric::Accuracy => self.conjunction_scorer.accuracy(&genes_satisfaction, phenotype),
+            ScoreMetric::Precision => self.conjunction_scorer.precision(&genes_satisfaction, phenotype),
+            ScoreMetric::Recall => self.conjunction_scorer.recall(&genes_satisfaction, phenotype),
+            ScoreMetric::FScore(beta) => self.conjunction_scorer.FScore(&genes_satisfaction, phenotype),
+        }
     }
+}
+
+impl<C: SatisfactionChecker>  DNFScorer<C>{
+    pub fn get_genes_satisfaction_for_dnf<T: DNF>(&self, formula: &T) -> anyhow::Result<HashMap<GeneId, bool>>{
+        let conjunctions = formula.get_active_conjunctions();
+        if conjunctions.len() == 0 {anyhow::bail!("The conjunction length shouldn't be 0")}
+
+        let mut conjunction_iter = conjunctions.iter();
+        let first_conjunction = conjunction_iter.next().expect("It should have at least the first element");
+        let mut satisfaction_mask = self.conjunction_scorer.checker.all_satisfactions(first_conjunction);
+
+        for conjunction in conjunction_iter{
+            for (gene, satisfied) in satisfaction_mask.iter_mut(){
+
+                if *satisfied {continue;}
+
+                if self.conjunction_scorer.checker.is_satisfied(gene, conjunction){
+                    *satisfied = true;
+                }   
+            }
+        }
+
+        Ok(satisfaction_mask)
+    }
+
 }
 
 

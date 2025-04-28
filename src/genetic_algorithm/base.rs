@@ -196,39 +196,92 @@ impl<C>  ConjunctionScorer<C>{
 
 #[cfg(test)]
 mod tests {
-    use crate::logical_formula::{FormulaGenerator, RedundantRandomConjunctionGenerator};
-
     use super::*;
-    use lazy_static::lazy_static;
-    use rand::{rng, rngs::SmallRng, SeedableRng};
+    use std::collections::{HashMap, HashSet};
+    use crate::{annotations::GeneAnnotations};
+    use ontolius::ontology::csr::MinimalCsrOntology;
 
-    lazy_static! {
-        static ref small_test_terms: Vec<TermId> = vec!["GO:0051146", "GO:0052693", "GO:0005634"]
-            .into_iter()
-            .map(|s| s.parse().unwrap())
-            .collect();
+    struct DummyChecker {
+        predictions: HashMap<String, bool>,
+    }
 
-        static ref small_test_tissues: Vec<String> = vec!["Colon_Transverse_Muscularis".to_string(),
-                                                         "Colon_Transverse_Mixed_Cell".to_string(),
-                                                          "Colon_Transverse_Muscularis".to_string(),
-                                                          "Testis".to_string(),
-                                                          "Small_Intestine_Terminal_Ileum_Mixed_Cell".to_string()];
+    impl SatisfactionChecker for DummyChecker {
+        fn is_satisfied(&self, symbol: &GeneId, _: &Conjunction) -> bool {
+            *self.predictions.get(symbol).unwrap()
+        }
+
+        fn all_satisfactions(&self, _: &Conjunction) -> HashMap<String, bool> {
+            self.predictions.clone()
+        }
+    }
+
+    fn term(term_str: &str) -> TermId {
+        term_str.parse().unwrap()
+    }
+
+    fn make_gene_annotations(
+        id: GeneId,
+        phenotype_terms: &[&str],
+        term_annotations: &[&str],
+    ) -> GeneAnnotations {
+        GeneAnnotations::new(
+            "dummy".into(),
+            term_annotations.iter().map(|t| term(t)).collect(),
+            HashSet::new(),
+            phenotype_terms.iter().map(|p| term(p)).collect(),
+        )
     }
 
     #[test]
-    fn test_fitness_score() {
-        let seed = 42;
-        // let mut rng = SmallRng::seed_from_u64(seed);
-        // let mut generator = RedundantRandomConjunctionGenerator::new( 
-        //     2,
-        //     &small_test_terms,
-        //     2,
-        //     &small_test_tissues,
-        //     rng);
-        //     let conjunction: Conjunction = generator.generate();
+    fn test_precision_recall_fscore() {
+        let phenotype = term("GO:0000001");
 
+        let gene_set = Box::leak(Box::new(GeneSetAnnotations::new({
+                let mut map: HashMap<GeneId, GeneAnnotations> = HashMap::new();
+
+                // gene1: TP
+                map.insert("gene1".into(), make_gene_annotations("gene1".into(), &["GO:0000001"], &[]));
+
+                // gene2: FP
+                map.insert("gene2".into(), make_gene_annotations("gene2".into(), &[], &[]));
+
+                // gene3: FN
+                map.insert("gene3".into(), make_gene_annotations("gene3".into(), &["GO:0000001"], &[]));
+
+                // gene4: TN
+                map.insert("gene4".into(), make_gene_annotations("gene4".into(), &[], &[]));
+
+                map
+            })));
+
+        let checker = DummyChecker {
+            predictions: HashMap::from([
+                ("gene1".into(), true),
+                ("gene2".into(), true),
+                ("gene3".into(), false),
+                ("gene4".into(), false),
+            ]),
+        };
+
+        let scorer = ConjunctionScorer::new(checker, gene_set, ScoreMetric::Precision);
+        let conj = Conjunction::new();
+
+        let precision = scorer.precision(&scorer.checker.all_satisfactions(&conj), &phenotype);
+        assert!((precision - 0.5).abs() < 1e-6);
+
+        let recall = scorer.recall(&scorer.checker.all_satisfactions(&conj), &phenotype);
+        assert!((recall - 0.5).abs() < 1e-6);
+
+        let fscore = ConjunctionScorer::new(DummyChecker {
+            predictions: HashMap::from([
+                ("gene1".into(), true),
+                ("gene2".into(), true),
+                ("gene3".into(), false),
+                ("gene4".into(), false),
+            ]),
+        }, gene_set, ScoreMetric::FScore(1.0))
+        .FScore(&scorer.checker.all_satisfactions(&conj), &phenotype);
+
+        assert!((fscore - 0.5).abs() < 1e-6);
     }
-
-
-
 }

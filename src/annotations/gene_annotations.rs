@@ -74,6 +74,10 @@ impl GeneSetAnnotations{
         Self { gene_annotations }
     }
 
+    pub fn new(gene_annotations: HashMap<GeneId, GeneAnnotations>) -> Self {
+        Self { gene_annotations }
+    }
+
     pub fn get_gene_annotations_map(&self) -> &HashMap<String, GeneAnnotations>{
         &self.gene_annotations
     }

@@ -1,3 +1,5 @@
+use crate::annotations::GeneSetAnnotations;
+
 use super::{Conjunction, DNFBitmask, DNFVec, TermObservation, TissueExpression, DNF};
 use super::DgeState;
 use ontolius::TermId;
@@ -146,23 +148,41 @@ where
 
 
 /// Picks some terms from a list of genes
-pub struct GenePickerConjunctionGenerator {
-    max_n_go_terms: usize,
-    max_n_tissue_annnots: usize,
-
+pub struct GenePickerConjunctionGenerator <'a, R>{
+    rng: &'a mut R,
+    prob_terms:f64, 
+    prob_tissues:f64,
+    
     //list of genes 
-    symbol_to_direct_annotations: HashMap<String, HashSet<TermId>>,
+    gene_set: &'static GeneSetAnnotations,
 }
 
-impl FormulaGenerator for GenePickerConjunctionGenerator {
+impl<'a, R> FormulaGenerator for GenePickerConjunctionGenerator<'a, R> 
+where 
+R: Rng,{
     type Output = Conjunction;
 
     fn generate(&mut self) -> Conjunction {
-        todo!();
+        let n = self.gene_set.len();
+        
+        let random_index = self.rng.random_range(0..n);
+        let annotations_map = self.gene_set.get_gene_annotations_map();
+
+        let gene_id = annotations_map.keys().nth(random_index).expect("Index out of bounds");
+        let gene_annotations = annotations_map.get(gene_id).expect("Gene not found");
+
+        gene_annotations.into_randomly_sampled_conjunction(
+            self.prob_terms,
+            self.prob_tissues,
+            self.rng,
+        )
     }
 }
 
-impl ConjunctionGenerator for GenePickerConjunctionGenerator{}
+
+impl<'a, R> ConjunctionGenerator for GenePickerConjunctionGenerator<'a, R>
+where 
+R: Rng{}
 
 
 //DNFBitmask Generators

@@ -1,6 +1,7 @@
 use std::{cmp::min, collections::{HashMap, HashSet}};
-use crate::logical_formula::{DgeState, TissueExpression};
+use crate::logical_formula::{DgeState, TermObservation, TissueExpression};
 use ontolius::TermId;
+use rand::Rng;
 use std::collections::hash_map;
 
 use crate::logical_formula::Conjunction;
@@ -50,6 +51,21 @@ impl GeneAnnotations{
 
     pub fn get_phenotypes(&self) -> &HashSet<TermId>{
         return &self.phenotypes;
+    }
+
+    pub fn into_conjunction(&self) -> Conjunction{
+        let term_obs: Vec<TermObservation> = self.term_annotations.iter().map(|term_id| TermObservation::new(term_id.clone(), false)).collect();
+        let tissue_exprs: Vec<TissueExpression> = self.tissue_expressions.iter().cloned().collect();
+        Conjunction::from(term_obs, tissue_exprs)
+    }
+
+    pub fn into_randomly_sampled_conjunction<'a, R: Rng>(&self, prob_terms:f64, prob_tissues:f64, rng: &'a mut R) -> Conjunction{
+        let term_obs: Vec<TermObservation> = self.term_annotations.iter()
+                                            .filter(|_| prob_terms > rng.random::<f64>())
+                                            .map(|term_id| TermObservation::new(term_id.clone(), false))
+                                            .collect();
+        let tissue_exprs: Vec<TissueExpression> = self.tissue_expressions.iter().filter(|_| prob_tissues > rng.random::<f64>()).cloned().collect();
+        Conjunction::from(term_obs, tissue_exprs)
     }
 }
 
@@ -126,3 +142,4 @@ impl GeneSetAnnotations{
 
 }
 
+// TO DO TESTS

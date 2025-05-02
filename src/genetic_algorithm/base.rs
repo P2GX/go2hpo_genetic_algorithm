@@ -93,7 +93,7 @@ impl<C: SatisfactionChecker, T: DNF> FitnessScorer<T, TermId> for DNFScorer<C> {
             ScoreMetric::Accuracy => self.conjunction_scorer.accuracy(&genes_satisfaction, phenotype),
             ScoreMetric::Precision => self.conjunction_scorer.precision(&genes_satisfaction, phenotype),
             ScoreMetric::Recall => self.conjunction_scorer.recall(&genes_satisfaction, phenotype),
-            ScoreMetric::FScore(beta) => self.conjunction_scorer.FScore(&genes_satisfaction, phenotype),
+            ScoreMetric::FScore(beta) => self.conjunction_scorer.fs_score(&genes_satisfaction, phenotype),
         }
     }
 }
@@ -121,6 +121,14 @@ impl<C: SatisfactionChecker>  DNFScorer<C>{
         Ok(satisfaction_mask)
     }
 
+    pub fn change_metric(&mut self, new_score_metric: ScoreMetric) {
+        self.conjunction_scorer.score_metric = new_score_metric;
+    }
+
+    pub fn get_metric(&self) -> &ScoreMetric {
+        &self.conjunction_scorer.score_metric
+    }
+
 }
 
 
@@ -137,7 +145,7 @@ impl<C: SatisfactionChecker> FitnessScorer<Conjunction, TermId> for ConjunctionS
             ScoreMetric::Accuracy => self.accuracy(&genes_satisfaction, phenotype),
             ScoreMetric::Precision => self.precision(&genes_satisfaction, phenotype),
             ScoreMetric::Recall => self.recall(&genes_satisfaction, phenotype),
-            ScoreMetric::FScore(beta) => self.FScore(&genes_satisfaction, phenotype),
+            ScoreMetric::FScore(beta) => self.fs_score(&genes_satisfaction, phenotype),
         }
     }
 }
@@ -145,6 +153,14 @@ impl<C: SatisfactionChecker> FitnessScorer<Conjunction, TermId> for ConjunctionS
 impl<C>  ConjunctionScorer<C>{
     pub fn new(checker: C, gene_set : &'static GeneSetAnnotations, score_metric: ScoreMetric) -> Self{
         Self { checker, gene_set, score_metric }
+    }
+
+    pub fn change_metric(&mut self, new_score_metric: ScoreMetric) {
+        self.score_metric = new_score_metric;
+    }
+
+    pub fn get_metric(&self) -> &ScoreMetric {
+        &self.score_metric
     }
 
     pub fn accuracy(&self, genes_satisfaction: &HashMap<GeneId, bool>, phenotype: &TermId) -> f64{
@@ -206,7 +222,7 @@ impl<C>  ConjunctionScorer<C>{
         tp as f64 / (tp + fn_) as f64
     }
     
-    pub fn FScore(&self, genes_satisfaction: &HashMap<GeneId, bool>, phenotype: &TermId) -> f64{
+    pub fn fs_score(&self, genes_satisfaction: &HashMap<GeneId, bool>, phenotype: &TermId) -> f64{
         if let ScoreMetric::FScore(beta) = self.score_metric {
             let precision = self.precision(genes_satisfaction, phenotype);
             let recall = self.recall(genes_satisfaction, phenotype);
@@ -230,7 +246,7 @@ impl<C>  ConjunctionScorer<C>{
 mod tests {
     use super::*;
     use std::collections::{HashMap, HashSet};
-    use crate::{annotations::GeneAnnotations};
+    use crate::{annotations::GeneAnnotations, logical_formula::DNFVec};
     use ontolius::ontology::csr::MinimalCsrOntology;
 
     struct DummyChecker {
@@ -257,7 +273,7 @@ mod tests {
         term_annotations: &[&str],
     ) -> GeneAnnotations {
         GeneAnnotations::new(
-            "dummy".into(),
+            id,
             term_annotations.iter().map(|t| term(t)).collect(),
             HashSet::new(),
             phenotype_terms.iter().map(|p| term(p)).collect(),
@@ -265,20 +281,20 @@ mod tests {
     }
 
     #[test]
-    fn test_precision_recall_fscore() {
-        let phenotype = term("GO:0000001");
+    fn test_precision_recall_fscore_accuracy() {
+        let phenotype = term("HPO:0000001");
 
         let gene_set = Box::leak(Box::new(GeneSetAnnotations::new({
                 let mut map: HashMap<GeneId, GeneAnnotations> = HashMap::new();
 
                 // gene1: TP
-                map.insert("gene1".into(), make_gene_annotations("gene1".into(), &["GO:0000001"], &[]));
+                map.insert("gene1".into(), make_gene_annotations("gene1".into(), &["HPO:0000001"], &[]));
 
                 // gene2: FP
                 map.insert("gene2".into(), make_gene_annotations("gene2".into(), &[], &[]));
 
                 // gene3: FN
-                map.insert("gene3".into(), make_gene_annotations("gene3".into(), &["GO:0000001"], &[]));
+                map.insert("gene3".into(), make_gene_annotations("gene3".into(), &["HPO:0000001"], &[]));
 
                 // gene4: TN
                 map.insert("gene4".into(), make_gene_annotations("gene4".into(), &[], &[]));
@@ -295,25 +311,107 @@ mod tests {
             ]),
         };
 
-        let scorer = ConjunctionScorer::new(checker, gene_set, ScoreMetric::Precision);
+        
+        let scorer = ConjunctionScorer::new(checker, gene_set, ScoreMetric::FScore(1.0));
         let conj = Conjunction::new();
 
-        let precision = scorer.precision(&scorer.checker.all_satisfactions(&conj), &phenotype);
+        let all_satisfactions = &scorer.checker.all_satisfactions(&conj);
+        
+        
+        let fscore = scorer.fs_score(all_satisfactions, &phenotype);
+        assert!((fscore - 0.5).abs() < 1e-6);
+
+        let precision = scorer.precision(all_satisfactions, &phenotype);
         assert!((precision - 0.5).abs() < 1e-6);
 
-        let recall = scorer.recall(&scorer.checker.all_satisfactions(&conj), &phenotype);
+        let recall = scorer.recall(all_satisfactions, &phenotype);
         assert!((recall - 0.5).abs() < 1e-6);
 
-        let fscore = ConjunctionScorer::new(DummyChecker {
+        let accuracy = scorer.accuracy(all_satisfactions, &phenotype);
+        assert!((accuracy - 0.5).abs() < 1e-6);
+
+    }
+
+    
+
+
+    // TESTS PER DNF
+
+    #[test]
+    fn test_dnfscorer_with_fixed_predictions() {
+        let phenotype1 = term("HPO:0000001");
+        let phenotype2 = term("HPO:0000002");
+        let phenotype3 = term("HPO:0000003");
+
+        let gene_set = Box::leak(Box::new(GeneSetAnnotations::new({
+                let mut map = HashMap::new();
+                map.insert("gene1".to_string(), make_gene_annotations("gene1".into(), &["HPO:0000001", "HPO:0000002", "HPO:0000003"], &[]));
+                map.insert("gene2".to_string(), make_gene_annotations("gene2".into(), &["HPO:0000002", "HPO:0000003"], &[]));
+                map.insert("gene3".to_string(), make_gene_annotations("gene3".into(), &["HPO:0000001", "HPO:0000003"], &[]));
+                map.insert("gene4".to_string(), make_gene_annotations("gene4".into(), &[],&[] ));
+                map
+            },
+        )));
+
+        let checker = DummyChecker {
             predictions: HashMap::from([
                 ("gene1".into(), true),
                 ("gene2".into(), true),
                 ("gene3".into(), false),
                 ("gene4".into(), false),
             ]),
-        }, gene_set, ScoreMetric::FScore(1.0))
-        .FScore(&scorer.checker.all_satisfactions(&conj), &phenotype);
+        };
 
-        assert!((fscore - 0.5).abs() < 1e-6);
+        let conjunction = Conjunction::new(); // dummy, content doesn't matter
+        let dnf = DNFVec::from_conjunctions(vec![conjunction]);
+
+        let conjunction_scorer = ConjunctionScorer::new(checker, gene_set, ScoreMetric::Precision);
+        let mut scorer = DNFScorer { conjunction_scorer };
+        
+        // PRECISION
+        let precision_1 = scorer.fitness(&dnf, &phenotype1);
+        assert!((precision_1 - 0.5).abs() < 1e-6);
+        let precision_2 = scorer.fitness(&dnf, &phenotype2);
+        assert!((precision_2 - 1.0).abs() < 1e-6);
+        let precision_3 = scorer.fitness(&dnf, &phenotype3);
+        assert!((precision_3 - 1.0).abs() < 1e-6);
+
+        // RECALL
+        scorer.change_metric(ScoreMetric::Recall);
+        let recall_1 = scorer.fitness(&dnf, &phenotype1);
+        assert!((recall_1 - 0.5).abs() < 1e-6);
+        let recall_2 = scorer.fitness(&dnf, &phenotype2);
+        assert!((recall_2 - 1.0).abs() < 1e-6);
+        let recall_3 = scorer.fitness(&dnf, &phenotype3);
+        assert!((recall_3 - (2.0 / 3.0)).abs() < 1e-6);
+
+        // F1
+        scorer.change_metric(ScoreMetric::FScore(1.0));
+        let f1_1 = scorer.fitness(&dnf, &phenotype1);
+        assert!((f1_1 - 0.5).abs() < 1e-6);
+        let f1_2 = scorer.fitness(&dnf, &phenotype2);
+        assert!((f1_2 - 1.0).abs() < 1e-6);
+        let f1_3 = scorer.fitness(&dnf, &phenotype3);
+        assert!((f1_3 - 1.0).abs() < 1e-6);
+
+        // ACCURACY
+        scorer.change_metric(ScoreMetric::Accuracy);
+        let accuracy_1 = scorer.fitness(&dnf, &phenotype1);
+        assert!((accuracy_1 - 0.5).abs() < 1e-6);
+        let accuracy_2 = scorer.fitness(&dnf, &phenotype2);
+        assert!((accuracy_2 - 1.0).abs() < 1e-6);
+        let accuracy_3 = scorer.fitness(&dnf, &phenotype3);
+        assert!((accuracy_3 - 1.0).abs() < 1e-6);
+
     }
+
+    #[test]
+    fn test_dnfscorer_with_real_satisfaction_checker(){
+
+    }
+
+
+
 }
+
+

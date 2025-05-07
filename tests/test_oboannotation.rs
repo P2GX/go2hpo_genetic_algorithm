@@ -8,6 +8,7 @@ use std::{fs::File, hash::Hash, io::BufReader};
 
 use go2hpo_genetic_algorithm::logical_formula::NaiveSatisfactionChecker;
 use go2hpo_genetic_algorithm::logical_formula::SatisfactionChecker;
+use go2hpo_genetic_algorithm::annotations::GeneSetAnnotations;
 use ontolius::ontology::csr::MinimalCsrOntology;
 
 use oboannotation::go::GoAnnotations;
@@ -22,8 +23,10 @@ use go2hpo_genetic_algorithm::logical_formula::Conjunction;
 use go2hpo_genetic_algorithm::logical_formula::TermObservation;
 
 use ontolius::TermId;
-
+use crate::fixtures::gene_set_annotations::gene_set_annotations;
 use lazy_static::lazy_static;
+use rstest::{fixture, rstest};
+mod fixtures;
 
 lazy_static! {
     static ref ANNOTATION_MAP: HashMap<String, HashSet<TermId>>  = load_and_get_go_annotation_map();
@@ -117,11 +120,12 @@ fn load_and_get_go() -> MinimalCsrOntology{
 macro_rules! test_conjunction {
     ($func:ident, $symbol:expr, [$(($go:expr, $val:expr)),+], $expected:expr) => {
         
-        #[test]
-        fn $func(){
+        #[rstest]
+        fn $func(gene_set_annotations: GeneSetAnnotations){
             let go: MinimalCsrOntology = load_and_get_go();
             let annot_map = ANNOTATION_MAP.clone();
-            let checker: NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go, annot_map);
+            let gene_set_annotations: &'static GeneSetAnnotations = Box::leak(Box::new(gene_set_annotations));
+            let checker: NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go, &gene_set_annotations);
 
             let mut term_vec: Vec<TermObservation> = Vec::new();
             $(
@@ -136,12 +140,14 @@ macro_rules! test_conjunction {
 
             let result = checker.is_satisfied($symbol, &conjunction);
             assert_eq!(result, $expected);
+            
+            
     }};
 }
 
-test_conjunction!(test_conjunction_not_satisfied , "PMPCA", [("GO:0051146", false), ("GO:0052693", false)], false);
-test_conjunction!(test_conjunction_satisfied, "PMPCA", [("GO:0051146", true), ("GO:0052693", true)], true);
-test_conjunction!(test_conjunction_satisfied_with_included_terms, "PMPCA", [("GO:0004222", false), ("GO:0017087", false)], true);
+test_conjunction!(test_conjunction_not_satisfied , &"PMPCA".to_string(), [("GO:0051146", false), ("GO:0052693", false)], false);
+test_conjunction!(test_conjunction_satisfied,  &"PMPCA".to_string(), [("GO:0051146", true), ("GO:0052693", true)], true);
+test_conjunction!(test_conjunction_satisfied_with_included_terms,  &"PMPCA".to_string(), [("GO:0004222", false), ("GO:0017087", false)], true);
 
 
 fn open_for_reading<P: AsRef<Path>>(goa_path: P) -> anyhow::Result<Box<dyn BufRead>> {

@@ -162,6 +162,7 @@ where
 R: Rng,{
     type Output = Conjunction;
 
+    // TO DO: PICK FROM ONLY THOSE GENES THAT ARE ANNOTATED WITH THE HPO TERM
     fn generate(&mut self) -> Conjunction {
         let n = self.gene_set.len();
         

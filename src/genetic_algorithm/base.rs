@@ -392,7 +392,7 @@ mod tests {
         let f1_2 = scorer.fitness(&dnf, &phenotype2);
         assert!((f1_2 - 1.0).abs() < 1e-6);
         let f1_3 = scorer.fitness(&dnf, &phenotype3);
-        assert!((f1_3 - 1.0).abs() < 1e-6);
+        assert!((f1_3 - (2.0*precision_3*recall_3/(precision_3+recall_3))).abs() < 1e-6);
 
         // ACCURACY
         scorer.change_metric(ScoreMetric::Accuracy);
@@ -401,7 +401,7 @@ mod tests {
         let accuracy_2 = scorer.fitness(&dnf, &phenotype2);
         assert!((accuracy_2 - 1.0).abs() < 1e-6);
         let accuracy_3 = scorer.fitness(&dnf, &phenotype3);
-        assert!((accuracy_3 - 1.0).abs() < 1e-6);
+        assert!((accuracy_3 - (3.0/4.0)).abs() < 1e-6);
 
     }
 

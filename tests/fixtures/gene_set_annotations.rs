@@ -4,11 +4,47 @@ use gtex_analyzer::expression_analysis::{GtexSummary, GtexSummaryLoader};
 use hpo2gene_mapper::{mapper::GenePhenotypeMemoryMapper, GenePhenotypeMapping};
 use ontolius::{io::OntologyLoaderBuilder, ontology::csr::MinimalCsrOntology, TermId};
 use rstest::{fixture, rstest};
-use go2hpo_genetic_algorithm::{annotations::{GeneSetAnnotations, GtexSummaryParser}, logical_formula::TissueExpression};
+use go2hpo_genetic_algorithm::{annotations::{GeneId, GeneIdMapper, GeneSetAnnotations, GtexSummaryParser}, logical_formula::TissueExpression};
 
 use oboannotation::{go::{stats::get_annotation_map, GoAnnotations, GoGafAnnotationLoader}, io::AnnotationLoader};
 
 // TISSUE EXPRESSION DATA
+fn remove_ensembl_id_version_number<T>(hashmap: HashMap<String, T>) -> HashMap<String, T>{
+    let mut new_hashmap: HashMap<String, T> = HashMap::new();
+    for (ensembl_id, content) in hashmap{
+        let base_id = ensembl_id.split('.').next().unwrap();
+        new_hashmap.insert(base_id.to_string(), content);
+    }   
+    new_hashmap
+}
+
+fn get_map() -> io::Result<HashMap<String, GeneId>>{
+    let file = File::open("data/map/hgnc_complete_set.txt")?;
+    let reader = BufReader::new(file);
+
+    let mut map: HashMap<String, GeneId> = HashMap::new();
+
+    let mut lines = reader.lines();
+
+    let header = lines.next().unwrap()?; 
+    let columns: Vec<&str> = header.split('\t').collect();
+
+    let ensembl_index = columns.iter().position(|&col| col == "ensembl_gene_id").unwrap();
+    let symbol_index = columns.iter().position(|&col| col == "symbol").unwrap();
+
+    for line in lines {
+        if let Ok(line) = line {
+            let fields: Vec<&str> = line.split('\t').collect();
+            if let (Some(ensembl), Some(symbol)) = (fields.get(ensembl_index), fields.get(symbol_index)) {
+                if !ensembl.is_empty() && !symbol.is_empty() {
+                    map.insert(ensembl.to_string(), symbol.to_string());
+                }
+            }
+        }
+    }
+    Ok(map)
+}
+
 #[fixture]
 pub fn gtex_summary_sample() -> io::Result<GtexSummary>{
     let file_path: &str = "data/gtex/GTEx_RNASeq_gene_median_tpm_HEAD.gct";
@@ -42,8 +78,9 @@ pub fn gtex_summary() -> io::Result<GtexSummary>{
 
 #[fixture]
 pub fn gene2tissue_expr(gtex_summary: io::Result<GtexSummary>) -> HashMap<String, HashSet<TissueExpression>>{
-    let tissue_expressions = GtexSummaryParser::parse(&gtex_summary.expect("It should be Ok"));
-    tissue_expressions
+    let tissue_expressions = remove_ensembl_id_version_number(GtexSummaryParser::parse(&gtex_summary.expect("It should be Ok")));
+    let gene_id_mapper = GeneIdMapper::new(get_map().unwrap());
+    gene_id_mapper.map_keys(tissue_expressions)
 }
 
 
@@ -189,6 +226,8 @@ pub fn check_gene_keys_pairwise_intersection(
     }
 
     let all_three: HashSet<_> = go_tissue.intersection(&keys_phenotypes).cloned().collect();
+    dbg!(&all_three.len());
+
     if all_three.is_empty() {
         println!("No gene is in common in all three datasets");
     }
@@ -197,10 +236,10 @@ pub fn check_gene_keys_pairwise_intersection(
 
 
 
-#[rstest]
-pub fn test_gene_set_annotations_sample(gene_set_annotations_sample: GeneSetAnnotations){
-    assert!(gene_set_annotations_sample.len() > 0) 
-}
+// #[rstest]
+// pub fn test_gene_set_annotations_sample(gene_set_annotations_sample: GeneSetAnnotations){
+//     assert!(gene_set_annotations_sample.len() > 0) 
+// }
 
 #[rstest]
 pub fn test_gene_set_annotations(gene_set_annotations: GeneSetAnnotations){

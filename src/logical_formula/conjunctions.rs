@@ -124,6 +124,10 @@ impl Conjunction{
         Self { term_observations: vec![], tissue_expressions: vec![] }
     }
     
+    pub fn from(term_observations: Vec<TermObservation>, tissue_expressions: Vec<TissueExpression>) -> Self{
+        Self { term_observations, tissue_expressions } 
+    }
+
     // Sum of all the annotation vectors
     /// Total length of all the annotation terms present in the conjunction
     pub fn len(&self) -> usize{

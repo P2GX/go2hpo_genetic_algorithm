@@ -123,7 +123,7 @@ where
 
         let chosen_tissues: Vec<TissueExpression> = shuffled_tissue_terms
             .iter()
-            .take(self.n_go_terms)
+            .take(self.n_tissue_terms)
             .map(|term_id| TissueExpression::new(term_id.clone(), DgeState::get_random(&mut self.rng)))
             .collect();
 

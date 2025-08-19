@@ -236,10 +236,8 @@ pub fn check_gene_keys_pairwise_intersection(
 
 
 
-// #[rstest]
-// pub fn test_gene_set_annotations_sample(gene_set_annotations_sample: GeneSetAnnotations){
-//     assert!(gene_set_annotations_sample.len() > 0) 
-// }
+// 
+
 
 #[rstest]
 pub fn test_gene_set_annotations(gene_set_annotations: GeneSetAnnotations){

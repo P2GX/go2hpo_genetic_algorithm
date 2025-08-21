@@ -1,7 +1,7 @@
 use ontolius::TermId;
 use rand::{seq::SliceRandom, Rng};
 use std::{any::Any, collections::{HashMap, HashSet}};
-
+use std::fmt;
 
 
 
@@ -13,6 +13,7 @@ pub trait TermAnnotation{}
 //     fn get_term(&self) -> &T;
 //     fn is_annotated_as(&self, annotation_type: V) -> bool; 
 // }
+
 
 #[derive(Debug, Clone)]
 pub struct TermObservation {
@@ -33,6 +34,16 @@ impl PartialEq for TermObservation {
     fn eq(&self, other: &Self) -> bool {
         // Define custom equality criteria here
         self.term_id == other.term_id && self.is_excluded == other.is_excluded
+    }
+}
+
+impl fmt::Display for TermObservation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_excluded {
+            write!(f, "NOT({})", self.term_id)
+        } else {
+            write!(f, "{}", self.term_id)
+        }
     }
 }
 
@@ -94,6 +105,27 @@ impl PartialEq for TissueExpression {
         self.term_id == other.term_id && self.state == other.state
     }
 }
+
+impl fmt::Display for DgeState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DgeState::Up => write!(f, "UP"),
+            DgeState::Down => write!(f, "DOWN"),
+            DgeState::Normal => write!(f, "NORMAL"),
+        }
+    }
+}
+
+impl fmt::Display for TissueExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.state {
+            DgeState::Up => write!(f, "UP({})", self.term_id),
+            DgeState::Down => write!(f, "DOWN({})", self.term_id),
+            DgeState::Normal => write!(f, "NORMAL({})", self.term_id),
+        }
+    }
+}
+
 
 // impl TermAnnotation<String, DgeState> for TissueExpression{
 //     fn get_term(&self) -> &String {
@@ -318,4 +350,31 @@ mod tests {
         assert_eq!(conj1.len(), 4);
         assert_ne!(conj1, conj3);
     }
+
+    #[test]
+    fn test_display_termobservation() {
+        let t1: TermId = "GO:0051146".parse().unwrap();
+        let obs1 = TermObservation::new(t1.clone(), false);
+        let obs2 = TermObservation::new(t1, true);
+
+        // println!("{}", obs1); // prints: GO:0051146
+        // println!("{}", obs2); // prints: NOT(GO:0051146)
+        
+        assert_eq!(format!("{}", obs1), "GO:0051146");
+        assert_eq!(format!("{}", obs2), "NOT(GO:0051146)");
+    }
+
+    #[test]
+    fn test_display_tissueexpression() {
+        let t1 = TissueExpression::new("Liver".to_string(), DgeState::Up);
+        let t2 = TissueExpression::new("Heart".to_string(), DgeState::Down);
+        let t3 = TissueExpression::new("Brain".to_string(), DgeState::Normal);
+
+        assert_eq!(format!("{}", t1), "UP(Liver)");
+        assert_eq!(format!("{}", t2), "DOWN(Heart)");
+        assert_eq!(format!("{}", t3), "NORMAL(Brain)");
+    }
+
+
+
 }

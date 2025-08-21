@@ -15,6 +15,16 @@ pub struct ElitesByNumberSelector {
     number_of_elites: usize,
 }
 
+impl ElitesByNumberSelector {
+    pub fn new(number_of_elites: usize) -> Self {
+        if number_of_elites == 0 {
+            panic!("Number of elites must be greater than 0");
+        }
+        Self { number_of_elites }
+    }
+}
+
+
 impl<T: Clone> ElitesSelector<T> for ElitesByNumberSelector {
     fn pass_elites(
         &self,
@@ -49,6 +59,15 @@ impl<T: Clone> ElitesSelector<T> for ElitesByNumberSelector {
 pub struct ElitesByThresholdSelector {
     elite_cutoff: f64,
     maximum_number: Option<usize>,
+}
+
+impl ElitesByThresholdSelector {
+    pub fn new(elite_cutoff: f64, maximum_number: Option<usize>) -> Self {
+        Self {
+            elite_cutoff,
+            maximum_number,
+        }
+    }
 }
 
 impl<T: Clone> ElitesSelector<T> for ElitesByThresholdSelector {

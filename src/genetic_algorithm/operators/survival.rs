@@ -89,3 +89,65 @@ impl<T: Clone> ElitesSelector<T> for ElitesByThresholdSelector {
         next_population.len()
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_elites_by_number_selector() {
+        // Create a mock population of Solutions
+        let population: Vec<Solution<&str>> = vec![
+            Solution::new("A", 1.0),
+            Solution::new("B", 2.0),
+            Solution::new("C", 3.0),
+            Solution::new("D", 4.0),
+        ];
+
+        // Create selector with top 2 elites
+        let selector = ElitesByNumberSelector::new(2);
+
+        let mut next_population: Vec<Solution<&str>> = Vec::new();
+
+        let final_len = selector.pass_elites(&mut next_population, &population, false);
+
+        // Check that 2 elites were passed
+        assert_eq!(final_len, 2);
+
+        // Check that the elites are the ones with the highest scores
+        let scores: Vec<f64> = next_population.iter().map(|s| s.get_score()).collect();
+        assert_eq!(scores, vec![4.0, 3.0]);
+    }
+
+    #[test]
+    fn test_elites_by_threshold_selector() {
+        let population: Vec<Solution<&str>> = vec![
+            Solution::new("A", 1.0),
+            Solution::new("B", 2.5),
+            Solution::new("C", 3.0),
+            Solution::new("D", 4.5),
+        ];
+
+        // Case 1: threshold without maximum_number
+        let selector_no_limit = ElitesByThresholdSelector::new(3.0, None);
+        let mut next_population: Vec<Solution<&str>> = Vec::new();
+        let final_len = selector_no_limit.pass_elites(&mut next_population, &population, false);
+
+        assert_eq!(final_len, 2); // "C" and "D" survive
+        let scores: Vec<f64> = next_population.iter().map(|s| s.get_score()).collect();
+        assert_eq!(scores, vec![3.0, 4.5]);
+
+        // Case 2: threshold with maximum_number
+        let selector_with_limit = ElitesByThresholdSelector::new(1.5, Some(2));
+        let mut next_population: Vec<Solution<&str>> = Vec::new();
+        let final_len = selector_with_limit.pass_elites(&mut next_population, &population, false);
+
+        assert_eq!(final_len, 2); // but limited by max 2
+        let scores: Vec<f64> = next_population.iter().map(|s| s.get_score()).collect();
+        assert!(scores.contains(&3.0) || scores.contains(&4.5)); 
+    }
+
+}
+
+

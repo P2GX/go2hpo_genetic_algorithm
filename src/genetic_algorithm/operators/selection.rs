@@ -142,7 +142,7 @@ where
                 return index;
             }
         }
-        return (self.scores.len() - 1);
+        return self.scores.len() - 1;
     }
     
 }

@@ -148,37 +148,85 @@ where
 
 
 /// Picks some terms from a list of genes
-pub struct GenePickerConjunctionGenerator <'a, R>{
+pub struct GenePickerConjunctionGenerator<'a, R> {
     rng: &'a mut R,
-    prob_terms:f64, 
-    prob_tissues:f64,
-    
-    //list of genes 
-    gene_set: &'static GeneSetAnnotations,
+    prob_terms: f64,
+    prob_tissues: f64,
+    gene_set: &'a GeneSetAnnotations,
+
+    // Optional phenotype filter
+    target_phenotype: Option<TermId>,
+
+    // Optional limits
+    max_terms: Option<usize>,
+    max_tissues: Option<usize>,
 }
 
-impl<'a, R> FormulaGenerator for GenePickerConjunctionGenerator<'a, R> 
-where 
-R: Rng,{
+impl<'a, R> GenePickerConjunctionGenerator<'a, R>
+where
+    R: Rng,
+{
+    pub fn new(
+        rng: &'a mut R,
+        prob_terms: f64,
+        prob_tissues: f64,
+        gene_set: &'a GeneSetAnnotations,
+        target_phenotype: Option<TermId>,
+        max_terms: Option<usize>,
+        max_tissues: Option<usize>,
+    ) -> Self {
+        Self {
+            rng,
+            prob_terms,
+            prob_tissues,
+            gene_set,
+            target_phenotype,
+            max_terms,
+            max_tissues,
+        }
+    }
+}
+
+
+
+impl<'a, R> FormulaGenerator for GenePickerConjunctionGenerator<'a, R>
+where
+    R: Rng,
+{
     type Output = Conjunction;
 
-    // TO DO: PICK FROM ONLY THOSE GENES THAT ARE ANNOTATED WITH THE HPO TERM
     fn generate(&mut self) -> Conjunction {
-        let n = self.gene_set.len();
-        
-        let random_index = self.rng.random_range(0..n);
         let annotations_map = self.gene_set.get_gene_annotations_map();
 
-        let gene_id = annotations_map.keys().nth(random_index).expect("Index out of bounds");
-        let gene_annotations = annotations_map.get(gene_id).expect("Gene not found");
+        // Filter candidate genes depending on target_phenotype
+        let candidate_genes: Vec<_> = match &self.target_phenotype {
+            Some(phenotype) => annotations_map
+                .iter()
+                .filter(|(_, ann)| ann.contains_phenotype(phenotype))
+                .collect(),
+            None => annotations_map.iter().collect(),
+        };
 
+        assert!(
+            !candidate_genes.is_empty(),
+            "No candidate genes available for the given phenotype filter"
+        );
+
+        // Pick one at random
+        let random_index = self.rng.random_range(0..candidate_genes.len());
+        let (_gene_id, gene_annotations) = candidate_genes[random_index];
+
+        // Sample conjunction from gene annotations
         gene_annotations.into_randomly_sampled_conjunction(
             self.prob_terms,
             self.prob_tissues,
             self.rng,
+            self.max_terms,
+            self.max_tissues,
         )
     }
 }
+
 
 
 impl<'a, R> ConjunctionGenerator for GenePickerConjunctionGenerator<'a, R>

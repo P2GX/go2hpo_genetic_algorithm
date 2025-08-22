@@ -3,6 +3,7 @@ use crate::logical_formula::{DgeState, TermObservation, TissueExpression};
 use ontolius::TermId;
 use rand::Rng;
 use std::collections::hash_map;
+use rand::seq::IteratorRandom;
 
 use crate::logical_formula::Conjunction;
 
@@ -59,12 +60,59 @@ impl GeneAnnotations{
         Conjunction::from(term_obs, tissue_exprs)
     }
 
-    pub fn into_randomly_sampled_conjunction<'a, R: Rng>(&self, prob_terms:f64, prob_tissues:f64, rng: &'a mut R) -> Conjunction{
-        let term_obs: Vec<TermObservation> = self.term_annotations.iter()
-                                            .filter(|_| prob_terms > rng.random::<f64>())
-                                            .map(|term_id| TermObservation::new(term_id.clone(), false))
-                                            .collect();
-        let tissue_exprs: Vec<TissueExpression> = self.tissue_expressions.iter().filter(|_| prob_tissues > rng.random::<f64>()).cloned().collect();
+    // pub fn into_randomly_sampled_conjunction<'a, R: Rng>(&self, prob_terms:f64, prob_tissues:f64, rng: &'a mut R) -> Conjunction{
+    //     let term_obs: Vec<TermObservation> = self.term_annotations.iter()
+    //                                         .filter(|_| prob_terms > rng.random::<f64>())
+    //                                         .map(|term_id| TermObservation::new(term_id.clone(), false))
+    //                                         .collect();
+    //     let tissue_exprs: Vec<TissueExpression> = self.tissue_expressions.iter().filter(|_| prob_tissues > rng.random::<f64>()).cloned().collect();
+    //     Conjunction::from(term_obs, tissue_exprs)
+    // }
+
+    pub fn into_randomly_sampled_conjunction<'a, R: Rng>(
+        &self,
+        prob_terms: f64,
+        prob_tissues: f64,
+        rng: &'a mut R,
+        max_terms: Option<usize>,
+        max_tissues: Option<usize>,
+    ) -> Conjunction {
+        // Step 1: Probabilistic filtering (original behavior)
+        let mut term_obs: Vec<TermObservation> = self.term_annotations
+            .iter()
+            .filter(|_| prob_terms > rng.random::<f64>())
+            .map(|term_id| TermObservation::new(term_id.clone(), false))
+            .collect();
+
+        let mut tissue_exprs: Vec<TissueExpression> = self.tissue_expressions
+            .iter()
+            .filter(|_| prob_tissues > rng.random::<f64>())
+            .cloned()
+            .collect();
+
+        // Step 2: Apply caps (if provided)
+        if let Some(max) = max_terms {
+            if term_obs.len() > max {
+                term_obs = term_obs
+                    .iter()                
+                    .choose_multiple(rng, max)
+                    .into_iter()           
+                    .cloned()              
+                    .collect();
+            }
+        }
+
+        if let Some(max) = max_tissues {
+            if tissue_exprs.len() > max {
+                tissue_exprs = tissue_exprs
+                    .iter()
+                    .choose_multiple(rng, max)
+                    .into_iter()
+                    .cloned()
+                    .collect();
+            }
+        }
+
         Conjunction::from(term_obs, tissue_exprs)
     }
 }

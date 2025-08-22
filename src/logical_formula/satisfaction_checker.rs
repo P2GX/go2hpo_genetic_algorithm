@@ -14,18 +14,24 @@ use super::{Conjunction, TissueExpression};
 pub trait SatisfactionChecker {
     fn is_satisfied(&self, symbol: &GeneId, conjunction: &Conjunction) -> bool;
     fn all_satisfactions(&self, conjunction: &Conjunction) -> HashMap<String, bool>;
+    fn get_gene_set(&self) -> &GeneSetAnnotations;
 }
 
 
-pub struct NaiveSatisfactionChecker<O> {
-    go: O,
-    // symbol_to_direct_annotations: HashMap<String, HashSet<TermId>>,
-    gene_set_annotations: &'static GeneSetAnnotations, 
+pub struct NaiveSatisfactionChecker<'a, O> {
+    pub go: O,
+    gene_set_annotations: &'a GeneSetAnnotations, 
 }
-impl<O> SatisfactionChecker for NaiveSatisfactionChecker<O>
+
+impl<'a, O: HierarchyWalks> SatisfactionChecker for NaiveSatisfactionChecker<'a, O>
 where
     O: HierarchyWalks,
 {
+
+    fn get_gene_set(&self) -> &GeneSetAnnotations { 
+        return self.gene_set_annotations;
+    }
+
     /// Checks if a gene satisfies the annotations of a conjunction
     fn is_satisfied(&self, symbol: &GeneId, conjunction: &Conjunction) -> bool {
         let gene_annotations_lookup = self.gene_set_annotations.get_gene_annotations(symbol);
@@ -54,16 +60,11 @@ where
     }
 }
 
-impl<O> NaiveSatisfactionChecker<O> 
-where
-    O: HierarchyWalks,{
-    pub fn new(go: O, gene_set_annotations: &'static GeneSetAnnotations) -> Self {
-        Self {
-            go,
-            gene_set_annotations,
-        }
+impl<'a, O> NaiveSatisfactionChecker<'a, O> 
+where O: HierarchyWalks {
+    pub fn new(go: O, gene_set_annotations: &'a GeneSetAnnotations) -> Self {
+        Self { go, gene_set_annotations }
     }
-
 
     pub fn are_term_annotations_satisfied(&self, gene_annotations: &GeneAnnotations, conjunction: &Conjunction) -> bool{
         let direct_annotations = gene_annotations.get_term_annotations();
@@ -108,7 +109,8 @@ where
 #[cfg(test)]
 mod tests {
     use std::{fs::File, hash::Hash, io::BufReader};
-
+    use rstest::rstest;
+    use rstest::fixture;
     use flate2::bufread::GzDecoder;
     use ontolius::{io::OntologyLoaderBuilder, ontology::csr::MinimalCsrOntology};
 
@@ -116,21 +118,22 @@ mod tests {
 
     use super::*;
 
-    lazy_static! {
-        static ref checker : NaiveSatisfactionChecker<MinimalCsrOntology> = initialize_data(); // NaiveSatisfactionChecker::new(go, map);
-    }
-
-    fn initialize_data() -> NaiveSatisfactionChecker<MinimalCsrOntology> {
+    // GO ONTOLOGY SAMPLE
+    #[fixture]
+    pub fn go_sample() -> MinimalCsrOntology{
         let go_path = "data/go/go.toy.json.gz";
-        let reader = GzDecoder::new(BufReader::new(
+        let reader = flate2::bufread::GzDecoder::new(BufReader::new(
             File::open(go_path).expect("The file should be in the repo"),
         ));
 
-        let loader = OntologyLoaderBuilder::new().obographs_parser().build();
-        let go: MinimalCsrOntology = loader
+        let parser = OntologyLoaderBuilder::new().obographs_parser().build();
+        let go: MinimalCsrOntology = parser
             .load_from_read(reader)
-            .expect("Toy ontology should be OK");
+            .expect("The ontology file should be OK");
+        go
+    }
 
+    fn initialize_data() -> GeneSetAnnotations {
         // GENE 1
         let symbol1 = String::from("gene1");
 
@@ -152,13 +155,13 @@ mod tests {
         let mut phenotypes = HashMap::new();
         phenotypes.insert(symbol1.clone(), HashSet::new());
 
-        let gene_set = Box::leak(Box::new(GeneSetAnnotations::from(term_map, tissue_map, phenotypes)));
+        let gene_set = GeneSetAnnotations::from(term_map, tissue_map, phenotypes);
+        gene_set
         
-        NaiveSatisfactionChecker::new(go, gene_set)
     }
 
-    #[test]
-    fn test_is_satisfied_esssential() {
+    #[rstest]
+    fn test_is_satisfied_esssential(go_sample: MinimalCsrOntology) {
         let t1: TermId = "GO:0051146".parse().unwrap();
         let t2: TermId = "GO:0052693".parse().unwrap();
         let symbol = String::from("gene1");
@@ -173,6 +176,8 @@ mod tests {
             tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
+        let mock_gene_set = initialize_data();
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
@@ -180,8 +185,8 @@ mod tests {
         //TO DO: test also tissue expression part
     }
 
-    #[test]
-    fn test_is_satisfied_subset() {
+    #[rstest]
+    fn test_is_satisfied_subset(go_sample: MinimalCsrOntology) {
         let t1: TermId = "GO:0051146".parse().unwrap();
         let symbol = String::from("gene1");
 
@@ -194,13 +199,15 @@ mod tests {
             tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
+        let mock_gene_set = initialize_data();
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
     }
 
-    #[test]
-    fn test_is_not_satisfied_essential() {
+    #[rstest]
+    fn test_is_not_satisfied_essential(go_sample: MinimalCsrOntology) {
         let t1: TermId = "GO:0051146".parse().unwrap();
         let t2: TermId = "GO:0052693".parse().unwrap();
         let t3: TermId = "GO:0005634".parse().unwrap();
@@ -217,13 +224,15 @@ mod tests {
             tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
+        let mock_gene_set = initialize_data();
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, false);
     }
 
-    #[test]
-    fn test_is_satisfied_with_exclusion() {
+    #[rstest]
+    fn test_is_satisfied_with_exclusion(go_sample: MinimalCsrOntology) {
         let t1: TermId = "GO:0051146".parse().unwrap();
         let t2: TermId = "GO:0052693".parse().unwrap();
         let t3: TermId = "GO:0005634".parse().unwrap();
@@ -240,13 +249,15 @@ mod tests {
             tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
+        let mock_gene_set = initialize_data();
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
     }
 
-    #[test]
-    fn test_is_not_satisfied_with_exclusion() {
+    #[rstest]
+    fn test_is_not_satisfied_with_exclusion(go_sample: MinimalCsrOntology) {
         let t1: TermId = "GO:0051146".parse().unwrap();
         let t2: TermId = "GO:0052693".parse().unwrap();
         let t3: TermId = "GO:0005634".parse().unwrap();
@@ -263,13 +274,15 @@ mod tests {
             tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
+        let mock_gene_set = initialize_data();
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, false);
     }
 
-    #[test]
-    fn test_is_satisfied_with_ontology() {
+    #[rstest]
+    fn test_is_satisfied_with_ontology(go_sample: MinimalCsrOntology) {
         // gene1 is annotated with GO_0051146
         // GO:0042692 is a parent of GO_0051146
         // The conjunction containing GO:0042692 should return true because GO_0051146 inherits the parent GO:0042692
@@ -285,6 +298,8 @@ mod tests {
             tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
+        let mock_gene_set = initialize_data();
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
@@ -292,8 +307,8 @@ mod tests {
 
 
 
-    #[test]
-    fn test_is_not_satisfied_with_ontology() {
+    #[rstest]
+    fn test_is_not_satisfied_with_ontology(go_sample: MinimalCsrOntology) {
         // GO:0055007 is a child GO_0051146
         let t1: TermId = "GO:0055007".parse().unwrap();
         let symbol = String::from("gene1");
@@ -307,13 +322,15 @@ mod tests {
             tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
+        let mock_gene_set = initialize_data();
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, false);
     }
 
-    #[test]
-    fn test_is_satisfied_with_ontology_and_exclusion() {
+    #[rstest]
+    fn test_is_satisfied_with_ontology_and_exclusion(go_sample: MinimalCsrOntology) {
         let t1: TermId = "GO:0055007".parse().unwrap();
         let symbol = String::from("gene1");
 
@@ -326,14 +343,16 @@ mod tests {
             tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
+        let mock_gene_set = initialize_data();
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
     }
 
 
-    #[test]
-    fn test_is_not_satisfied_with_ontology_and_exclusion() {
+    #[rstest]
+    fn test_is_not_satisfied_with_ontology_and_exclusion(go_sample: MinimalCsrOntology) {
         let t1: TermId = "GO:0042692".parse().unwrap();
         let symbol = String::from("gene1");
 
@@ -346,6 +365,8 @@ mod tests {
             tissue_expressions: vec![], //to change, in order to test also tissue_expressions
         };
 
+        let mock_gene_set = initialize_data();
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, false);

@@ -4,7 +4,7 @@ use ontolius::io::OntologyLoaderBuilder;
 use std::collections::{HashMap, HashSet};
 use std::io::BufRead;
 use std::path::Path;
-use std::{fs::File, hash::Hash, io::BufReader};
+use std::{fs::File, io::BufReader};
 
 use go2hpo_genetic_algorithm::logical_formula::NaiveSatisfactionChecker;
 use go2hpo_genetic_algorithm::logical_formula::SatisfactionChecker;

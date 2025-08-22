@@ -1,4 +1,5 @@
 use super::conjunctions::{self, Conjunction};
+use std::fmt;
 use bitvec::prelude::*;
 
 pub trait DNF {
@@ -10,6 +11,7 @@ pub trait DNF {
 
     fn len(&self) -> usize;
 }
+
 
 #[derive(Clone, Debug)]
 pub struct DNFVec {
@@ -53,6 +55,18 @@ impl DNFVec {
 
     pub fn get_mut_active_conjunctions(&mut self) -> &mut Vec<Conjunction>{
         return &mut self.conjunctions;
+    }
+}
+
+impl fmt::Display for DNFVec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let conjs = self.get_active_conjunctions();
+        if conjs.is_empty() {
+            return write!(f, "FALSE"); 
+        }
+
+        let parts: Vec<String> = conjs.iter().map(|c| format!("{}", c)).collect();
+        write!(f, "{}", parts.join(" OR "))
     }
 }
 
@@ -141,6 +155,18 @@ impl DNFBitmask<'_>{
     }
 }
 
+impl<'a> fmt::Display for DNFBitmask<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let conjs = self.get_active_conjunctions();
+        if conjs.is_empty() {
+            return write!(f, "FALSE"); // it is empty so it is always false
+        }
+
+        let parts: Vec<String> = conjs.iter().map(|c| format!("{}", c)).collect();
+        write!(f, "{}", parts.join(" OR "))
+    }
+}
+
 // pub struct DNF{
 //     conjunctions : Vec<Conjunction>,
 // }
@@ -168,6 +194,10 @@ impl DNFBitmask<'_>{
 
 #[cfg(test)]
 mod tests {
+    use ontolius::TermId;
+
+    use crate::logical_formula::{DgeState, TermObservation, TissueExpression};
+
     use super::*;
 
     #[test]
@@ -217,4 +247,81 @@ mod tests {
         let active = dnf_bitmask.get_active_conjunctions();
         assert_eq!(active.len(), 0, "No conjunctions should be active");
     }
+
+    // #[test]
+    // fn test_display_dnfvec() {
+    //     let t1: TermId = "GO:0051146".parse().unwrap();
+    //     let t2: TermId = "GO:0051216".parse().unwrap();
+
+    //     let conj1 = Conjunction {
+    //         term_observations: vec![
+    //             TermObservation::new(t1.clone(), false),
+    //         ],
+    //         tissue_expressions: vec![
+    //             TissueExpression::new("Liver".to_string(), DgeState::Up),
+    //         ],
+    //     };
+
+    //     let conj2 = Conjunction {
+    //         term_observations: vec![
+    //             TermObservation::new(t2.clone(), true),
+    //         ],
+    //         tissue_expressions: vec![
+    //             TissueExpression::new("Heart".to_string(), DgeState::Down),
+    //         ],
+    //     };
+
+    //     let dnf = DNFVec::from_conjunctions(vec![conj1, conj2]);
+
+    //     assert_eq!(
+    //         format!("{}", dnf),
+    //         "(GO:0051146 AND UP(Liver)) OR (NOT(GO:0051216) AND DOWN(Heart))"
+    //     );
+    // }
+
+
+    #[test]
+    fn test_display_dnfvec_and_bitmask() {
+        let t1: TermId = "GO:0051146".parse().unwrap();
+        let t2: TermId = "GO:0051216".parse().unwrap();
+
+        let conj1 = Conjunction {
+            term_observations: vec![
+                TermObservation::new(t1.clone(), false),
+            ],
+            tissue_expressions: vec![
+                TissueExpression::new("Liver".to_string(), DgeState::Up),
+            ],
+        };
+
+        let conj2 = Conjunction {
+            term_observations: vec![
+                TermObservation::new(t2.clone(), true),
+            ],
+            tissue_expressions: vec![
+                TissueExpression::new("Heart".to_string(), DgeState::Down),
+            ],
+        };
+
+        // Test DNFVec
+        let dnf_vec = DNFVec::from_conjunctions(vec![conj1.clone(), conj2.clone()]);
+        println!("DNF Vec: {}",dnf_vec);
+        assert_eq!(
+            format!("{}", dnf_vec),
+            "(GO:0051146 AND UP(Liver)) OR (NOT(GO:0051216) AND DOWN(Heart))"
+        );
+
+        // Test DNFBitmask
+        let binding = [conj1.clone(), conj2.clone()];
+        let mut dnf_bitmask = DNFBitmask::new(&binding);
+        dnf_bitmask.activate_conjunction(0).unwrap();
+        dnf_bitmask.activate_conjunction(1).unwrap();
+        println!("DNF Bitmask: {}",dnf_bitmask);
+        assert_eq!(
+            format!("{}", dnf_bitmask),
+            "(GO:0051146 AND UP(Liver)) OR (NOT(GO:0051216) AND DOWN(Heart))"
+        );
+    }
+
+
 }

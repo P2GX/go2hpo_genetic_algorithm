@@ -8,25 +8,22 @@ use crate::logical_formula::FormulaGenerator;
 
 
 //GeneticAlgorithm, GAEstimator
-pub struct GeneticAlgorithm<T, R> {
-    
+pub struct GeneticAlgorithm<'a, T, R> {
     population: Vec<Solution<T>>,
-    evaluator: FormulaEvaluator<T, TermId>,
-    selection: Box<dyn Selection<T>>,
-    crossover: Box<dyn Crossover<T>>,
-    mutation: Box<dyn Mutation<T>>,
-    elites_selector: Box<dyn ElitesSelector<T>>,
-    formula_generator: Box<dyn FormulaGenerator<Output = T>>,
+    evaluator: FormulaEvaluator<'a, T, TermId>,
+    selection: Box<dyn Selection<T> + 'a>,
+    crossover: Box<dyn Crossover<T> + 'a>,
+    mutation: Box<dyn Mutation<T> + 'a>,
+    elites_selector: Box<dyn ElitesSelector<T> + 'a>,
+    formula_generator: Box<dyn FormulaGenerator<Output = T> + 'a>,
     mutation_rate: f64,
     generations: usize,
     rng: R,
     phenotype: TermId,
 }
 
-impl<T: Clone, R: Rng> GeneticAlgorithm<T, R> {
-    //TO DO: Two constructors:
-    //      - One in which the initial population of solution is passed
-    //      - One in which only the population size is passed (initizialize_population will be called)
+
+impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R> {
 
     pub fn initialize_population(&mut self, len: usize) -> Result<(), String> {
         self.population = (0..len)
@@ -36,6 +33,7 @@ impl<T: Clone, R: Rng> GeneticAlgorithm<T, R> {
         Ok(())
     }
 
+    // Maybe pass the list of GO annotations and tissues as arguments in the fit
     pub fn fit(&mut self) -> Solution<T> {
         
         //TO DO: initialize population if not already initialized
@@ -48,7 +46,7 @@ impl<T: Clone, R: Rng> GeneticAlgorithm<T, R> {
             let mut evolved_population: Vec<Solution<T>> =
                 Vec::with_capacity(self.population.len());
 
-            // elitism, return the size of the population already occupied by the "survivors" pof the previous generation
+            // elitism, return the size of the population already occupied by the "survivors" of the previous generation
             let number_of_elites =
                 self.elites_selector
                     .pass_elites(&mut evolved_population, &self.population, false);
@@ -90,5 +88,75 @@ impl<T: Clone, R: Rng> GeneticAlgorithm<T, R> {
         // OR maybe I could order them and return the best n
 
         best
+    }
+}
+
+//Two constructors:
+//      - One in which the initial population of solution is passed
+//      - One in which only the population size is passed (initizialize_population will be called)
+
+impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R> {
+    /// Constructor with an already initialized population
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_population(
+        population: Vec<Solution<T>>,
+        evaluator: FormulaEvaluator<'a, T, TermId>,
+        selection: Box<dyn Selection<T> + 'a>,
+        crossover: Box<dyn Crossover<T> + 'a>,
+        mutation: Box<dyn Mutation<T> + 'a>,
+        elites_selector: Box<dyn ElitesSelector<T> + 'a>,
+        formula_generator: Box<dyn FormulaGenerator<Output = T> + 'a>,
+        mutation_rate: f64,
+        generations: usize,
+        rng: R,
+        phenotype: TermId,
+    ) -> Self {
+        Self {
+            population,
+            evaluator,
+            selection,
+            crossover,
+            mutation,
+            elites_selector,
+            formula_generator,
+            mutation_rate,
+            generations,
+            rng,
+            phenotype,
+        }
+    }
+    /// Constructor with only population size (population will be generated)
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_size(
+        population_size: usize,
+        evaluator: FormulaEvaluator<'a, T, TermId>,
+        selection: Box<dyn Selection<T> + 'a>,
+        crossover: Box<dyn Crossover<T> + 'a>,
+        mutation: Box<dyn Mutation<T> + 'a>,
+        elites_selector: Box<dyn ElitesSelector<T> + 'a>,
+        mut formula_generator: Box<dyn FormulaGenerator<Output = T> + 'a>,
+        mutation_rate: f64,
+        generations: usize,
+        rng: R,
+        phenotype: TermId,
+    ) -> Self {
+        let population: Vec<Solution<T>> = (0..population_size)
+            .map(|_| formula_generator.generate())
+            .map(|formula| evaluator.evaluate(&formula, &phenotype))
+            .collect();
+
+        Self {
+            population,
+            evaluator,
+            selection,
+            crossover,
+            mutation,
+            elites_selector,
+            formula_generator,
+            mutation_rate,
+            generations,
+            rng,
+            phenotype,
+        }
     }
 }

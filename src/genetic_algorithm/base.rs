@@ -58,17 +58,25 @@ impl<T: fmt::Display> fmt::Display for Solution<T> {
 // FormulaEvaluator and the method is "evaluate" which returns a Solution
 // or 
 // SolutionGenerator and the method is "generate" which returns a Solution
-pub struct FormulaEvaluator<T, P>{
-    scorer: Box<dyn FitnessScorer<T, P>>,
+pub struct FormulaEvaluator<'a, T, P> {
+    scorer: Box<dyn FitnessScorer<T, P> + 'a>,
 }
 
-impl<T, P> FormulaEvaluator<T, P> 
+impl<'a, T, P> FormulaEvaluator<'a, T, P>
 where 
 T: Clone{
+    /// Constructor for FormulaEvaluator
+    pub fn new(scorer: Box<dyn FitnessScorer<T, P> + 'a>) -> Self {
+        Self { scorer }
+    }
+
+    /// Evaluate a formula with the given phenotype
     pub fn evaluate(&self, formula: &T, phenotype: &P) -> Solution<T>{
         let score = self.scorer.fitness(formula, phenotype);
         Solution::new(formula.clone(), score)
     } 
+
+   
 }
 
 
@@ -89,6 +97,13 @@ pub struct DNFScorer<C> {
     conjunction_scorer: ConjunctionScorer<C>,
 }
 
+impl<C> DNFScorer<C> {
+    /// Constructor for DNFScorer
+    pub fn new(conjunction_scorer: ConjunctionScorer<C>) -> Self {
+        Self { conjunction_scorer }
+    }
+}
+
 impl<C: SatisfactionChecker, T: DNF> FitnessScorer<T, TermId> for DNFScorer<C> {
     fn fitness(&self, formula: &T, phenotype: &TermId) -> f64 {
         let genes_satisfaction: HashMap<GeneId, bool> = match self.get_genes_satisfaction_for_dnf(formula){
@@ -104,7 +119,7 @@ impl<C: SatisfactionChecker, T: DNF> FitnessScorer<T, TermId> for DNFScorer<C> {
     }
 }
 
-impl<C: SatisfactionChecker>  DNFScorer<C>{
+impl<'a, C: SatisfactionChecker> DNFScorer<C> {
     pub fn get_genes_satisfaction_for_dnf<T: DNF>(&self, formula: &T) -> anyhow::Result<HashMap<GeneId, bool>>{
         let conjunctions = formula.get_active_conjunctions();
         if conjunctions.len() == 0 {anyhow::bail!("The conjunction length shouldn't be 0")}
@@ -138,13 +153,13 @@ impl<C: SatisfactionChecker>  DNFScorer<C>{
 }
 
 
-pub struct ConjunctionScorer<C> { 
+pub struct ConjunctionScorer<C> {
     checker: C,
-    gene_set : &'static GeneSetAnnotations,
     score_metric: ScoreMetric,
 }
 
-impl<C: SatisfactionChecker> FitnessScorer<Conjunction, TermId> for ConjunctionScorer<C> {
+
+impl<C: SatisfactionChecker> FitnessScorer<Conjunction, TermId> for ConjunctionScorer< C>  {
     fn fitness(&self, formula: &Conjunction, phenotype: &TermId) -> f64 {
         let genes_satisfaction: HashMap<GeneId, bool> = self.checker.all_satisfactions(formula);
         match self.score_metric {
@@ -156,9 +171,9 @@ impl<C: SatisfactionChecker> FitnessScorer<Conjunction, TermId> for ConjunctionS
     }
 }
 
-impl<C>  ConjunctionScorer<C>{
-    pub fn new(checker: C, gene_set : &'static GeneSetAnnotations, score_metric: ScoreMetric) -> Self{
-        Self { checker, gene_set, score_metric }
+impl<C: SatisfactionChecker> ConjunctionScorer<C> {
+    pub fn new(checker: C, score_metric: ScoreMetric) -> Self {
+        Self { checker, score_metric }
     }
 
     pub fn change_metric(&mut self, new_score_metric: ScoreMetric) {
@@ -170,10 +185,10 @@ impl<C>  ConjunctionScorer<C>{
     }
 
     pub fn accuracy(&self, genes_satisfaction: &HashMap<GeneId, bool>, phenotype: &TermId) -> f64{
-        let n_tot = self.gene_set.len();
+        let n_tot = self.checker.get_gene_set().len();
         if n_tot == 0 { panic!("Gene Set is empty") }
 
-        let correct_predictions = self.gene_set.get_gene_annotations_map().iter()
+        let correct_predictions = self.checker.get_gene_set().get_gene_annotations_map().iter()
             .filter(|(gene, gene_annotation)| gene_annotation.contains_phenotype(phenotype) == *genes_satisfaction.get(*gene).expect("There should be an entry for the gene"))
             .count();
 
@@ -184,7 +199,7 @@ impl<C>  ConjunctionScorer<C>{
         let mut tp = 0; //true positives
         let mut fp = 0; //false positives
 
-        for (gene, gene_annotation) in self.gene_set.get_gene_annotations_map() {
+        for (gene, gene_annotation) in self.checker.get_gene_set().get_gene_annotations_map() {
             let predicted = *genes_satisfaction.get(gene).expect("Missing prediction for gene");
             let actual = gene_annotation.contains_phenotype(phenotype);
 
@@ -208,7 +223,7 @@ impl<C>  ConjunctionScorer<C>{
         let mut tp = 0;  //true positives
         let mut fn_ = 0; //false negatives
     
-        for (gene, gene_annotation) in self.gene_set.get_gene_annotations_map() {
+        for (gene, gene_annotation) in self.checker.get_gene_set().get_gene_annotations_map() {
             let predicted = *genes_satisfaction.get(gene).expect("Missing prediction for gene");
             let actual = gene_annotation.contains_phenotype(phenotype);
     
@@ -255,21 +270,8 @@ mod tests {
     use crate::{annotations::GeneAnnotations, logical_formula::{DNFVec, DgeState, TermObservation, TissueExpression}};
     use ontolius::ontology::csr::MinimalCsrOntology;
 
-    struct DummyChecker {
-        predictions: HashMap<String, bool>,
-    }
 
-    impl SatisfactionChecker for DummyChecker {
-        fn is_satisfied(&self, symbol: &GeneId, _: &Conjunction) -> bool {
-            *self.predictions.get(symbol).unwrap()
-        }
-
-        fn all_satisfactions(&self, _: &Conjunction) -> HashMap<String, bool> {
-            self.predictions.clone()
-        }
-    }
-
-    fn term(term_str: &str) -> TermId {
+        fn term(term_str: &str) -> TermId {
         term_str.parse().unwrap()
     }
 
@@ -285,6 +287,59 @@ mod tests {
             phenotype_terms.iter().map(|p| term(p)).collect(),
         )
     }
+
+    struct DummyChecker {
+        predictions: HashMap<String, bool>,
+        gene_set_option: usize
+    }
+
+    impl SatisfactionChecker for DummyChecker {
+        
+        fn is_satisfied(&self, symbol: &GeneId, _: &Conjunction) -> bool {
+            *self.predictions.get(symbol).unwrap()
+        }
+
+        fn all_satisfactions(&self, _: &Conjunction) -> HashMap<String, bool> {
+            self.predictions.clone()
+        }
+
+        fn get_gene_set(&self) -> &GeneSetAnnotations { 
+            if self.gene_set_option == 1{
+                return Box::leak(Box::new(GeneSetAnnotations::new({
+                        let mut map: HashMap<GeneId, GeneAnnotations> = HashMap::new();
+
+                        // gene1: TP
+                        map.insert("gene1".into(), make_gene_annotations("gene1".into(), &["HPO:0000001"], &[]));
+
+                        // gene2: FP
+                        map.insert("gene2".into(), make_gene_annotations("gene2".into(), &[], &[]));
+
+                        // gene3: FN
+                        map.insert("gene3".into(), make_gene_annotations("gene3".into(), &["HPO:0000001"], &[]));
+
+                        // gene4: TN
+                        map.insert("gene4".into(), make_gene_annotations("gene4".into(), &[], &[]));
+
+                        map
+                    })));
+            }else{
+                return Box::leak(Box::new(GeneSetAnnotations::new({
+                    let mut map = HashMap::new();
+                    map.insert("gene1".to_string(), make_gene_annotations("gene1".into(), &["HPO:0000001", "HPO:0000002", "HPO:0000003"], &[]));
+                    map.insert("gene2".to_string(), make_gene_annotations("gene2".into(), &["HPO:0000002", "HPO:0000003"], &[]));
+                    map.insert("gene3".to_string(), make_gene_annotations("gene3".into(), &["HPO:0000001", "HPO:0000003"], &[]));
+                    map.insert("gene4".to_string(), make_gene_annotations("gene4".into(), &[],&[] ));
+                    map
+                },
+                )));
+
+            }
+        }
+    }
+
+
+
+
 
     #[test]
     fn test_precision_recall_fscore_accuracy() {
@@ -315,10 +370,11 @@ mod tests {
                 ("gene3".into(), false),
                 ("gene4".into(), false),
             ]),
+            gene_set_option: 1
         };
 
         
-        let scorer = ConjunctionScorer::new(checker, gene_set, ScoreMetric::FScore(1.0));
+        let scorer = ConjunctionScorer::new(checker, ScoreMetric::FScore(1.0));
         let conj = Conjunction::new();
 
         let all_satisfactions = &scorer.checker.all_satisfactions(&conj);
@@ -366,12 +422,13 @@ mod tests {
                 ("gene3".into(), false),
                 ("gene4".into(), false),
             ]),
+            gene_set_option: 2
         };
 
         let conjunction = Conjunction::new(); // dummy, content doesn't matter
         let dnf = DNFVec::from_conjunctions(vec![conjunction]);
 
-        let conjunction_scorer = ConjunctionScorer::new(checker, gene_set, ScoreMetric::Precision);
+        let conjunction_scorer = ConjunctionScorer::new(checker, ScoreMetric::Precision);
         let mut scorer = DNFScorer { conjunction_scorer };
         
         // PRECISION

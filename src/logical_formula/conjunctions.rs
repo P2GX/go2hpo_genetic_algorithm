@@ -175,6 +175,19 @@ impl Conjunction{
     }
 }
 
+impl fmt::Display for Conjunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Collect all parts (TermObservations + TissueExpressions)
+        let mut parts: Vec<String> = Vec::new();
+
+        parts.extend(self.term_observations.iter().map(|t| t.to_string()));
+        parts.extend(self.tissue_expressions.iter().map(|t| t.to_string()));
+
+        write!(f, "({})", parts.join(" AND "))
+    }
+}
+
+
 pub struct ConjunctionNamedIterator<'a>{
     state: usize,
     conjunction: &'a Conjunction,
@@ -375,6 +388,26 @@ mod tests {
         assert_eq!(format!("{}", t3), "NORMAL(Brain)");
     }
 
+    #[test]
+    fn test_display_conjunction() {
+        let t1: TermId = "GO:0051146".parse().unwrap();
+        let t2: TermId = "GO:0051216".parse().unwrap();
+
+        let conj = Conjunction {
+            term_observations: vec![
+                TermObservation::new(t1, false),
+                TermObservation::new(t2, true),
+            ],
+            tissue_expressions: vec![
+                TissueExpression::new("Liver".to_string(), DgeState::Up),
+            ],
+        };
+        println!("{}", conj);
+        assert_eq!(
+            format!("{}", conj),
+            "(GO:0051146 AND NOT(GO:0051216) AND UP(Liver))"
+        );
+    }
 
 
 }

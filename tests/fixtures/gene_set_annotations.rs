@@ -63,6 +63,9 @@ pub fn gene2tissue_expr_sample(gtex_summary_sample: io::Result<GtexSummary>) -> 
     tissue_expressions
 }
 
+// gtex_summary() does not just load, everytime it analyzes the tissue expr. data again
+// TO DO: I should make an altenative version in which I just import the results of the diff. expr. analysis, to avoid to unneded computation
+// I could provide to load_summary an actual summary and make a new method create_summary that has the same behavior of the current load_summary
 #[fixture]
 pub fn gtex_summary() -> io::Result<GtexSummary>{
     let file_path: &str = "data/gtex/GTEx_Analysis_v10_RNASeQCv2.4.2_gene_median_tpm.gct.gz";
@@ -84,10 +87,26 @@ pub fn gene2tissue_expr(gtex_summary: io::Result<GtexSummary>) -> HashMap<String
 }
 
 
-// GO ONTOLOGY
+// GO ONTOLOGY SAMPLE
 #[fixture]
 pub fn go_sample() -> MinimalCsrOntology{
     let go_path = "data/go/go.toy.json.gz";
+    let reader = flate2::bufread::GzDecoder::new(BufReader::new(
+        File::open(go_path).expect("The file should be in the repo"),
+    ));
+
+    let parser = OntologyLoaderBuilder::new().obographs_parser().build();
+    let go: MinimalCsrOntology = parser
+        .load_from_read(reader)
+        .expect("The ontology file should be OK");
+    go
+}
+
+// GO ONTOLOGY FULL
+
+#[fixture]
+pub fn go_ontology() -> MinimalCsrOntology{
+    let go_path = "data/go/go-basic.js";
     let reader = flate2::bufread::GzDecoder::new(BufReader::new(
         File::open(go_path).expect("The file should be in the repo"),
     ));
@@ -187,8 +206,15 @@ pub fn check_if_genes_are_the_same(gene2go_terms: HashMap<String, HashSet<TermId
         .cloned()
         .collect();
 
-    // Debug or assert
-    dbg!(&intersection);
+
+    println!(
+    "counts -> keys_go: {}, keys_tissue: {}, keys_phenotypes: {}, intersection: {}",
+    keys_go.len(),
+    keys_tissue.len(),
+    keys_phenotypes.len(),
+    intersection.len()
+    );
+
     assert!(
         !intersection.is_empty(),
         "No common gene keys across all three datasets."
@@ -236,7 +262,6 @@ pub fn check_gene_keys_pairwise_intersection(
 
 
 
-// 
 
 
 #[rstest]

@@ -193,6 +193,24 @@ R: Rng,
     rng: &'a mut R,
 }
 
+impl<'a, O, G, R> SimpleDNFVecMutation<'a, O, G, R> 
+where 
+O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
+G: ConjunctionGenerator,
+R: Rng,{
+    pub fn new(
+        conjunction_mutation: ConjunctionMutation<'a, O, R>,
+        conjunction_generator: G,
+        rng: &'a mut R,
+    ) -> Self {
+        Self {
+            conjunction_mutation,
+            conjunction_generator,
+            rng,
+        }
+    }
+}
+
 
 impl<'a, O, G, R> Mutation<DNFVec> for SimpleDNFVecMutation<'a, O, G, R>
 where
@@ -234,13 +252,18 @@ where
         formula.activate_conjunction(conjunction).expect("The conjunction should be added without errors")
     }
 
-    /// Removes a conjunction randommly
-    pub fn remove_random_conjunction(&mut self, formula: &mut DNFVec){
-        //In a next implementation the probability of being removed might depend on the conjunction performance
-        let mut conjunctions = formula.get_mut_active_conjunctions();
+    /// Removes a conjunction randomly 
+    pub fn remove_random_conjunction(&mut self, formula: &mut DNFVec) {
+        let conjunctions = formula.get_mut_active_conjunctions();
+
+        if conjunctions.is_empty() {
+            return;
+        }
+
         let rnd_index = self.rng.random_range(0..conjunctions.len());
         conjunctions.remove(rnd_index);
     }
+
 }
 
 pub struct BiasedDNFMutation;
@@ -532,28 +555,31 @@ mod tests {
     // TO DO: make a test for DNFVecGenerator
 
     // #[test]
-    fn test_go_terms(){
-        let seed = 64;
-        let go: MinimalCsrOntology = get_go(); 
-        dbg!(go.len());
-        let mut rng = SmallRng::seed_from_u64(seed);
-        let rnd_index = rng.random_range(0..go.len());
+    // fn test_go_terms(){
+    //     let seed = 64;
+    //     let go: MinimalCsrOntology = get_go(); 
+    //     dbg!(go.len());
+    //     let mut rng = SmallRng::seed_from_u64(seed);
+    //     // let rnd_index = rng.random_range(0..go.len());
 
-        // let result_term = go.iter_term_ids().nth(rnd_index);
+    //     // let result_term = go.iter_term_ids().nth(rnd_index);
 
-        // if let Some(new_term) = result_term{
-        //     dbg!(new_term);
-        //     let children_terms: Vec<&TermId>  = go.iter_child_ids(new_term).collect();
-        //     dbg!(children_terms.len());
-        // }
+    //     // if let Some(new_term) = result_term{
+    //     //     dbg!(new_term);
+    //     //     let children_terms: Vec<&TermId>  = go.iter_child_ids(new_term).collect();
+    //     //     dbg!(children_terms.len());
+    //     // }
 
-        for term in go.iter_term_ids(){
-            dbg!(go.iter_child_ids(dbg!(term)).count());
-            dbg!(go.iter_descendant_ids(term).count());
-            dbg!(go.iter_parent_ids(term).count());
-            dbg!(go.iter_ancestor_ids(term).count());
-        }
-    }
+    //     for term in go.iter_term_ids(){
+    //         dbg!(go.iter_child_ids(dbg!(term)).count());
+    //         dbg!(go.iter_child_ids(term).collect::<Vec<_>>());
+    //         dbg!(go.iter_descendant_ids(term).count());
+    //         dbg!(go.iter_parent_ids(term).count());
+    //         dbg!(go.iter_parent_ids(term).collect::<Vec<_>>());
+    //         dbg!(go.iter_ancestor_ids(term).count());
+    //         println!("\n\n\n");
+    //     }
+    // }
 
 
 

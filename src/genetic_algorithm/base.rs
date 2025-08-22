@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-
+use std::fmt;
 use hpo2gene_mapper::GenePhenotypeMapping;
 use ontolius::TermId;
 
@@ -45,6 +45,12 @@ impl<T> PartialEq for Solution<T> {
 impl<T> PartialOrd for Solution<T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.score.partial_cmp(&other.score)
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for Solution<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<Formula: {}; Score: {}>", self.formula, self.score)
     }
 }
 
@@ -246,7 +252,7 @@ impl<C>  ConjunctionScorer<C>{
 mod tests {
     use super::*;
     use std::collections::{HashMap, HashSet};
-    use crate::{annotations::GeneAnnotations, logical_formula::DNFVec};
+    use crate::{annotations::GeneAnnotations, logical_formula::{DNFVec, DgeState, TermObservation, TissueExpression}};
     use ontolius::ontology::csr::MinimalCsrOntology;
 
     struct DummyChecker {
@@ -408,6 +414,27 @@ mod tests {
     #[test]
     fn test_dnfscorer_with_real_satisfaction_checker(){
 
+    }
+    
+    #[test]
+    fn test_display_solution() {
+        let t1: TermId = "GO:0051146".parse().unwrap();
+
+        let conj = Conjunction {
+            term_observations: vec![
+                TermObservation::new(t1, false),
+            ],
+            tissue_expressions: vec![
+                TissueExpression::new("Liver".to_string(), DgeState::Up),
+            ],
+        };
+
+        let sol = Solution::new(conj, 0.95);
+
+        assert_eq!(
+            format!("{}", sol),
+            "<Formula: (GO:0051146 AND UP(Liver)); Score: 0.95>"
+        );
     }
 
 

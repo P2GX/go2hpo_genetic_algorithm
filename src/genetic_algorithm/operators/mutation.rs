@@ -94,7 +94,9 @@ where
 
     /// Delete an HPO term
     pub fn delete_random_term(&mut self, formula: &mut Conjunction) {
-        // Get a term from a random index. Maybe a more sophisticated way will be used in the future
+        if formula.term_observations.is_empty() {
+            return; // or handle with Result
+        }
         let rnd_index = self.rng.random_range(0..formula.term_observations.len());
         formula.term_observations.remove(rnd_index);
     }
@@ -121,6 +123,9 @@ where
 
     /// Delete a gene expression term
     pub fn delete_tissue_expression_term(&mut self, formula: &mut Conjunction) {
+        if formula.tissue_expressions.is_empty() {
+            return; // or handle with Result
+        }
         let rnd_index = self.rng.random_range(0..formula.tissue_expressions.len());
         formula.tissue_expressions.remove(rnd_index);
     }

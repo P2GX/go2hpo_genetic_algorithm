@@ -125,7 +125,7 @@ macro_rules! test_conjunction {
             let go: MinimalCsrOntology = load_and_get_go();
             let annot_map = ANNOTATION_MAP.clone();
             let gene_set_annotations: &'static GeneSetAnnotations = Box::leak(Box::new(gene_set_annotations));
-            let checker: NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go, &gene_set_annotations);
+            let checker: NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go, &gene_set_annotations);
 
             let mut term_vec: Vec<TermObservation> = Vec::new();
             $(

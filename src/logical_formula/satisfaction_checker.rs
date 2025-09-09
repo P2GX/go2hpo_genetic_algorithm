@@ -19,8 +19,8 @@ pub trait SatisfactionChecker {
 
 
 pub struct NaiveSatisfactionChecker<'a, O> {
-    pub go: O,
-    gene_set_annotations: &'a GeneSetAnnotations, 
+    go: &'a O,
+    gene_set_annotations: &'a GeneSetAnnotations,
 }
 
 impl<'a, O: HierarchyWalks> SatisfactionChecker for NaiveSatisfactionChecker<'a, O>
@@ -62,7 +62,7 @@ where
 
 impl<'a, O> NaiveSatisfactionChecker<'a, O> 
 where O: HierarchyWalks {
-    pub fn new(go: O, gene_set_annotations: &'a GeneSetAnnotations) -> Self {
+    pub fn new(go: &'a O, gene_set_annotations: &'a GeneSetAnnotations) -> Self {
         Self { go, gene_set_annotations }
     }
 
@@ -177,7 +177,7 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
@@ -200,7 +200,7 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
@@ -225,7 +225,7 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, false);
@@ -250,7 +250,7 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
@@ -275,7 +275,7 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, false);
@@ -299,7 +299,7 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
@@ -323,7 +323,7 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, false);
@@ -344,7 +344,7 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
@@ -366,7 +366,7 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(go_sample, &mock_gene_set);
+        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, false);

@@ -33,49 +33,145 @@ impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R> {
         Ok(())
     }
 
-    // Maybe pass the list of GO annotations and tissues as arguments in the fit
-    pub fn fit(&mut self) -> Solution<T> {
+    // // Maybe pass the list of GO annotations and tissues as arguments in the fit
+    // pub fn fit(&mut self) -> Solution<T> {
         
-        //TO DO: initialize population if not already initialized
-        //Initialization: Score initial population
-            // the solution is evaluated in the moment in which it is created
+    //     for _ in 0..self.generations {
+    //         // New population for next generation
+    //         let mut evolved_population: Vec<Solution<T>> =
+    //             Vec::with_capacity(self.population.len());
+
+    //         // elitism, return the size of the population already occupied by the "survivors" of the previous generation
+    //         let number_of_elites =
+    //             self.elites_selector
+    //                 .pass_elites(&mut evolved_population, &self.population, false);
+
+    //         // new generation
+    //         for _ in number_of_elites..self.population.len() {
+    //             // Selection and crossover
+    //             let parent1 = self.selection.select(&self.population);
+    //             let parent2 = self.selection.select(&self.population);
+    //             let mut new_formula = self.crossover.crossover(parent1.get_formula(), parent2.get_formula());
+
+    //             // Mutate with a certain probability
+    //             if self.rng.random::<f64>() < self.mutation_rate {
+    //                 self.mutation.mutate(&mut new_formula);
+    //             }
+
+    //             //Evaluate the the new formula
+    //             let offspring = self.evaluator.evaluate(&new_formula, &self.phenotype);
+
+    //             evolved_population.push(offspring);
+    //         }
+
+    //         self.population = evolved_population;
+
+    //     }
+
+    //     // Return the solution with the best score, where all the other solutions of the last generation are kept in self.population
+    //     let best = self
+    //         .population
+    //         .iter()
+    //         .max_by(|a, b| {
+    //             a.get_score()
+    //                 .partial_cmp(&b.get_score())
+    //                 .unwrap_or(std::cmp::Ordering::Equal)
+    //         })
+    //         .unwrap()
+    //         .clone();
+
+    //     best
+    // }
+
+    /// Get a reference to the current population
+    pub fn get_population(&self) -> &Vec<Solution<T>> {
+        &self.population
+    }
 
 
-        for _ in 0..self.generations {
-            // New population for next generation
-            let mut evolved_population: Vec<Solution<T>> =
-                Vec::with_capacity(self.population.len());
+}
 
-            // elitism, return the size of the population already occupied by the "survivors" of the previous generation
-            let number_of_elites =
-                self.elites_selector
-                    .pass_elites(&mut evolved_population, &self.population, false);
 
-            // new generation
-            for _ in number_of_elites..self.population.len() {
-                // Selection and crossover
-                let parent1 = self.selection.select(&self.population);
-                let parent2 = self.selection.select(&self.population);
-                let mut new_formula = self.crossover.crossover(parent1.get_formula(), parent2.get_formula());
 
-                // Mutate with a certain probability
-                if self.rng.random::<f64>() < self.mutation_rate {
-                    self.mutation.mutate(&mut new_formula);
-                }
+// impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R>{
+//     pub fn fit_with_history(&mut self) -> Vec<Vec<Solution<T>>> {
+//         let mut history = Vec::with_capacity(self.generations);
 
-                //Evaluate the the new formula
-                let offspring = self.evaluator.evaluate(&new_formula, &self.phenotype);
+//         for _ in 0..self.generations {
+//             let mut evolved_population: Vec<Solution<T>> =
+//                 Vec::with_capacity(self.population.len());
 
-                evolved_population.push(offspring);
+//             // Elitism
+//             let number_of_elites =
+//                 self.elites_selector
+//                     .pass_elites(&mut evolved_population, &self.population, false);
+
+//             // New generation
+//             for _ in number_of_elites..self.population.len() {
+//                 let parent1 = self.selection.select(&self.population);
+//                 let parent2 = self.selection.select(&self.population);
+//                 let mut new_formula =
+//                     self.crossover.crossover(parent1.get_formula(), parent2.get_formula());
+
+//                 if self.rng.random::<f64>() < self.mutation_rate {
+//                     self.mutation.mutate(&mut new_formula);
+//                 }
+
+//                 let offspring = self.evaluator.evaluate(&new_formula, &self.phenotype);
+//                 evolved_population.push(offspring);
+//             }
+
+//             // Save the population before moving on
+//             history.push(evolved_population.clone());
+
+//             // Update population
+//             self.population = evolved_population;
+//         }
+
+//         history
+//     }
+// }
+
+
+
+impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R>{
+    /// Helper: evolve one generation and return the new population
+    pub fn evolve_one_generation(&mut self) -> Vec<Solution<T>> {
+        let mut evolved_population: Vec<Solution<T>> =
+            Vec::with_capacity(self.population.len());
+
+        // Elitism
+        let number_of_elites =
+            self.elites_selector
+                .pass_elites(&mut evolved_population, &self.population, false);
+
+        // New generation
+        for _ in number_of_elites..self.population.len() {
+            let parent1 = self.selection.select(&self.population);
+            let parent2 = self.selection.select(&self.population);
+            let mut new_formula =
+                self.crossover.crossover(parent1.get_formula(), parent2.get_formula());
+
+            if self.rng.random::<f64>() < self.mutation_rate {
+                self.mutation.mutate(&mut new_formula);
             }
 
-            self.population = evolved_population;
-
+            let offspring = self.evaluator.evaluate(&new_formula, &self.phenotype);
+            evolved_population.push(offspring);
         }
 
-        // Return the solution with the best score, where all the other solutions of the last generation are kept in self.population
-        let best = self
-            .population
+        evolved_population
+    }
+
+    /// Original version: return only the best final solution
+    pub fn fit(&mut self) -> Solution<T> {
+        for _ in 0..self.generations {
+            let evolved_population = self.evolve_one_generation();
+            self.population = evolved_population;
+        }
+
+        // Return best of last generation
+        self.population
             .iter()
             .max_by(|a, b| {
                 a.get_score()
@@ -83,13 +179,32 @@ impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R> {
                     .unwrap_or(std::cmp::Ordering::Equal)
             })
             .unwrap()
-            .clone();
+            .clone()
+    }
 
-        // OR maybe I could order them and return the best n
+    /// New version: return all populations across generations
+    pub fn fit_with_history(&mut self) -> Vec<Vec<Solution<T>>> {
+        let mut history = Vec::with_capacity(self.generations);
 
-        best
+        for _ in 0..self.generations {
+            let evolved_population = self.evolve_one_generation();
+
+            // Save snapshot of this generation
+            history.push(evolved_population.clone());
+
+            // Update current population
+            self.population = evolved_population;
+        }
+
+        history
     }
 }
+
+
+
+
+
+
 
 //Two constructors:
 //      - One in which the initial population of solution is passed

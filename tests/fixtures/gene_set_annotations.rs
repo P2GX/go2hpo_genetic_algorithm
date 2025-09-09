@@ -106,7 +106,7 @@ pub fn go_sample() -> MinimalCsrOntology{
 
 #[fixture]
 pub fn go_ontology() -> MinimalCsrOntology{
-    let go_path = "data/go/go-basic.js";
+    let go_path = "data/go/go-basic.json.gz";
     let reader = flate2::bufread::GzDecoder::new(BufReader::new(
         File::open(go_path).expect("The file should be in the repo"),
     ));

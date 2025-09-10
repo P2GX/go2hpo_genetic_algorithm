@@ -115,11 +115,6 @@ fn test_genetic_algorithm_sanity(
 }
 
 
-
-
-
-
-
 #[rstest]
 fn test_genetic_algorithm_history(
     go_ontology: MinimalCsrOntology,

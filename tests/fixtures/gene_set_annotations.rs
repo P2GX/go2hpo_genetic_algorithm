@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, fs::File, io::{self, BufRead, BufReader}, iter::zip, path::Path};
+use std::{collections::{HashMap, HashSet}, fs::File, io::{self, BufRead, BufReader}, iter::zip, path::{Path, PathBuf}};
 use anyhow::bail;
 use gtex_analyzer::expression_analysis::{GtexSummary, GtexSummaryLoader};
 use hpo2gene_mapper::{mapper::GenePhenotypeMemoryMapper, GenePhenotypeMapping};
@@ -186,6 +186,39 @@ pub fn gene_set_annotations(gene2go_terms: HashMap<String, HashSet<TermId>>, gen
                             gene2tissue_expr , 
                             gene2phenotypes)
 }
+
+// #[rstest]
+pub fn save_gene_set_annotations_bincode(gene_set_annotations: GeneSetAnnotations) {
+    // Build a relative path pointing to /cache/
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR")); 
+    path.push("cache");
+    path.push("gene_set_annotations.bincode");
+
+    // Call your save method (assuming it's implemented with bincode)
+    gene_set_annotations
+        .save_bincode(&path)
+        .expect("Failed to save GeneSetAnnotations to cache");
+    
+    println!("Saved GeneSetAnnotations to {:?}", path);
+}
+
+// #[rstest]
+pub fn save_gene_set_annotations_json(gene_set_annotations: GeneSetAnnotations) {
+    // Build a relative path pointing to /cache/
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR")); 
+    path.push("cache");
+    path.push("gene_set_annotations.json");
+
+    // Call your save method (assuming it's implemented with bincode)
+    gene_set_annotations
+        .save_json(&path)
+        .expect("Failed to save GeneSetAnnotations to cache");
+    
+    println!("Saved GeneSetAnnotations to {:?}", path);
+}
+
+
+
 
 #[rstest]
 pub fn check_if_genes_are_the_same(gene2go_terms: HashMap<String, HashSet<TermId>>,

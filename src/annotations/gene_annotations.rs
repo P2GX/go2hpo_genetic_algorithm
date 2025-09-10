@@ -1,23 +1,31 @@
-use std::{cmp::min, collections::{HashMap, HashSet}};
+use std::{cmp::min, collections::{HashMap, HashSet}, path::Path};
 use crate::logical_formula::{DgeState, TermObservation, TissueExpression};
 use ontolius::TermId;
 use rand::Rng;
-use std::collections::hash_map;
 use rand::seq::IteratorRandom;
+use serde::{Serialize, Deserialize};
+use serde_with::{serde_as, DisplayFromStr};
+use std::fs::File;
+use std::io::{BufReader, BufWriter};
 
 use crate::logical_formula::Conjunction;
 
 pub type GeneId = String; 
 
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeneAnnotations{
     id: GeneId,
     // symbol: String,
     
     // Annotations
+    #[serde_as(as = "HashSet<DisplayFromStr>")]
     term_annotations: HashSet<TermId>,
+
     tissue_expressions: HashSet<TissueExpression>,
 
     // Phenotype (HPO)
+    #[serde_as(as = "HashSet<DisplayFromStr>")]
     phenotypes: HashSet<TermId>,
 }
 
@@ -117,7 +125,7 @@ impl GeneAnnotations{
     }
 }
 
-
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeneSetAnnotations{
     gene_annotations: HashMap<GeneId, GeneAnnotations>
 }
@@ -190,6 +198,43 @@ impl GeneSetAnnotations{
 
 }
 
+
+
+// GeneSetAnnotations IMPORT / EXPORT
+
+impl GeneSetAnnotations {
+
+    // BINCODE for fast and compact import/export
+
+    pub fn save_bincode<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
+        let file = File::create(path)?;
+        let writer = BufWriter::new(file);
+        bincode::serialize_into(writer, self)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    }
+
+    pub fn load_bincode<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
+        let file = File::open(path)?;
+        let reader = BufReader::new(file);
+        bincode::deserialize_from(reader)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    }
+
+    // JSON for human-readable import/export
+    pub fn save_json<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
+        let file = File::create(path)?;
+        let writer = BufWriter::new(file);
+        serde_json::to_writer_pretty(writer, self)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    }
+
+    pub fn load_json<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
+        let file = File::open(path)?;
+        let reader = BufReader::new(file);
+        serde_json::from_reader(reader)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    }
+}
 
 
 

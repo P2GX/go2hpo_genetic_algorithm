@@ -2,6 +2,7 @@ use ontolius::TermId;
 use rand::{seq::SliceRandom, Rng};
 use std::{any::Any, collections::{HashMap, HashSet}};
 use std::fmt;
+use serde::{Serialize, Deserialize};
 
 
 
@@ -57,7 +58,7 @@ impl fmt::Display for TermObservation {
 //     }
 // }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DgeState{
     Up,
     Down,
@@ -79,7 +80,7 @@ impl DgeState{
 
 pub type TissueId = String;
 
-#[derive(Debug, Clone, Eq, Hash)]
+#[derive(Debug, Clone, Eq, Hash, Serialize, Deserialize)]
 pub struct TissueExpression{
     pub term_id: TissueId,
     pub state: DgeState,

@@ -67,15 +67,26 @@ pub fn gene2tissue_expr_sample(gtex_summary_sample: io::Result<GtexSummary>) -> 
 // TO DO: I should make an altenative version in which I just import the results of the diff. expr. analysis, to avoid to unneded computation
 // I could provide to load_summary an actual summary and make a new method create_summary that has the same behavior of the current load_summary
 #[fixture]
-pub fn gtex_summary() -> io::Result<GtexSummary>{
-    let file_path: &str = "data/gtex/GTEx_Analysis_v10_RNASeQCv2.4.2_gene_median_tpm.gct.gz";
+pub fn gtex_summary() -> io::Result<GtexSummary> {
+    let cache_path = PathBuf::from("cache/gtex_summary.bincode");
 
+    if cache_path.exists() {
+        println!("Loading GTEx summary from cache...");
+        return GtexSummary::load_bincode(&cache_path);
+    }
+
+    // expensive path (parse + analysis)
+    let file_path = "data/gtex/GTEx_Analysis_v10_RNASeQCv2.4.2_gene_median_tpm.gct.gz";
     let file = File::open(file_path)?;
     let gz = flate2::read::GzDecoder::new(file);
     let reader = BufReader::new(gz);
 
     let summary_loader = GtexSummaryLoader::new(None, None);
     let summary = summary_loader.load_summary(reader)?;
+
+    // save for future runs
+    summary.save_bincode(&cache_path)?;
+
     Ok(summary)
 }
 
@@ -181,26 +192,23 @@ pub fn gene_set_annotations_sample(gene2go_terms: HashMap<String, HashSet<TermId
 }
 
 #[fixture]
-pub fn gene_set_annotations(gene2go_terms: HashMap<String, HashSet<TermId>>, gene2tissue_expr:  HashMap<String, HashSet<TissueExpression>>,gene2phenotypes: HashMap<String, HashSet<TermId>>) -> GeneSetAnnotations{
-    GeneSetAnnotations::from(gene2go_terms , 
-                            gene2tissue_expr , 
-                            gene2phenotypes)
-}
+pub fn gene_set_annotations() -> GeneSetAnnotations {
+    let cache_path = "cache/gene_set_annotations.bincode";
 
-// #[rstest]
-pub fn save_gene_set_annotations_bincode(gene_set_annotations: GeneSetAnnotations) {
-    // Build a relative path pointing to /cache/
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR")); 
-    path.push("cache");
-    path.push("gene_set_annotations.bincode");
+    if let Ok(gs) = GeneSetAnnotations::load_bincode(cache_path) {
+        return gs;
+    }
 
-    // Call your save method (assuming it's implemented with bincode)
-    gene_set_annotations
-        .save_bincode(&path)
+    let gene2go_terms = gene2go_terms();
+    let gene2tissue_expr = gene2tissue_expr(gtex_summary());
+    let gene2phenotypes = gene2phenotypes();
+
+    let gs = GeneSetAnnotations::from(gene2go_terms, gene2tissue_expr, gene2phenotypes);
+    gs.save_bincode(cache_path)
         .expect("Failed to save GeneSetAnnotations to cache");
-    
-    println!("Saved GeneSetAnnotations to {:?}", path);
+    gs
 }
+
 
 // #[rstest]
 pub fn save_gene_set_annotations_json(gene_set_annotations: GeneSetAnnotations) {

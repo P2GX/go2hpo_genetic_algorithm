@@ -554,10 +554,13 @@ dependencies = [
 [[package]]
 name = "gtex_analyzer"
 version = "0.1.0"
-source = "git+https://github.com/loremod/gtex_analyzer?branch=main#9decdc46eb520366de76847aaedcf572ce061ff9"
+source = "git+https://github.com/loremod/gtex_analyzer?branch=main#782df6653727a36d6fe8216e0287c7824817e0b0"
 dependencies = [
  "anyhow",
+ "bincode",
  "flate2",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

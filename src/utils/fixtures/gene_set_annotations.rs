@@ -221,6 +221,15 @@ pub fn gene2phenotypes() -> HashMap<String, HashSet<TermId>>{
     gene_to_hpo
 }
 
+#[fixture]
+pub fn phenotype2genes() -> HashMap<TermId, HashSet<String>>{
+    let path = Path::new("data/hpo2gene/phenotype_to_genes.txt");
+    let mapper = GenePhenotypeMemoryMapper::from_file(path).unwrap();
+
+    let hpo_to_genes = mapper.hpo_to_genes().expect("It should be Ok");
+    hpo_to_genes
+}
+
 
 // GeneSetAnnotations
 #[fixture]

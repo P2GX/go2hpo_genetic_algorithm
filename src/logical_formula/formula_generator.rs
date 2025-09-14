@@ -6,6 +6,7 @@ use ontolius::TermId;
 use rand::{seq::SliceRandom, Rng};
 use std::collections::{HashMap, HashSet};
 use bitvec::prelude::BitVec;
+use crate::annotations::GeneAnnotations;
 
 pub trait FormulaGenerator {
     type Output;
@@ -152,7 +153,7 @@ pub struct GenePickerConjunctionGenerator<'a, R> {
     rng: &'a mut R,
     prob_terms: f64,
     prob_tissues: f64,
-    gene_set: &'a GeneSetAnnotations,
+    candidate_genes: Vec<(&'a String, &'a GeneAnnotations)>,
 
     // Optional phenotype filter
     target_phenotype: Option<TermId>,
@@ -175,11 +176,21 @@ where
         max_terms: Option<usize>,
         max_tissues: Option<usize>,
     ) -> Self {
+
+        let annotations_map = gene_set.get_gene_annotations_map();
+        let candidate_genes: Vec<_> = match &target_phenotype {
+            Some(phenotype) => annotations_map
+                .iter()
+                .filter(|(_, ann)| ann.contains_phenotype(phenotype))
+                .collect(),
+            None => annotations_map.iter().collect(),
+        };
+
         Self {
             rng,
             prob_terms,
             prob_tissues,
-            gene_set,
+            candidate_genes,
             target_phenotype,
             max_terms,
             max_tissues,
@@ -196,25 +207,25 @@ where
     type Output = Conjunction;
 
     fn generate(&mut self) -> Conjunction {
-        let annotations_map = self.gene_set.get_gene_annotations_map();
+        // let annotations_map = self.gene_set.get_gene_annotations_map();
 
-        // Filter candidate genes depending on target_phenotype
-        let candidate_genes: Vec<_> = match &self.target_phenotype {
-            Some(phenotype) => annotations_map
-                .iter()
-                .filter(|(_, ann)| ann.contains_phenotype(phenotype))
-                .collect(),
-            None => annotations_map.iter().collect(),
-        };
+        // // Filter candidate genes depending on target_phenotype
+        // let candidate_genes: Vec<_> = match &self.target_phenotype {
+        //     Some(phenotype) => annotations_map
+        //         .iter()
+        //         .filter(|(_, ann)| ann.contains_phenotype(phenotype))
+        //         .collect(),
+        //     None => annotations_map.iter().collect(),
+        // };
 
         assert!(
-            !candidate_genes.is_empty(),
+            !self.candidate_genes.is_empty(),
             "No candidate genes available for the given phenotype filter"
         );
 
         // Pick one at random
-        let random_index = self.rng.random_range(0..candidate_genes.len());
-        let (_gene_id, gene_annotations) = candidate_genes[random_index];
+        let random_index = self.rng.random_range(0..self.candidate_genes.len());
+        let (_gene_id, gene_annotations) = self.candidate_genes[random_index];
 
         // Sample conjunction from gene annotations
         gene_annotations.into_randomly_sampled_conjunction(

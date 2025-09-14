@@ -6,9 +6,8 @@ use go2hpo_genetic_algorithm::{
         ScoreMetric, Selection, TournamentSelection,
     },
     logical_formula::{
-        Conjunction, GenePickerConjunctionGenerator, RandomConjunctionGenerator,
-        RandomDNFVecGenerator, NaiveSatisfactionChecker,
-    },
+        Conjunction, GenePickerConjunctionGenerator, NaiveSatisfactionChecker, RandomConjunctionGenerator, RandomDNFVecGenerator
+    }, utils::fixtures::gene_set_annotations::phenotype2genes,
 };
 use gtex_analyzer::expression_analysis::GtexSummary;
 
@@ -17,17 +16,31 @@ use ontolius::ontology::OntologyTerms;
 use ontolius::TermId;
 
 use rand::{rngs::SmallRng, SeedableRng};
-use std::io::{self, Write};
+use std::{collections::{HashMap, HashSet}, io::{self, Write}};
 
 use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
     go_ontology, gtex_summary, gene_set_annotations,
 };
+
+
+
+fn get_hpo_gene_count(
+    phenotype2genes: &HashMap<TermId, HashSet<String>>,
+    hpo_term: &TermId,
+) -> u32 {
+    phenotype2genes
+        .get(hpo_term)              // Option<&HashSet<String>>
+        .map(|genes| genes.len() as u32)  // convert length to u64
+        .unwrap_or(0)               // return 0 if not found
+}
+
 
 fn main() {
     // --- Load data once ---
     let go_ontology: MinimalCsrOntology = go_ontology();
     let gtex: GtexSummary = gtex_summary().expect("GTEx summary should load correctly");
     let gene_set_annotations: GeneSetAnnotations = gene_set_annotations();
+    let hpo2genes = phenotype2genes();
 
     println!("Data loaded. You can now run the GA on multiple HPO terms.");
     println!("Type 'quit' at any time to stop.\n");
@@ -75,6 +88,9 @@ fn main() {
             "\nRunning GA: HPO={}, pop_size={}, gens={}, mutation_rate={}",
             hpo_term, pop_size, generations, mutation_rate
         );
+        
+        let hpo_gene_count = get_hpo_gene_count(&hpo2genes, &hpo_term);
+        println!("Phenotype {} has {} genes annotated", hpo_term, hpo_gene_count);
 
         // --- RNGs ---
         let mut rng_main = SmallRng::seed_from_u64(42);

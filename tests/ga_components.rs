@@ -20,19 +20,21 @@ use go2hpo_genetic_algorithm::logical_formula::{
 };
 
 use rand::{rngs::SmallRng, SeedableRng};
-use crate::fixtures::gene_set_annotations::go_sample;
-use crate::fixtures::gene_set_annotations::gtex_summary_sample;
-use crate::fixtures::gene_set_annotations::gene_set_annotations;
 use gtex_analyzer::expression_analysis::GtexSummary;
 use ontolius::ontology::csr::MinimalCsrOntology;
 use go2hpo_genetic_algorithm::genetic_algorithm::GeneticAlgorithm;
 
+use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
+    go_sample,
+    gtex_summary_sample,
+    gene_set_annotations,
+};
 
 
 use go2hpo_genetic_algorithm::logical_formula::FormulaGenerator;
 use go2hpo_genetic_algorithm::logical_formula::{GenePickerConjunctionGenerator, RandomDNFVecGenerator};
 
-mod fixtures;
+
 
 // ==========================
 // 1) SELECTION

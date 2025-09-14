@@ -23,10 +23,12 @@ use go2hpo_genetic_algorithm::logical_formula::Conjunction;
 use go2hpo_genetic_algorithm::logical_formula::TermObservation;
 
 use ontolius::TermId;
-use crate::fixtures::gene_set_annotations::gene_set_annotations;
+use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
+    gene_set_annotations,
+};
 use lazy_static::lazy_static;
 use rstest::{fixture, rstest};
-mod fixtures;
+
 
 lazy_static! {
     static ref ANNOTATION_MAP: HashMap<String, HashSet<TermId>>  = load_and_get_go_annotation_map();

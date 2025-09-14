@@ -2,9 +2,10 @@ use std::{collections::{HashMap, HashSet}, fs::File, io::{self, BufRead, BufRead
 use anyhow::bail;
 use gtex_analyzer::expression_analysis::{GtexSummary, GtexSummaryLoader};
 use hpo2gene_mapper::{mapper::GenePhenotypeMemoryMapper, GenePhenotypeMapping};
-use ontolius::{io::OntologyLoaderBuilder, ontology::csr::MinimalCsrOntology, TermId};
+use ontolius::{io::{GraphEdge, OntologyData, OntologyLoaderBuilder}, ontology::{csr::MinimalCsrOntology, OntologyTerms}, term::simple::SimpleMinimalTerm, TermId};
 use rstest::{fixture, rstest};
-use go2hpo_genetic_algorithm::{annotations::{GeneId, GeneIdMapper, GeneSetAnnotations, GtexSummaryParser}, logical_formula::TissueExpression};
+use crate::{annotations::{GeneId, GeneIdMapper, GeneSetAnnotations, GtexSummaryParser}, logical_formula::TissueExpression};
+use crate::annotations::gene_ontology_io::{RawOntologyData, save_ontology_data, load_minimal_csr};
 
 use oboannotation::{go::{stats::get_annotation_map, GoAnnotations, GoGafAnnotationLoader}, io::AnnotationLoader};
 
@@ -113,22 +114,60 @@ pub fn go_sample() -> MinimalCsrOntology{
     go
 }
 
+
+
 // GO ONTOLOGY FULL
+
 
 #[fixture]
 pub fn go_ontology() -> MinimalCsrOntology{
     let go_path = "data/go/go-basic.json.gz";
     let reader = flate2::bufread::GzDecoder::new(BufReader::new(
-        File::open(go_path).expect("The file should be in the repo"),
+        File::open(go_path).expect("The file should be available. File not found."),
     ));
 
     let parser = OntologyLoaderBuilder::new().obographs_parser().build();
+
+    // parser.load_from_read(read)
     let go: MinimalCsrOntology = parser
         .load_from_read(reader)
         .expect("The ontology file should be OK");
+
     go
 }
  
+
+ #[rstest]
+ pub fn check_go_terms() -> anyhow::Result<()> {
+    let go_path = "data/go/go-basic.json.gz";
+    let reader = flate2::bufread::GzDecoder::new(BufReader::new(File::open(go_path)?));
+
+    let parser = OntologyLoaderBuilder::new().obographs_parser().build();
+
+    // 1. Load OntologyData (via RawOntologyData newtype)
+    let raw: RawOntologyData<u32, SimpleMinimalTerm> = parser.load_from_read(reader)?;
+    let go_data: OntologyData<u32, SimpleMinimalTerm> = raw.0;
+
+    // 2. Save OntologyData to cache
+    let cache_path = PathBuf::from("cache/go_data.bincode");
+    if !cache_path.exists() {
+        println!("GO isn't in the cache...");
+        save_ontology_data(&go_data, "cache/go_data.bincode")?;
+        // 3. Convert to CSR (still possible right here)
+        let go: MinimalCsrOntology = go_data.try_into()?;
+        println!("Built ontology with {} terms", go.len());
+    }
+    else{
+        // 4. Later, you can load directly from cache (no JSON parse)
+        println!("GO is in the cache...");
+        let restored: MinimalCsrOntology = load_minimal_csr("cache/go_data.bincode")?;
+        println!("Reloaded ontology with {} terms", restored.len());
+    }
+    Ok(())
+}
+
+
+
 // GO ANNOTATION DATA
 
 fn open_for_reading<P: AsRef<Path>>(goa_path: P) -> anyhow::Result<Box<dyn BufRead>> {
@@ -196,6 +235,7 @@ pub fn gene_set_annotations() -> GeneSetAnnotations {
     let cache_path = "cache/gene_set_annotations.bincode";
 
     if let Ok(gs) = GeneSetAnnotations::load_bincode(cache_path) {
+        print!("GeneSet loaded from cache.");
         return gs;
     }
 
@@ -224,8 +264,6 @@ pub fn save_gene_set_annotations_json(gene_set_annotations: GeneSetAnnotations) 
     
     println!("Saved GeneSetAnnotations to {:?}", path);
 }
-
-
 
 
 #[rstest]

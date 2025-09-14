@@ -20,18 +20,19 @@ use go2hpo_genetic_algorithm::logical_formula::{
 };
 
 use rand::{rngs::SmallRng, SeedableRng};
-use crate::fixtures::gene_set_annotations::{go_ontology};
-use crate::fixtures::gene_set_annotations::gtex_summary;
-use crate::fixtures::gene_set_annotations::gene_set_annotations;
 use gtex_analyzer::expression_analysis::GtexSummary;
 use ontolius::ontology::csr::MinimalCsrOntology;
-
 
 
 use go2hpo_genetic_algorithm::logical_formula::FormulaGenerator;
 use go2hpo_genetic_algorithm::logical_formula::{GenePickerConjunctionGenerator, RandomDNFVecGenerator};
 
-mod fixtures;
+use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
+    go_ontology,
+    gtex_summary,
+    gene_set_annotations,
+};
+
 
 #[rstest]
 fn test_genetic_algorithm_sanity(
@@ -135,7 +136,6 @@ fn test_genetic_algorithm_history(
     let mut rng_conj_mutation   = rng_main.clone();
     let mut rng_disj_mutation   = rng_main.clone();
 
-
     // Simple generator chain
     let mut conj_gen = GenePickerConjunctionGenerator::new(
         &mut rng_conj_gen,
@@ -190,18 +190,114 @@ fn test_genetic_algorithm_history(
 
     let history = ga.fit_with_history();
 
-    // Print best score per generation
+    // Print best solution per generation
     for (gen, pop) in history.iter().enumerate() {
         let best = pop.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
-        println!("Gen {}: best score = {}", gen, best.get_score());
+        println!("Gen {}: best solution = {}", gen, best);
     }
-
 
     // Assertions: population size stays the same, score is finite
     assert_eq!(ga.get_population().len(), pop_size);
 }
 
 
+
+
+#[rstest]
+fn test_genetic_algorithm_stats_history(
+    go_ontology: MinimalCsrOntology,
+    gene_set_annotations: GeneSetAnnotations,
+    gtex_summary: std::io::Result<GtexSummary>,
+) {
+    let gtex = gtex_summary.expect("Fixture GTEx summary must be ok");
+
+    // HPO term
+    // HP:0000001 V
+    // HP:0001083
+    let hpo_term: TermId = "HP:0001083".parse().unwrap();
+
+    // RNGs
+    let mut rng_main = SmallRng::seed_from_u64(7);
+    let mut rng_conj_gen   = rng_main.clone();
+    let mut rng_dnf_gen    = rng_main.clone();
+    let mut rng_selection  = rng_main.clone();
+    let mut rng_crossover  = rng_main.clone();
+    let mut rng_conj_mutation   = rng_main.clone();
+    let mut rng_disj_mutation   = rng_main.clone();
+
+    // Simple generator chain
+    let mut conj_gen = GenePickerConjunctionGenerator::new(
+        &mut rng_conj_gen,
+        0.5,
+        0.5,
+        &gene_set_annotations,
+        Some(hpo_term.clone()),
+        Some(2),
+        Some(2),
+    );
+    let dnf_gen = RandomDNFVecGenerator::new(&mut conj_gen, 2, rng_dnf_gen);
+
+    // Evaluator
+    let checker = NaiveSatisfactionChecker::new(&go_ontology, &gene_set_annotations);
+    let conj_scorer = ConjunctionScorer::new(checker, ScoreMetric::FScore(1.0));
+    let scorer = DNFScorer::new(conj_scorer);
+    let evaluator = FormulaEvaluator::new(Box::new(scorer));
+
+    // Operators
+    let go_terms: Vec<_> = go_ontology.iter_term_ids().take(5).cloned().collect();
+    let tissue_terms: Vec<String> = gtex.metadata.get_tissue_names().into_iter().cloned().take(5).collect();
+    let selection = Box::new(TournamentSelection::new(2, &mut rng_selection));
+    let crossover = Box::new(DNFVecCrossover::new(&mut rng_crossover));
+    let mutation = Box::new(SimpleDNFVecMutation::new(
+        ConjunctionMutation::new(&go_ontology, &gtex, &mut rng_conj_mutation),
+        RandomConjunctionGenerator::new(
+            1,
+            &go_terms,
+            1,
+            &tissue_terms,
+            rng_main.clone(),
+        ),
+        &mut rng_disj_mutation,
+    ));
+    let elites = Box::new(ElitesByNumberSelector::new(1));
+
+    // Build GA
+    let pop_size = 1;
+    let mut ga = GeneticAlgorithm::new_with_size(
+        pop_size,
+        evaluator,
+        selection,
+        crossover,
+        mutation,
+        elites,
+        Box::new(dnf_gen),
+        0.2,    // mutation rate
+        1,     // generations
+        rng_main,
+        hpo_term, // pass it here
+    );
+
+    let stats_history = ga.fit_with_stats_history();
+
+    // Print stats for each generation
+    for (gen, (min, avg, max)) in stats_history.iter().enumerate() {
+        println!(
+            "Gen {}: min = {:.4}, avg = {:.4}, max = {:.4}",
+            gen, min, avg, max
+        );
+    }
+
+    // Print the best solution from the last generation
+    let best_last = ga
+        .get_population()
+        .iter()
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
+    println!("Best solution (last generation) = {}", best_last);
+
+    // Assertions: population size stays the same at the end
+    assert_eq!(ga.get_population().len(), pop_size);
+}
 
 
 

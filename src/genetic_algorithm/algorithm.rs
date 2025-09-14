@@ -198,11 +198,46 @@ impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R>{
 
         history
     }
+
+
 }
 
 
 
+impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R> {
+    /// New version: return statistics (min, avg, max score) for each generation
+    pub fn fit_with_stats_history(&mut self) -> Vec<(f64, f64, f64)> {
+        let mut stats_history = Vec::with_capacity(self.generations);
 
+        for ith_gen in 0..self.generations {
+            println!("Generation number: {}", ith_gen);
+            let evolved_population = self.evolve_one_generation();
+
+            // Compute scores
+            let scores: Vec<f64> = evolved_population
+                .iter()
+                .map(|s| s.get_score())
+                .collect();
+
+            let min_score = scores
+                .iter()
+                .cloned()
+                .fold(f64::INFINITY, f64::min);
+            let max_score = scores
+                .iter()
+                .cloned()
+                .fold(f64::NEG_INFINITY, f64::max);
+            let avg_score = scores.iter().sum::<f64>() / scores.len() as f64;
+
+            stats_history.push((min_score, avg_score, max_score));
+
+            // Update current population
+            self.population = evolved_population;
+        }
+
+        stats_history
+    }
+}
 
 
 

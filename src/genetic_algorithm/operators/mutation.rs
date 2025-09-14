@@ -144,6 +144,9 @@ where
 
     // toggle of a tissue expression state from lo to hi or vice versa
     pub fn toggle_tissue_expression_state(&mut self, formula: &mut Conjunction) {
+        if formula.tissue_expressions.is_empty() {
+            return; // or handle with Result
+        }
         let rnd_index = self.rng.random_range(0..formula.tissue_expressions.len());
         let mut tissue_term = formula.tissue_expressions.get_mut(rnd_index).expect("It should return a TissueExpression");
         

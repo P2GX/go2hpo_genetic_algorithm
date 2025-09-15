@@ -1,8 +1,11 @@
+mod base;
 mod conjunctions;
 mod dnf;
 mod satisfaction_checker;
 mod formula_generator;
 
+
+pub use base::Formula;
 
 pub use conjunctions::{Conjunction,TermObservation, TissueExpression, DgeState, TissueId};
 
@@ -13,3 +16,4 @@ pub use satisfaction_checker::{SatisfactionChecker, NaiveSatisfactionChecker};
 pub use formula_generator::FormulaGenerator;
 pub use formula_generator::{ConjunctionGenerator,GenePickerConjunctionGenerator,RandomConjunctionGenerator,RedundantRandomConjunctionGenerator};
 pub use formula_generator::{RandomDNFBistmaskGenerator, RandomDNFVecGenerator};
+

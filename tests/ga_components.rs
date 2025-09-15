@@ -16,7 +16,7 @@ use go2hpo_genetic_algorithm::genetic_algorithm::ElitesByNumberSelector;
 use go2hpo_genetic_algorithm::Solution;
 
 use go2hpo_genetic_algorithm::logical_formula::{
-    Conjunction, DNFBitmask, DNFVec, DgeState, RandomConjunctionGenerator, TermObservation, TissueExpression, DNF
+    Conjunction, DNFBitmask, DNFVec, DgeState, Formula, RandomConjunctionGenerator, TermObservation, TissueExpression, DNF
 };
 
 use rand::{rngs::SmallRng, SeedableRng};

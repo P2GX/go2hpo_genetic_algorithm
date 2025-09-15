@@ -4,7 +4,7 @@ use rand::Rng;
 use super::base::{Solution, FitnessScorer, FormulaEvaluator}; //to change
 
 use super::operators::{Selection, Crossover, Mutation, ElitesSelector};
-use crate::logical_formula::FormulaGenerator;
+use crate::logical_formula::{Formula, FormulaGenerator};
 
 
 //GeneticAlgorithm, GAEstimator
@@ -204,9 +204,9 @@ impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R>{
 
 
 
-impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R> {
+impl<'a, T: Clone + Formula, R: Rng> GeneticAlgorithm<'a, T, R> {
     /// New version: return statistics (min, avg, max score) for each generation
-    pub fn fit_with_stats_history(&mut self) -> Vec<(f64, f64, f64)> {
+    pub fn fit_with_stats_history(&mut self) -> Vec<(f64, f64, f64, usize, f64, usize)> {
         let mut stats_history = Vec::with_capacity(self.generations);
 
         for ith_gen in 0..self.generations {
@@ -229,7 +229,18 @@ impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R> {
                 .fold(f64::NEG_INFINITY, f64::max);
             let avg_score = scores.iter().sum::<f64>() / scores.len() as f64;
 
-            stats_history.push((min_score, avg_score, max_score));
+            // Compute avg length
+            let (sum, min_len, max_len) = evolved_population
+                .iter()
+                .map(|s| s.get_formula().len())
+                .fold((0usize, usize::MAX, 0usize), |(sum, min, max), len| {
+                (sum + len, min.min(len), max.max(len))
+            });
+
+            let avg_len = sum as f64 / evolved_population.len() as f64;
+                            
+
+            stats_history.push((min_score, avg_score, max_score, min_len, avg_len, max_len));
 
             // Update current population
             self.population = evolved_population;

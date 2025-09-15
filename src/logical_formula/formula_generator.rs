@@ -323,6 +323,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::logical_formula::Formula;
+
     use super::*;
     use lazy_static::lazy_static;
     use rand::rng;

@@ -288,7 +288,7 @@ mod tests {
     use lazy_static::lazy_static;
     use num::Saturating;
 
-    use crate::logical_formula::{FormulaGenerator, RandomConjunctionGenerator, RandomDNFBistmaskGenerator};
+    use crate::logical_formula::{Formula, FormulaGenerator, RandomConjunctionGenerator, RandomDNFBistmaskGenerator};
 
     use super::*;
 

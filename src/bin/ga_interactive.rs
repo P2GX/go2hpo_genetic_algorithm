@@ -156,10 +156,10 @@ fn main() {
         // --- Run GA ---
         let stats_history = ga.fit_with_stats_history();
 
-        for (gen, (min, avg, max)) in stats_history.iter().enumerate() {
+        for (gen, (min, avg_score, max, min_len, avg_len, max_len)) in stats_history.iter().enumerate() {
             println!(
-                "Gen {}: min = {:.4}, avg = {:.4}, max = {:.4}",
-                gen, min, avg, max
+                "Gen {}: min = {:.4}, avg = {:.4}, max = {:.4}, min_len = {}, avg_len = {:.4}, max_len = {}",
+                gen, min, avg_score, max, min_len, avg_len, max_len
             );
         }
 

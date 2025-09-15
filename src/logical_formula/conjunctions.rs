@@ -4,6 +4,8 @@ use std::{any::Any, collections::{HashMap, HashSet}};
 use std::fmt;
 use serde::{Serialize, Deserialize};
 
+use crate::logical_formula::base::Formula;
+
 
 
 
@@ -161,18 +163,20 @@ impl Conjunction{
         Self { term_observations, tissue_expressions } 
     }
 
-    // Sum of all the annotation vectors
-    /// Total length of all the annotation terms present in the conjunction
-    pub fn len(&self) -> usize{
-        return self.term_observations.len() + self.tissue_expressions.len();
-    }
-
     pub fn iter(&self) -> ConjunctionIterator{
         ConjunctionIterator::new(self)
     }
 
     pub fn named_iter(&self) -> ConjunctionNamedIterator{
         ConjunctionNamedIterator::new(self)
+    }
+}
+
+impl Formula for Conjunction{
+    // Sum of all the annotation vectors
+    /// Total length of all the annotation terms present in the conjunction
+    fn len(&self) -> usize{
+        return self.term_observations.len() + self.tissue_expressions.len();
     }
 }
 

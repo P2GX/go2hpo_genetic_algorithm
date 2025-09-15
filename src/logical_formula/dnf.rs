@@ -1,15 +1,15 @@
+use crate::logical_formula::base::Formula;
+
 use super::conjunctions::{self, Conjunction};
 use std::fmt;
 use bitvec::prelude::*;
 
-pub trait DNF {
+pub trait DNF: Formula{
     type SelectionType;
 
     fn get_active_conjunctions(&self) -> Vec<&Conjunction>;
 
     fn activate_conjunction(&mut self, conjunction: Self::SelectionType) -> Result<(), String>;
-
-    fn len(&self) -> usize;
 }
 
 
@@ -35,7 +35,9 @@ impl DNF for DNFVec {
     fn get_active_conjunctions(&self) -> Vec<&Conjunction> {
         self.conjunctions.iter().collect()
     }
+}
 
+impl Formula for DNFVec{
     fn len(&self) -> usize {
         self.conjunctions.len()
     }
@@ -105,7 +107,9 @@ impl<'a> DNF for DNFBitmask<'a> {
             .map(|(i, _)| &self.conjunctions[i])
             .collect()
     }
+}
 
+impl<'a> Formula for DNFBitmask<'a>{
     fn len(&self) -> usize {
         self.conjunction_mask.count_ones()
     }

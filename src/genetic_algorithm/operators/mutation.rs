@@ -1,6 +1,6 @@
 use crate::genetic_algorithm::Solution;
 use rand::prelude::*;
-use crate::logical_formula::{ConjunctionGenerator, DgeState, TissueExpression};
+use crate::logical_formula::{ConjunctionGenerator, DgeState, Formula, TissueExpression};
 use gtex_analyzer::expression_analysis::GtexSummary;
 
 use ontolius::term::simple::SimpleMinimalTerm;
@@ -57,6 +57,9 @@ where
     /// Exchange an HPO term with a parent
     pub fn mutate_with_parent_term(&mut self, formula: &mut Conjunction) {
         // Get a term from a random index. Maybe a more sophisticated way will be used in the future
+        if formula.term_observations.is_empty() {
+            return; 
+        }
         let rnd_index = self.rng.random_range(0..formula.term_observations.len());
         let mut term_ob = formula
             .term_observations
@@ -76,6 +79,9 @@ where
     ///  Exchange an HPO term with one of its children
     pub fn mutate_with_child_term(&mut self, formula: &mut Conjunction) {
         // Get a term from a random index. Maybe a more sophisticated way will be used in the future
+        if formula.term_observations.is_empty() {
+            return;
+        }
         let rnd_index = self.rng.random_range(0..formula.term_observations.len());
         let mut term_ob = formula
             .term_observations
@@ -112,7 +118,9 @@ where
 
     /// Toggle the status of GO terms with is_excluded
     pub fn toggle_term_status(&mut self, formula: &mut Conjunction) {
-
+        if formula.term_observations.is_empty() {
+            return;
+        }
         let rnd_index = self.rng.random_range(0..formula.term_observations.len());
         let mut term_ob = formula
             .term_observations
@@ -198,6 +206,7 @@ R: Rng,
 {
     conjunction_mutation: ConjunctionMutation<'a, O, R>,
     conjunction_generator: G,
+    max_n_conj: usize,
     rng: &'a mut R,
 }
 
@@ -209,11 +218,13 @@ R: Rng,{
     pub fn new(
         conjunction_mutation: ConjunctionMutation<'a, O, R>,
         conjunction_generator: G,
+        max_n_conj: usize,
         rng: &'a mut R,
     ) -> Self {
         Self {
             conjunction_mutation,
             conjunction_generator,
+            max_n_conj,
             rng,
         }
     }
@@ -255,7 +266,11 @@ where
 
     /// creates a new conjunction and assigns it to the formula
     pub fn add_random_conjunction(&mut self, formula: &mut DNFVec) {
-        // In a future implementatio the conjunction might be copied from one of the already existing and best performing
+        // If the max number of conjunctions has been reached, instead of adding a conjunction, mutate 1
+        if formula.len() >= self.max_n_conj{
+            self.mutate_conjunction(formula);
+            return;
+        }
         let conjunction: Conjunction = self.conjunction_generator.generate();
         formula.activate_conjunction(conjunction).expect("The conjunction should be added without errors")
     }
@@ -265,6 +280,7 @@ where
         let conjunctions = formula.get_mut_active_conjunctions();
 
         if conjunctions.is_empty() {
+            self.add_random_conjunction(formula);
             return;
         }
 

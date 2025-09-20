@@ -88,7 +88,7 @@ fn main() {
             "\nRunning GA: HPO={}, pop_size={}, gens={}, mutation_rate={}",
             hpo_term, pop_size, generations, mutation_rate
         );
-        
+
         let hpo_gene_count = get_hpo_gene_count(&hpo2genes, &hpo_term);
         println!("Phenotype {} has {} genes annotated", hpo_term, hpo_gene_count);
 
@@ -120,13 +120,12 @@ fn main() {
         let evaluator = FormulaEvaluator::new(Box::new(scorer));
 
         // --- Operators ---
-        let go_terms: Vec<_> = go_ontology.iter_term_ids().take(5).cloned().collect();
+        let go_terms: Vec<_> = go_ontology.iter_term_ids().cloned().collect();
         let tissue_terms: Vec<String> = gtex
             .metadata
             .get_tissue_names()
             .into_iter()
             .cloned()
-            .take(5)
             .collect();
 
         let selection = Box::new(TournamentSelection::new(2, &mut rng_selection));
@@ -175,5 +174,5 @@ fn main() {
 }
 
 
-//TO RUN IT
+// TO RUN IT
 // cargo run --bin ga_interactive

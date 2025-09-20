@@ -106,6 +106,8 @@ where O: HierarchyWalks {
     }
 }
 
+//UNCOMMENT THE TESTS, THEY ARE COMMENTED ONLY TEMPORARILY
+
 #[cfg(test)]
 mod tests {
     use std::{fs::File, hash::Hash, io::BufReader};

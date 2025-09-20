@@ -78,6 +78,43 @@
             },
             "args": [],
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'ga_interactive'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=ga_interactive",
+                    "--package=go2hpo_genetic_algorithm"
+                ],
+                "filter": {
+                    "name": "ga_interactive",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug release executable 'ga_interactive'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--release",
+                    "--bin=ga_interactive",
+                    "--package=go2hpo_genetic_algorithm"
+                ],
+                "filter": {
+                    "name": "ga_interactive",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
         }
     ]
 }

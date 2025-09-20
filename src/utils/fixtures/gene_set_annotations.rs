@@ -121,7 +121,7 @@ pub fn go_sample() -> MinimalCsrOntology{
 
 #[fixture]
 pub fn go_ontology() -> MinimalCsrOntology{
-    let go_path = "data/go/go-basic.json.gz";
+    let go_path = "data/go/go-basic.filtered.json.gz";
     let reader = flate2::bufread::GzDecoder::new(BufReader::new(
         File::open(go_path).expect("The file should be available. File not found."),
     ));
@@ -139,7 +139,7 @@ pub fn go_ontology() -> MinimalCsrOntology{
 
  #[rstest]
  pub fn check_go_terms() -> anyhow::Result<()> {
-    let go_path = "data/go/go-basic.json.gz";
+    let go_path = "data/go/go-basic.filtered.json.gz";
     let reader = flate2::bufread::GzDecoder::new(BufReader::new(File::open(go_path)?));
 
     let parser = OntologyLoaderBuilder::new().obographs_parser().build();

@@ -95,29 +95,45 @@ pub enum ScoreMetric {
 
 pub struct DNFScorer<C> {
     conjunction_scorer: ConjunctionScorer<C>,
+    penalty_lambda: f64,
 }
 
 impl<C> DNFScorer<C> {
-    /// Constructor for DNFScorer
-    pub fn new(conjunction_scorer: ConjunctionScorer<C>) -> Self {
-        Self { conjunction_scorer }
+    /// Creates a new [`DNFScorer`].
+    ///
+    /// # Arguments
+    /// * `conjunction_scorer` - Scorer that evaluates how well a conjunction
+    ///   explains the gene-to-phenotype associations.
+    /// * `penalty_lambda` - Weight of the complexity penalty.  
+    ///   Each additional conjunction reduces the final score by
+    ///   `penalty_lambda`.
+    pub fn new(conjunction_scorer: ConjunctionScorer<C>, penalty_lambda: f64) -> Self {
+        Self { conjunction_scorer, penalty_lambda }
     }
 }
 
 impl<C: SatisfactionChecker, T: DNF> FitnessScorer<T, TermId> for DNFScorer<C> {
     fn fitness(&self, formula: &T, phenotype: &TermId) -> f64 {
-        let genes_satisfaction: HashMap<GeneId, bool> = match self.get_genes_satisfaction_for_dnf(formula){
-            Ok(satisfactions) => satisfactions,
-            _ => return 0.0,
-        };
-        match self.conjunction_scorer.score_metric {
+        let genes_satisfaction: HashMap<GeneId, bool> =
+            match self.get_genes_satisfaction_for_dnf(formula) {
+                Ok(satisfactions) => satisfactions,
+                _ => return 0.0,
+            };
+
+        let base_score = match self.conjunction_scorer.score_metric {
             ScoreMetric::Accuracy => self.conjunction_scorer.accuracy(&genes_satisfaction, phenotype),
             ScoreMetric::Precision => self.conjunction_scorer.precision(&genes_satisfaction, phenotype),
             ScoreMetric::Recall => self.conjunction_scorer.recall(&genes_satisfaction, phenotype),
             ScoreMetric::FScore(beta) => self.conjunction_scorer.fs_score(&genes_satisfaction, phenotype),
-        }
+        };
+
+        // Complexity = number of conjunctions
+        let complexity = formula.get_active_conjunctions().len();
+
+        base_score - self.penalty_lambda * (complexity as f64)
     }
 }
+
 
 impl<'a, C: SatisfactionChecker> DNFScorer<C> {
     pub fn get_genes_satisfaction_for_dnf<T: DNF>(&self, formula: &T) -> anyhow::Result<HashMap<GeneId, bool>>{
@@ -429,7 +445,7 @@ mod tests {
         let dnf = DNFVec::from_conjunctions(vec![conjunction]);
 
         let conjunction_scorer = ConjunctionScorer::new(checker, ScoreMetric::Precision);
-        let mut scorer = DNFScorer { conjunction_scorer };
+        let mut scorer = DNFScorer { conjunction_scorer, penalty_lambda: 0.0 };
         
         // PRECISION
         let precision_1 = scorer.fitness(&dnf, &phenotype1);

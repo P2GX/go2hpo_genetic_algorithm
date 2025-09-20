@@ -84,6 +84,14 @@ fn main() {
         io::stdin().read_line(&mut mut_in).unwrap();
         let mutation_rate: f64 = mut_in.trim().parse().unwrap_or(0.2);
 
+        // Penalty lambda
+        print!("Enter penalty lambda [default=0.1]: ");
+        io::stdout().flush().unwrap();
+        let mut pen_in = String::new();
+        io::stdin().read_line(&mut pen_in).unwrap();
+        let penalty_lambda: f64 = pen_in.trim().parse().unwrap_or(0.1);
+
+    
         println!(
             "\nRunning GA: HPO={}, pop_size={}, gens={}, mutation_rate={}",
             hpo_term, pop_size, generations, mutation_rate
@@ -116,7 +124,7 @@ fn main() {
         // --- Evaluator ---
         let checker = NaiveSatisfactionChecker::new(&go_ontology, &gene_set_annotations);
         let conj_scorer = ConjunctionScorer::new(checker, ScoreMetric::FScore(1.0));
-        let scorer = DNFScorer::new(conj_scorer);
+        let scorer = DNFScorer::new(conj_scorer, penalty_lambda);
         let evaluator = FormulaEvaluator::new(Box::new(scorer));
 
         // --- Operators ---

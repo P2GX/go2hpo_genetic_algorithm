@@ -70,7 +70,7 @@ fn test_genetic_algorithm_sanity(
     // Evaluator
     let checker = NaiveSatisfactionChecker::new(&go_ontology, &gene_set_annotations);
     let conj_scorer = ConjunctionScorer::new(checker, ScoreMetric::Accuracy);
-    let scorer = DNFScorer::new(conj_scorer);
+    let scorer = DNFScorer::new(conj_scorer, 0.0);
     let evaluator = FormulaEvaluator::new(Box::new(scorer));
 
     // Operators (keep simple)
@@ -151,7 +151,7 @@ fn test_genetic_algorithm_history(
     // Evaluator
     let checker = NaiveSatisfactionChecker::new(&go_ontology, &gene_set_annotations);
     let conj_scorer = ConjunctionScorer::new(checker, ScoreMetric::Accuracy);
-    let scorer = DNFScorer::new(conj_scorer);
+    let scorer = DNFScorer::new(conj_scorer, 0.0);
     let evaluator = FormulaEvaluator::new(Box::new(scorer));
 
     // Operators (keep simple)
@@ -240,7 +240,7 @@ fn test_genetic_algorithm_stats_history(
     // Evaluator
     let checker = NaiveSatisfactionChecker::new(&go_ontology, &gene_set_annotations);
     let conj_scorer = ConjunctionScorer::new(checker, ScoreMetric::FScore(1.0));
-    let scorer = DNFScorer::new(conj_scorer);
+    let scorer = DNFScorer::new(conj_scorer, 0.0);
     let evaluator = FormulaEvaluator::new(Box::new(scorer));
 
     // Operators

@@ -521,7 +521,7 @@ fn test_formula_evaluator_with_dnfscorer(
 
     let checker = NaiveSatisfactionChecker::new(&go_sample, &gene_set_annotations);
     let conjunction_scorer = ConjunctionScorer::new(checker, ScoreMetric::Accuracy);
-    let scorer = DNFScorer::new(conjunction_scorer);
+    let scorer = DNFScorer::new(conjunction_scorer, 0.3);
     let evaluator = FormulaEvaluator::new(Box::new(scorer));;
 
     let t1: TermId = "GO:0051146".parse().unwrap();
@@ -578,7 +578,7 @@ fn test_genetic_algorithm_sanity(
     // Evaluator
     let checker = NaiveSatisfactionChecker::new(&go_sample, &gene_set_annotations);
     let conj_scorer = ConjunctionScorer::new(checker, ScoreMetric::Accuracy);
-    let scorer = DNFScorer::new(conj_scorer);
+    let scorer = DNFScorer::new(conj_scorer, 0.0);
     let evaluator = FormulaEvaluator::new(Box::new(scorer));
 
     // Operators (keep simple)

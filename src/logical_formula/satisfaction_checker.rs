@@ -11,12 +11,27 @@ use crate::annotations::{GeneAnnotations, GeneId, GeneSetAnnotations};
 
 use super::{Conjunction, TissueExpression};
 
+use std::sync::Arc;
+
 pub trait SatisfactionChecker {
     fn is_satisfied(&self, symbol: &GeneId, conjunction: &Conjunction) -> bool;
     fn all_satisfactions(&self, conjunction: &Conjunction) -> HashMap<String, bool>;
     fn get_gene_set(&self) -> &GeneSetAnnotations;
 }
 
+impl<C: SatisfactionChecker + ?Sized> SatisfactionChecker for Arc<C> {
+    fn is_satisfied(&self, symbol: &GeneId, conjunction: &Conjunction) -> bool {
+        (**self).is_satisfied(symbol, conjunction)
+    }
+
+    fn all_satisfactions(&self, conjunction: &Conjunction) -> HashMap<String, bool> {
+        (**self).all_satisfactions(conjunction)
+    }
+
+    fn get_gene_set(&self) -> &GeneSetAnnotations {
+        (**self).get_gene_set()
+    }
+}
 
 pub struct NaiveSatisfactionChecker<'a, O> {
     go: &'a O,

@@ -105,6 +105,7 @@ fn main() {
     let mutation = Box::new(go2hpo_genetic_algorithm::genetic_algorithm::SimpleDNFVecMutation::new(
         ConjunctionMutation::new(&go_ontology, &gtex, &mut rng_conj_mut),
         RandomConjunctionGenerator::new(1, &go_terms, 1, &tissue_terms, rng_main.clone()),
+        6,
         &mut rng_disj_mut,
     ));
     let elites = Box::new(ElitesByNumberSelector::new(1));
@@ -127,10 +128,10 @@ fn main() {
     // --- Run GA ---
     let stats_history = ga.fit_with_stats_history();
 
-    for (gen, (min, avg_score, max, min_len, avg_len, max_len)) in stats_history.iter().enumerate() {
+    for (gen, (min, avg_score, max, min_len, avg_len, max_len, max_precision, max_recall)) in stats_history.iter().enumerate() {
             println!(
-                "Gen {}: min = {:.4}, avg = {:.4}, max = {:.4}, min_len = {}, avg_len = {:.4}, max_len = {}",
-                gen, min, avg_score, max, min_len, avg_len, max_len
+                "Gen {}: min = {:.4}, avg = {:.4}, max = {:.4}, min_len = {}, avg_len = {:.4}, max_len = {}, max_precision = {}, max_recall = {}",
+                gen, min, avg_score, max, min_len, avg_len, max_len, max_precision, max_recall
             );
     }
 

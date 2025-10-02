@@ -74,8 +74,12 @@ T: Clone{
     pub fn evaluate(&self, formula: &T, phenotype: &P) -> Solution<T>{
         let score = self.scorer.fitness(formula, phenotype);
         Solution::new(formula.clone(), score)
-    } 
+    }
 
+    /// Getter for the scorer
+    pub fn get_scorer(&self) -> &dyn FitnessScorer<T, P> {
+        &*self.scorer
+    }
    
 }
 
@@ -84,6 +88,7 @@ T: Clone{
 
 pub trait FitnessScorer<T, P> {
     fn fitness(&self, formula: &T, phenotype: &P) -> f64; //I pass the phenotype by argument, that very likely will always be a HPO TermId term. In this way sperimenting with different phenotypes can be easier
+    fn custom_score_fitness(&self, formula: &T, phenotype: &TermId, custom_score_metric: &ScoreMetric) -> f64;
 }
 
 pub enum ScoreMetric {
@@ -112,28 +117,49 @@ impl<C> DNFScorer<C> {
     }
 }
 
+
 impl<C: SatisfactionChecker, T: DNF> FitnessScorer<T, TermId> for DNFScorer<C> {
     fn fitness(&self, formula: &T, phenotype: &TermId) -> f64 {
+            //self.conjunction_scorer.score_metric
+            //self.penalty_lambda 
+            self._fitness(formula, phenotype, self.conjunction_scorer.get_metric(), self.penalty_lambda)
+    }
+
+    fn custom_score_fitness(&self, formula: &T, phenotype: &TermId, custom_score_metric: &ScoreMetric) -> f64 {
+        self._fitness(formula, phenotype, custom_score_metric, self.penalty_lambda)
+    }
+
+}
+
+impl<'a, C: SatisfactionChecker> DNFScorer<C> {
+
+    fn _fitness<T: DNF>(&self, formula: &T, phenotype: &TermId, custom_score_metric: &ScoreMetric, penalty_lambda: f64) -> f64{
         let genes_satisfaction: HashMap<GeneId, bool> =
             match self.get_genes_satisfaction_for_dnf(formula) {
                 Ok(satisfactions) => satisfactions,
                 _ => return 0.0,
             };
 
-        let base_score = match self.conjunction_scorer.score_metric {
+        // Clauses = number of conjunctions
+        let clauses = formula.get_active_conjunctions().len();
+        if clauses == 0 {
+            return 0.0; // invalid formula gets zero fitness
+        }
+
+        let base_score = match custom_score_metric {
             ScoreMetric::Accuracy => self.conjunction_scorer.accuracy(&genes_satisfaction, phenotype),
             ScoreMetric::Precision => self.conjunction_scorer.precision(&genes_satisfaction, phenotype),
             ScoreMetric::Recall => self.conjunction_scorer.recall(&genes_satisfaction, phenotype),
             ScoreMetric::FScore(beta) => self.conjunction_scorer.fs_score(&genes_satisfaction, phenotype),
         };
 
-        // Complexity = number of conjunctions
-        let complexity = formula.get_active_conjunctions().len();
+        //Simple penalty subtraction
+        // base_score - penalty_lambda * (clauses as f64)
 
-        base_score - self.penalty_lambda * (complexity as f64)
+        let penalized_score = base_score / (1.0 + penalty_lambda * (clauses as f64 - 1.0));
+        penalized_score
     }
 }
-
 
 impl<'a, C: SatisfactionChecker> DNFScorer<C> {
     pub fn get_genes_satisfaction_for_dnf<T: DNF>(&self, formula: &T) -> anyhow::Result<HashMap<GeneId, bool>>{
@@ -176,9 +202,20 @@ pub struct ConjunctionScorer<C> {
 
 
 impl<C: SatisfactionChecker> FitnessScorer<Conjunction, TermId> for ConjunctionScorer< C>  {
+    //Creare un metodo in privato comune _fitness in comune che viene chiamata dai due metodi
     fn fitness(&self, formula: &Conjunction, phenotype: &TermId) -> f64 {
         let genes_satisfaction: HashMap<GeneId, bool> = self.checker.all_satisfactions(formula);
         match self.score_metric {
+            ScoreMetric::Accuracy => self.accuracy(&genes_satisfaction, phenotype),
+            ScoreMetric::Precision => self.precision(&genes_satisfaction, phenotype),
+            ScoreMetric::Recall => self.recall(&genes_satisfaction, phenotype),
+            ScoreMetric::FScore(beta) => self.fs_score(&genes_satisfaction, phenotype),
+        }
+    }
+
+    fn custom_score_fitness(&self, formula: &Conjunction, phenotype: &TermId, custom_score_metric: &ScoreMetric) -> f64{
+        let genes_satisfaction: HashMap<GeneId, bool> = self.checker.all_satisfactions(formula);
+        match custom_score_metric {
             ScoreMetric::Accuracy => self.accuracy(&genes_satisfaction, phenotype),
             ScoreMetric::Precision => self.precision(&genes_satisfaction, phenotype),
             ScoreMetric::Recall => self.recall(&genes_satisfaction, phenotype),

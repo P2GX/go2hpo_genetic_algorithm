@@ -1,37 +1,37 @@
 use go2hpo_genetic_algorithm::{
     annotations::{GeneAnnotations, GeneSetAnnotations},
     genetic_algorithm::{
-        ConjunctionMutation, ConjunctionScorer, DNFScorer, DNFVecCrossover, ElitesByNumberSelector, FitnessScorer, FormulaEvaluator, GeneticAlgorithm, Mutation, ScoreMetric, Selection, SimpleDNFVecMutation, TournamentSelection
+        ConjunctionMutation, ConjunctionScorer, ElitesByNumberSelector, FormulaEvaluator,
+        GeneticAlgorithm, Mutation, ScoreMetric, Selection, TournamentSelection, ConjunctionCrossover
     },
     logical_formula::{
-        Conjunction, DNFVec, GenePickerConjunctionGenerator, NaiveSatisfactionChecker, RandomConjunctionGenerator, RandomDNFVecGenerator, SatisfactionChecker, DNF
-    }, utils::fixtures::gene_set_annotations::phenotype2genes, Solution,
+        Conjunction, GenePickerConjunctionGenerator,
+        NaiveSatisfactionChecker, SatisfactionChecker,
+    },
+    utils::fixtures::gene_set_annotations::{gene_set_annotations, gtex_summary, go_ontology, phenotype2genes},
+    Solution,
 };
 use gtex_analyzer::expression_analysis::GtexSummary;
 
 use ontolius::ontology::csr::MinimalCsrOntology;
-use ontolius::ontology::OntologyTerms;
 use ontolius::TermId;
 
 use rand::{rngs::SmallRng, SeedableRng};
-use std::{collections::{HashMap, HashSet}, io::{self, Write}};
-
-use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
-    go_ontology, gtex_summary, gene_set_annotations,
+use std::{
+    collections::{HashMap, HashSet},
+    io::{self, Write},
+    sync::Arc,
 };
-
-use std::sync::Arc;
 
 fn get_hpo_gene_count(
     phenotype2genes: &HashMap<TermId, HashSet<String>>,
     hpo_term: &TermId,
 ) -> u32 {
     phenotype2genes
-        .get(hpo_term)              // Option<&HashSet<String>>
-        .map(|genes| genes.len() as u32)  // convert length to u64
-        .unwrap_or(0)               // return 0 if not found
+        .get(hpo_term)
+        .map(|genes| genes.len() as u32)
+        .unwrap_or(0)
 }
-
 
 fn main() {
     // --- Load data once ---
@@ -40,7 +40,7 @@ fn main() {
     let gene_set_annotations: GeneSetAnnotations = gene_set_annotations();
     let hpo2genes = phenotype2genes();
 
-    println!("Data loaded. You can now run the GA on multiple HPO terms.");
+    println!("Data loaded. You can now run the Conjunction-only GA on multiple HPO terms.");
     println!("Type 'quit' at any time to stop.\n");
 
     loop {
@@ -82,16 +82,8 @@ fn main() {
         io::stdin().read_line(&mut mut_in).unwrap();
         let mutation_rate: f64 = mut_in.trim().parse().unwrap_or(0.2);
 
-        // Penalty lambda
-        print!("Enter penalty lambda [default=0.1]: ");
-        io::stdout().flush().unwrap();
-        let mut pen_in = String::new();
-        io::stdin().read_line(&mut pen_in).unwrap();
-        let penalty_lambda: f64 = pen_in.trim().parse().unwrap_or(0.1);
-
-    
         println!(
-            "\nRunning GA: HPO={}, pop_size={}, gens={}, mutation_rate={}",
+            "\nRunning Conjunction GA: HPO={}, pop_size={}, gens={}, mutation_rate={}",
             hpo_term, pop_size, generations, mutation_rate
         );
 
@@ -101,13 +93,11 @@ fn main() {
         // --- RNGs ---
         let mut rng_main = SmallRng::seed_from_u64(42);
         let mut rng_conj_gen = rng_main.clone();
-        let mut rng_dnf_gen = rng_main.clone();
         let mut rng_selection = rng_main.clone();
         let mut rng_crossover = rng_main.clone();
         let mut rng_conj_mut = rng_main.clone();
-        let mut rng_disj_mut = rng_main.clone();
 
-        // --- Generator chain ---
+        // --- Generator ---
         let mut conj_gen = GenePickerConjunctionGenerator::new(
             &mut rng_conj_gen,
             0.5,
@@ -117,36 +107,22 @@ fn main() {
             Some(2),
             Some(2),
         );
-        let dnf_gen = RandomDNFVecGenerator::new(&mut conj_gen, 2, rng_dnf_gen);
 
         // --- Evaluator ---
         let checker = Arc::new(NaiveSatisfactionChecker::new(&go_ontology, &gene_set_annotations));
-        let conj_scorer = ConjunctionScorer::new(Arc::clone(&checker), ScoreMetric::FScore(2.0)); //2.0 to prioritize recall over precision
-        let scorer = DNFScorer::new(conj_scorer, penalty_lambda);
-        let evaluator = FormulaEvaluator::new(Box::new(scorer));
+        let conj_scorer = ConjunctionScorer::new(Arc::clone(&checker), ScoreMetric::FScore(2.0)); // F2 = recall-oriented
+        let evaluator = FormulaEvaluator::new(Box::new(conj_scorer));
 
         // --- Operators ---
-        let go_terms: Vec<_> = go_ontology.iter_term_ids().cloned().collect();
-        let tissue_terms: Vec<String> = gtex
-            .metadata
-            .get_tissue_names()
-            .into_iter()
-            .cloned()
-            .collect();
-
         let selection = Box::new(TournamentSelection::new(2, &mut rng_selection));
-        let crossover = Box::new(DNFVecCrossover::new(&mut rng_crossover));
-        let mutation = Box::new(SimpleDNFVecMutation::new(
-            ConjunctionMutation::new(&go_ontology, &gtex, &mut rng_conj_mut),
-            RandomConjunctionGenerator::new(1, &go_terms, 1, &tissue_terms, rng_main.clone()),
-            4,
-            &mut rng_disj_mut,
-        ));
+        let crossover = Box::new(ConjunctionCrossover::new(&mut rng_crossover));
+        let mutation = Box::new(ConjunctionMutation::new(&go_ontology, &gtex, &mut rng_conj_mut));
 
+        // Elites
         let numb_elites = (pop_size as f64 * 0.1).ceil() as usize;
         let elites = Box::new(ElitesByNumberSelector::new(numb_elites));
 
-        // --- Build GA ---
+        // --- Build GA (Conjunction-only) ---
         let mut ga = GeneticAlgorithm::new_with_size(
             pop_size,
             evaluator,
@@ -154,7 +130,7 @@ fn main() {
             crossover,
             mutation,
             elites,
-            Box::new(dnf_gen),
+            Box::new(conj_gen),
             mutation_rate,
             generations,
             rng_main,
@@ -164,29 +140,29 @@ fn main() {
         // --- Run GA ---
         let stats_history = ga.fit_with_stats_history();
 
-        for (gen, (min, avg_score, max, min_len, avg_len, max_len, best_one_precision, best_one_recall)) in stats_history.iter().enumerate() {
+        for (gen, (min, avg_score, max, _min_len, _avg_len, _max_len, best_one_precision, best_one_recall)) in stats_history.iter().enumerate() {
             println!(
-                "Gen {}: min = {:.4}, avg = {:.4}, max = {:.4}, min_len = {}, avg_len = {:.4}, max_len = {}, best_one_precision = {}, best_one_recall = {}",
-                gen, min, avg_score, max, min_len, avg_len, max_len, best_one_precision, best_one_recall
+                "Gen {}: min = {:.4}, avg = {:.4}, max = {:.4}, best_one_precision = {:.4}, best_one_recall = {:.4}",
+                gen, min, avg_score, max, best_one_precision, best_one_recall
             );
         }
 
+        // --- Best solution ---
         let best_last = ga
             .get_population()
             .iter()
-            .max_by(|a: &&Solution<DNFVec>, b| a.partial_cmp(b).unwrap())
+            .max_by(|a: &&Solution<Conjunction>, b| a.partial_cmp(b).unwrap())
             .unwrap();
 
-        //Check its precision and recall as well
-        let best_formula = best_last.get_formula();
-        let phenotype = hpo_term.clone();
-
         println!("Best solution (last generation) = {}\n", best_last);
-        
-        let hpo_annot_genes: HashMap<&String, &GeneAnnotations> = checker.get_gene_set().get_gene_annotations_map()
-                .iter()
-                .filter(|(_, ann)| ann.contains_phenotype(&hpo_term))
-                .collect();
+
+        // --- Check how many HPO-annotated genes are satisfied ---
+        let hpo_annot_genes: HashMap<&String, &GeneAnnotations> = checker
+            .get_gene_set()
+            .get_gene_annotations_map()
+            .iter()
+            .filter(|(_, ann)| ann.contains_phenotype(&hpo_term))
+            .collect();
 
         println!(
             "Total genes annotated to {} = {}",
@@ -194,26 +170,23 @@ fn main() {
             hpo_annot_genes.len()
         );
 
-        for conj in best_last.get_formula().get_active_conjunctions(){
-            let satisfied: HashMap<String, bool> = checker.all_satisfactions(conj);
-            let num_all_satisfied = satisfied.values().filter(|&&v| v).count();
+        let mut num_hpo_satisfied = 0;
+        let mut num_all_satisfied = 0;
 
-            // count how many HPO-annotated genes are satisfied
-            let mut num_hpo_satisfied = 0;
-            for (gene_id, ann) in &hpo_annot_genes {
-                if checker.is_satisfied(gene_id, conj) {
+        for (gene_id, _) in checker.get_gene_set().get_gene_annotations_map().iter() {
+            if checker.is_satisfied(gene_id, best_last.get_formula()) {
+                num_all_satisfied += 1;
+                if hpo_annot_genes.contains_key(gene_id) {
                     num_hpo_satisfied += 1;
                 }
             }
-
-            println!("Conjunction {} satisfied by {} genes, of which {} annot. to the hpo term", conj, num_all_satisfied, num_hpo_satisfied);
         }
 
-
+        println!(
+            "Best conjunction satisfied {} genes in total, of which {} are annotated to {}",
+            num_all_satisfied, num_hpo_satisfied, hpo_term
+        );
     }
-    println!("Exited interactive GA session.");
+
+    println!("Exited interactive Conjunction GA session.");
 }
-
-
-// TO RUN IT
-// cargo run --bin ga_interactive

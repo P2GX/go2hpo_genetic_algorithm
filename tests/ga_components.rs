@@ -457,7 +457,7 @@ fn test_simple_dnfvec_mutation(
 
     // Create the ConjunctionMutation and SimpleDNFVecMutation
     let conj_mut = ConjunctionMutation::new(&go_sample, &gtex, &mut rng);
-    let mut dnf_mut = SimpleDNFVecMutation::new(conj_mut, conj_gen, &mut rng2);
+    let mut dnf_mut = SimpleDNFVecMutation::new(conj_mut, conj_gen, 4, &mut rng2);
     // Initial DNFVec with 2 conjunctions
     let mut dnf = DNFVec::from_conjunctions(vec![
         Conjunction {
@@ -595,6 +595,7 @@ fn test_genetic_algorithm_sanity(
             &tissue_terms,
             rng_main.clone(),
         ),
+        4,
         &mut rng_disj_mutation,
     ));
     let elites = Box::new(ElitesByNumberSelector::new(1));

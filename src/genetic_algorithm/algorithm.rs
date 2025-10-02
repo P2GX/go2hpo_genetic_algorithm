@@ -1,9 +1,12 @@
+use std::sync::Arc;
+
 use ontolius::TermId;
 use rand::Rng;
 
 use super::base::{Solution, FitnessScorer, FormulaEvaluator}; //to change
 
 use super::operators::{Selection, Crossover, Mutation, ElitesSelector};
+use crate::genetic_algorithm::ScoreMetric;
 use crate::logical_formula::{Formula, FormulaGenerator};
 
 
@@ -206,7 +209,7 @@ impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R>{
 
 impl<'a, T: Clone + Formula, R: Rng> GeneticAlgorithm<'a, T, R> {
     /// New version: return statistics (min, avg, max score) for each generation
-    pub fn fit_with_stats_history(&mut self) -> Vec<(f64, f64, f64, usize, f64, usize)> {
+    pub fn fit_with_stats_history(&mut self) -> Vec<(f64, f64, f64, usize, f64, usize, f64, f64)> {
         let mut stats_history = Vec::with_capacity(self.generations);
 
         for ith_gen in 0..self.generations {
@@ -229,6 +232,21 @@ impl<'a, T: Clone + Formula, R: Rng> GeneticAlgorithm<'a, T, R> {
                 .fold(f64::NEG_INFINITY, f64::max);
             let avg_score = scores.iter().sum::<f64>() / scores.len() as f64;
 
+            // Compute Precision Score and Recall Score
+            let formulas: Vec<&T> = evolved_population.
+                iter()
+                .map(|s| s.get_formula())
+                .collect();
+
+            // Formula with the highest score (first best)
+            let best_formula: &T = evolved_population
+                .iter()
+                .max_by(|a, b| a.get_score().partial_cmp(&b.get_score()).unwrap())
+                .map(|s| s.get_formula()).unwrap();
+
+            let best_one_precision = self.evaluator.get_scorer().custom_score_fitness(best_formula, &self.phenotype, &ScoreMetric::Precision);
+            let best_one_recall = self.evaluator.get_scorer().custom_score_fitness(best_formula, &self.phenotype, &ScoreMetric::Recall);
+
             // Compute avg length
             let (sum, min_len, max_len) = evolved_population
                 .iter()
@@ -240,7 +258,7 @@ impl<'a, T: Clone + Formula, R: Rng> GeneticAlgorithm<'a, T, R> {
             let avg_len = sum as f64 / evolved_population.len() as f64;
                             
 
-            stats_history.push((min_score, avg_score, max_score, min_len, avg_len, max_len));
+            stats_history.push((min_score, avg_score, max_score, min_len, avg_len, max_len, best_one_precision, best_one_recall));
 
             // Update current population
             self.population = evolved_population;

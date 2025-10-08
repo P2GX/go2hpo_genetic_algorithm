@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, fs::File, io::{self, BufRead, BufReader}, iter::zip, path::{Path, PathBuf}};
+use std::{collections::{HashMap, HashSet}, fs::{self, File}, io::{self, BufRead, BufReader}, iter::zip, path::{Path, PathBuf}};
 use anyhow::bail;
 use gtex_analyzer::expression_analysis::{GtexSummary, GtexSummaryLoader};
 use hpo2gene_mapper::{mapper::GenePhenotypeMemoryMapper, GenePhenotypeMapping};
@@ -71,6 +71,10 @@ pub fn gene2tissue_expr_sample(gtex_summary_sample: io::Result<GtexSummary>) -> 
 pub fn gtex_summary() -> io::Result<GtexSummary> {
     let cache_path = PathBuf::from("cache/gtex_summary.bincode");
 
+    if let Some(parent) = cache_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
     if cache_path.exists() {
         println!("Loading GTEx summary from cache...");
         return GtexSummary::load_bincode(&cache_path);
@@ -86,7 +90,7 @@ pub fn gtex_summary() -> io::Result<GtexSummary> {
     let summary = summary_loader.load_summary(reader)?;
 
     // save for future runs
-    summary.save_bincode(&cache_path)?;
+    summary.save_bincode(&cache_path).expect("It should have saved the Path");
 
     Ok(summary)
 }
@@ -241,10 +245,15 @@ pub fn gene_set_annotations_sample(gene2go_terms: HashMap<String, HashSet<TermId
 
 #[fixture]
 pub fn gene_set_annotations() -> GeneSetAnnotations {
-    let cache_path = "cache/gene_set_annotations.bincode";
+    let cache_path = Path::new("cache/gene_set_annotations.bincode");
+
+    // ✅ Ensure the "cache" folder exists
+    if let Some(parent) = cache_path.parent() {
+        fs::create_dir_all(parent).expect("Failed to create cache directory");
+    }
 
     if let Ok(gs) = GeneSetAnnotations::load_bincode(cache_path) {
-        print!("GeneSet loaded from cache.");
+        println!("GeneSet loaded from cache.");
         return gs;
     }
 
@@ -346,9 +355,6 @@ pub fn check_gene_keys_pairwise_intersection(
         println!("No gene is in common in all three datasets");
     }
 }
-
-
-
 
 
 

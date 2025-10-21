@@ -262,10 +262,10 @@ fn test_genetic_algorithm_stats_history(
         4,
         &mut rng_disj_mutation,
     ));
-    let elites = Box::new(ElitesByNumberSelector::new(1));
+    let elites = Box::new(ElitesByNumberSelector::new(4));
 
     // Build GA
-    let pop_size = 1;
+    let pop_size = 20;
     let mut ga = GeneticAlgorithm::new_with_size(
         pop_size,
         evaluator,
@@ -275,7 +275,7 @@ fn test_genetic_algorithm_stats_history(
         elites,
         Box::new(dnf_gen),
         0.2,    // mutation rate
-        1,     // generations
+        5,     // generations
         rng_main,
         hpo_term, // pass it here
     );

@@ -131,6 +131,7 @@ impl<C: SatisfactionChecker, T: DNF> FitnessScorer<T, TermId> for DNFScorer<C> {
 
 }
 
+
 impl<'a, C: SatisfactionChecker> DNFScorer<C> {
 
     fn _fitness<T: DNF>(&self, formula: &T, phenotype: &TermId, custom_score_metric: &ScoreMetric, penalty_lambda: f64) -> f64{
@@ -153,7 +154,7 @@ impl<'a, C: SatisfactionChecker> DNFScorer<C> {
             ScoreMetric::FScore(beta) => self.conjunction_scorer.fs_score(&genes_satisfaction, phenotype),
         };
 
-        //Simple penalty subtraction
+        // Simple penalty subtraction
         // base_score - penalty_lambda * (clauses as f64)
 
         let penalized_score = base_score / (1.0 + penalty_lambda * (clauses as f64 - 1.0));
@@ -171,13 +172,20 @@ impl<'a, C: SatisfactionChecker> DNFScorer<C> {
         let mut satisfaction_mask = self.conjunction_scorer.checker.all_satisfactions(first_conjunction);
 
         for conjunction in conjunction_iter{
-            for (gene, satisfied) in satisfaction_mask.iter_mut(){
+            // Check: IF a Conjunction is made of only NOT terms we get a score of 0
+            if !conjunction.tissue_expressions.is_empty() || 
+                conjunction.term_observations.iter()
+                .map(|obs| obs.is_excluded)
+                .any(|excluded| excluded == false){
 
-                if *satisfied {continue;}
-
-                if self.conjunction_scorer.checker.is_satisfied(gene, conjunction){
-                    *satisfied = true;
-                }   
+                for (gene, satisfied) in satisfaction_mask.iter_mut(){
+                    
+                    if *satisfied {continue;}
+                    
+                    if self.conjunction_scorer.checker.is_satisfied(gene, conjunction){
+                        *satisfied = true;
+                    }   
+                }
             }
         }
 

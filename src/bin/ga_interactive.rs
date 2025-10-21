@@ -27,14 +27,13 @@ fn get_hpo_gene_count(
     hpo_term: &TermId,
 ) -> u32 {
     phenotype2genes
-        .get(hpo_term)              // Option<&HashSet<String>>
-        .map(|genes| genes.len() as u32)  // convert length to u64
-        .unwrap_or(0)               // return 0 if not found
+        .get(hpo_term)              
+        .map(|genes| genes.len() as u32)  
+        .unwrap_or(0)               
 }
 
 
 fn main() {
-    // --- Load data once ---
     let go_ontology: MinimalCsrOntology = go_ontology();
     let gtex: GtexSummary = gtex_summary().expect("GTEx summary should load correctly");
     let gene_set_annotations: GeneSetAnnotations = gene_set_annotations();
@@ -44,7 +43,6 @@ fn main() {
     println!("Type 'quit' at any time to stop.\n");
 
     loop {
-        // --- Ask interactively ---
         print!("Enter HPO term (e.g., HP:0001083): ");
         io::stdout().flush().unwrap();
         let mut hpo_input = String::new();
@@ -76,18 +74,18 @@ fn main() {
         let generations: usize = gens_in.trim().parse().unwrap_or(5);
 
         // Mutation rate
-        print!("Enter mutation rate (0.0–1.0) [default=0.2]: ");
+        print!("Enter mutation rate (0.0–1.0) [default=0.4]: ");
         io::stdout().flush().unwrap();
         let mut mut_in = String::new();
         io::stdin().read_line(&mut mut_in).unwrap();
-        let mutation_rate: f64 = mut_in.trim().parse().unwrap_or(0.2);
+        let mutation_rate: f64 = mut_in.trim().parse().unwrap_or(0.4);
 
         // Penalty lambda
-        print!("Enter penalty lambda [default=0.1]: ");
+        print!("Enter penalty lambda [default=0.0]: ");
         io::stdout().flush().unwrap();
         let mut pen_in = String::new();
         io::stdin().read_line(&mut pen_in).unwrap();
-        let penalty_lambda: f64 = pen_in.trim().parse().unwrap_or(0.1);
+        let penalty_lambda: f64 = pen_in.trim().parse().unwrap_or(0.0);
 
     
         println!(

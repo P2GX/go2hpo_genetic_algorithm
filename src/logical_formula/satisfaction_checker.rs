@@ -33,6 +33,8 @@ impl<C: SatisfactionChecker + ?Sized> SatisfactionChecker for Arc<C> {
     }
 }
 
+
+
 pub struct NaiveSatisfactionChecker<'a, O> {
     go: &'a O,
     gene_set_annotations: &'a GeneSetAnnotations,

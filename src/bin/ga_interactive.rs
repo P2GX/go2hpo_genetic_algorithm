@@ -14,11 +14,15 @@ use ontolius::ontology::OntologyTerms;
 use ontolius::TermId;
 
 use rand::{rngs::SmallRng, SeedableRng};
-use std::{collections::{HashMap, HashSet}, io::{self, Write}};
+use std::{collections::{HashMap, HashSet}, fs, io::{self, Write}};
 
 use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
     go_ontology, gtex_summary, gene_set_annotations,
 };
+
+use csv::Writer;
+use std::fs::File;
+
 
 use std::sync::Arc;
 
@@ -30,6 +34,40 @@ fn get_hpo_gene_count(
         .get(hpo_term)              
         .map(|genes| genes.len() as u32)  
         .unwrap_or(0)               
+}
+
+
+fn write_generation_stats_to_csv(
+    path: &str,
+    stats_history: &[(f64, f64, f64, usize, f64, usize, f64, f64)],
+) -> Result<(), Box<dyn std::error::Error>> {
+    let file = File::create(path)?;
+    let mut wtr = Writer::from_writer(file);
+
+    // Write header
+    wtr.write_record(&[
+        "generation", "min", "avg", "max", "min_len", "avg_len", "max_len",
+        "best_one_precision", "best_one_recall"
+    ])?;
+
+    for (gen, (min, avg, max, min_len, avg_len, max_len, best_one_precision, best_one_recall))
+        in stats_history.iter().enumerate()
+    {
+        wtr.write_record(&[
+        gen.to_string(),
+        format!("{:.5}", min),
+        format!("{:.5}", avg),
+        format!("{:.5}", max),
+        min_len.to_string(),
+        format!("{:.2}", avg_len),
+        max_len.to_string(),
+        format!("{:.5}", best_one_precision),
+        format!("{:.5}", best_one_recall),
+    ])?;
+    }
+
+    wtr.flush()?;
+    Ok(())
 }
 
 
@@ -86,6 +124,12 @@ fn main() {
         let mut pen_in = String::new();
         io::stdin().read_line(&mut pen_in).unwrap();
         let penalty_lambda: f64 = pen_in.trim().parse().unwrap_or(0.0);
+
+        print!("Enter output file name (without extension) [press Enter to skip saving]: ");
+        io::stdout().flush().unwrap();
+        let mut file_in = String::new();
+        io::stdin().read_line(&mut file_in).unwrap();
+        let file_name = file_in.trim().to_string();
 
     
         println!(
@@ -168,6 +212,24 @@ fn main() {
                 gen, min, avg_score, max, min_len, avg_len, max_len, best_one_precision, best_one_recall
             );
         }
+
+        if !file_name.is_empty() {
+            // Ensure the "stats" folder exists
+            if let Err(e) = fs::create_dir_all("stats") {
+                eprintln!("⚠ Failed to create 'stats' directory: {}", e);
+            }
+
+            // Build full path inside the folder
+            let csv_path = format!("stats/{}.csv", file_name);
+
+            match write_generation_stats_to_csv(&csv_path, &stats_history) {
+                Ok(_) => println!("✔ Results saved to {}", csv_path),
+                Err(e) => eprintln!("⚠ Failed to write CSV: {}", e),
+            }
+        } else {
+            println!("⚠ No file name provided — results not saved.");
+        }
+
 
         let best_last = ga
             .get_population()

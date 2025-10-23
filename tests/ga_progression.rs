@@ -79,7 +79,7 @@ fn test_genetic_algorithm_sanity(
     let selection = Box::new(TournamentSelection::new(2, &mut rng_selection));
     let crossover = Box::new(DNFVecCrossover::new(&mut rng_crossover));
     let mutation = Box::new(SimpleDNFVecMutation::new(
-        ConjunctionMutation::new(&go_ontology, &gtex, &mut rng_conj_mutation),
+        ConjunctionMutation::new(&go_ontology, &gtex, 8, &mut rng_conj_mutation),
         RandomConjunctionGenerator::new(
             1,
             &go_terms,
@@ -161,7 +161,7 @@ fn test_genetic_algorithm_history(
     let selection = Box::new(TournamentSelection::new(2, &mut rng_selection));
     let crossover = Box::new(DNFVecCrossover::new(&mut rng_crossover));
     let mutation = Box::new(SimpleDNFVecMutation::new(
-        ConjunctionMutation::new(&go_ontology, &gtex, &mut rng_conj_mutation),
+        ConjunctionMutation::new(&go_ontology, &gtex, 8, &mut rng_conj_mutation),
         RandomConjunctionGenerator::new(
             1,
             &go_terms,
@@ -251,7 +251,7 @@ fn test_genetic_algorithm_stats_history(
     let selection = Box::new(TournamentSelection::new(2, &mut rng_selection));
     let crossover = Box::new(DNFVecCrossover::new(&mut rng_crossover));
     let mutation = Box::new(SimpleDNFVecMutation::new(
-        ConjunctionMutation::new(&go_ontology, &gtex, &mut rng_conj_mutation),
+        ConjunctionMutation::new(&go_ontology, &gtex, 8, &mut rng_conj_mutation),
         RandomConjunctionGenerator::new(
             1,
             &go_terms,

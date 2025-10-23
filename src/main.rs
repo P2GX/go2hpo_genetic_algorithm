@@ -103,7 +103,7 @@ fn main() {
     let selection = Box::new(TournamentSelection::new(2, &mut rng_selection));
     let crossover = Box::new(DNFVecCrossover::new(&mut rng_crossover));
     let mutation = Box::new(go2hpo_genetic_algorithm::genetic_algorithm::SimpleDNFVecMutation::new(
-        ConjunctionMutation::new(&go_ontology, &gtex, &mut rng_conj_mut),
+        ConjunctionMutation::new(&go_ontology, &gtex, 4, &mut rng_conj_mut),
         RandomConjunctionGenerator::new(1, &go_terms, 1, &tissue_terms, rng_main.clone()),
         6,
         &mut rng_disj_mut,

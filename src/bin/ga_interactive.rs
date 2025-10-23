@@ -176,10 +176,10 @@ fn main() {
             .cloned()
             .collect();
 
-        let selection = Box::new(TournamentSelection::new(2, &mut rng_selection));
+        let selection = Box::new(TournamentSelection::new(3, &mut rng_selection));
         let crossover = Box::new(DNFVecCrossover::new(&mut rng_crossover));
         let mutation = Box::new(SimpleDNFVecMutation::new(
-            ConjunctionMutation::new(&go_ontology, &gtex, &mut rng_conj_mut),
+            ConjunctionMutation::new(&go_ontology, &gtex, 2, &mut rng_conj_mut),
             RandomConjunctionGenerator::new(1, &go_terms, 1, &tissue_terms, rng_main.clone()),
             4,
             &mut rng_disj_mut,

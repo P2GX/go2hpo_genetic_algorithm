@@ -116,7 +116,7 @@ fn main() {
         // --- Operators ---
         let selection = Box::new(TournamentSelection::new(2, &mut rng_selection));
         let crossover = Box::new(ConjunctionCrossover::new(&mut rng_crossover));
-        let mutation = Box::new(ConjunctionMutation::new(&go_ontology, &gtex, &mut rng_conj_mut));
+        let mutation = Box::new(ConjunctionMutation::new(&go_ontology, &gtex, 6,&mut rng_conj_mut));
 
         // Elites
         let numb_elites = (pop_size as f64 * 0.1).ceil() as usize;

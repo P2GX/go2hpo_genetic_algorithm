@@ -112,14 +112,35 @@ fn main() {
         let generations: usize = gens_in.trim().parse().unwrap_or(5);
 
         // Mutation rate
-        print!("Enter mutation rate (0.0–1.0) [default=0.4]: ");
+        print!("Enter mutation rate (0.0–1.0) [default=0.5]: ");
         io::stdout().flush().unwrap();
         let mut mut_in = String::new();
         io::stdin().read_line(&mut mut_in).unwrap();
-        let mutation_rate: f64 = mut_in.trim().parse().unwrap_or(0.4);
+        let mutation_rate: f64 = mut_in.trim().parse().unwrap_or(0.5);
+
+        // Tournament size
+        print!("Enter tournament size [default=3]: ");
+        io::stdout().flush().unwrap();
+        let mut tourn_in = String::new();
+        io::stdin().read_line(&mut tourn_in).unwrap();
+        let tournament_size: usize = tourn_in.trim().parse().unwrap_or(3);
+
+        // Max number of terms in each conjunction
+        print!("Enter max number of terms per conjunction [default=5]: ");
+        io::stdout().flush().unwrap();
+        let mut terms_in = String::new();
+        io::stdin().read_line(&mut terms_in).unwrap();
+        let max_n_terms: usize = terms_in.trim().parse().unwrap_or(5);
+
+        // Max number of conjunctions per DNF
+        print!("Enter max number of conjunctions per DNF [default=4]: ");
+        io::stdout().flush().unwrap();
+        let mut conj_in = String::new();
+        io::stdin().read_line(&mut conj_in).unwrap();
+        let max_n_conj: usize = conj_in.trim().parse().unwrap_or(4);
 
         // Penalty lambda
-        print!("Enter penalty lambda [default=0.0]: ");
+        print!("Enter penalty lambda on DNF length [default=0.0]: ");
         io::stdout().flush().unwrap();
         let mut pen_in = String::new();
         io::stdin().read_line(&mut pen_in).unwrap();
@@ -176,12 +197,14 @@ fn main() {
             .cloned()
             .collect();
 
-        let selection = Box::new(TournamentSelection::new(3, &mut rng_selection));
+        let selection = Box::new(TournamentSelection::new(
+            tournament_size, 
+            &mut rng_selection));
         let crossover = Box::new(DNFVecCrossover::new(&mut rng_crossover));
         let mutation = Box::new(SimpleDNFVecMutation::new(
-            ConjunctionMutation::new(&go_ontology, &gtex, 2, &mut rng_conj_mut),
+            ConjunctionMutation::new(&go_ontology, &gtex, max_n_terms, &mut rng_conj_mut),
             RandomConjunctionGenerator::new(1, &go_terms, 1, &tissue_terms, rng_main.clone()),
-            4,
+            max_n_conj,
             &mut rng_disj_mut,
         ));
 

@@ -9,7 +9,7 @@ use go2hpo_genetic_algorithm::{
 };
 use gtex_analyzer::expression_analysis::GtexSummary;
 
-use ontolius::ontology::csr::MinimalCsrOntology;
+use ontolius::{ontology::csr::MinimalCsrOntology, term::MinimalTerm};
 use ontolius::ontology::OntologyTerms;
 use ontolius::TermId;
 
@@ -317,6 +317,18 @@ fn main() {
             }
 
             println!("Conjunction {} satisfied by {} genes, of which {} annot. to the hpo term", conj, num_all_satisfied, num_hpo_satisfied);
+
+            println!("Term names in conjunction:");
+            for term in &conj.term_observations{
+                let term_id = &term.term_id; 
+                if let Some(term) = go_ontology.term_by_id(term_id) {
+                    println!("{}: {}", term_id, term.name());
+                } else {
+                    println!("{}: (name not found)", term_id);
+                }   
+            }
+            println!("--------------------------------");
+            
         }
 
 

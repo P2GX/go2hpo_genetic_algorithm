@@ -37,38 +37,53 @@ fn get_hpo_gene_count(
 }
 
 
-fn write_generation_stats_to_csv(
+
+/// Writes GA statistics to a CSV file, preceded by metadata comments.
+/// Metadata lines start with `#` and are ignored by pandas/R when reading with `comment="#"`.
+pub fn write_generation_stats_to_csv(
     path: &str,
     stats_history: &[(f64, f64, f64, usize, f64, usize, f64, f64)],
+    metadata: &str, // e.g. parameters description
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let file = File::create(path)?;
+    // Open file for writing
+    let mut file = File::create(path)?;
+
+    // Write metadata block at top (convert newlines to "# " prefixed lines)
+    if !metadata.is_empty() {
+        writeln!(file, "# {}", metadata.replace('\n', "\n# "))?;
+    }
+
+    // Prepare CSV writer using same file handle
     let mut wtr = Writer::from_writer(file);
 
-    // Write header
+    // Header
     wtr.write_record(&[
         "generation", "min", "avg", "max", "min_len", "avg_len", "max_len",
         "best_one_precision", "best_one_recall"
     ])?;
 
+    // Data rows with fixed precision (5 decimals)
     for (gen, (min, avg, max, min_len, avg_len, max_len, best_one_precision, best_one_recall))
         in stats_history.iter().enumerate()
     {
         wtr.write_record(&[
-        gen.to_string(),
-        format!("{:.5}", min),
-        format!("{:.5}", avg),
-        format!("{:.5}", max),
-        min_len.to_string(),
-        format!("{:.2}", avg_len),
-        max_len.to_string(),
-        format!("{:.5}", best_one_precision),
-        format!("{:.5}", best_one_recall),
-    ])?;
+            gen.to_string(),
+            format!("{:.5}", min),
+            format!("{:.5}", avg),
+            format!("{:.5}", max),
+            min_len.to_string(),
+            format!("{:.2}", avg_len),
+            max_len.to_string(),
+            format!("{:.5}", best_one_precision),
+            format!("{:.5}", best_one_recall),
+        ])?;
     }
 
     wtr.flush()?;
     Ok(())
 }
+
+
 
 
 fn main() {
@@ -245,7 +260,19 @@ fn main() {
             // Build full path inside the folder
             let csv_path = format!("stats/{}.csv", file_name);
 
-            match write_generation_stats_to_csv(&csv_path, &stats_history) {
+            let metadata = format!(
+                "HPO term: {}\nPopulation size: {}\nGenerations: {}\nMutation rate: {}\nTournament size: {}\nMax terms per Conjunction: {}\nMax conjunctions in DNF: {}\nPenalty lambda: {}",
+                hpo_term,
+                pop_size,
+                generations,
+                mutation_rate,
+                tournament_size,
+                max_n_terms,
+                max_n_conj,
+                penalty_lambda,
+            );
+
+            match write_generation_stats_to_csv(&csv_path, &stats_history, &metadata) {
                 Ok(_) => println!("✔ Results saved to {}", csv_path),
                 Err(e) => eprintln!("⚠ Failed to write CSV: {}", e),
             }

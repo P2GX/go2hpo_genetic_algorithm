@@ -251,6 +251,13 @@ fn main() {
             );
         }
 
+        // Compute best solution for metadata and later use
+        let best_last = ga
+            .get_population()
+            .iter()
+            .max_by(|a: &&Solution<DNFVec>, b| a.partial_cmp(b).unwrap())
+            .unwrap();
+
         if !file_name.is_empty() {
             // Ensure the "stats" folder exists
             if let Err(e) = fs::create_dir_all("stats") {
@@ -260,8 +267,11 @@ fn main() {
             // Build full path inside the folder
             let csv_path = format!("stats/{}.csv", file_name);
 
+            // Get the formula string representation
+            let best_formula_str = format!("{}", best_last.get_formula());
+
             let metadata = format!(
-                "HPO term: {}\nPopulation size: {}\nGenerations: {}\nMutation rate: {}\nTournament size: {}\nMax terms per Conjunction: {}\nMax conjunctions in DNF: {}\nPenalty lambda: {}",
+                "HPO term: {}\nPopulation size: {}\nGenerations: {}\nMutation rate: {}\nTournament size: {}\nMax terms per Conjunction: {}\nMax conjunctions in DNF: {}\nPenalty lambda: {}\nBest formula: {}",
                 hpo_term,
                 pop_size,
                 generations,
@@ -270,6 +280,7 @@ fn main() {
                 max_n_terms,
                 max_n_conj,
                 penalty_lambda,
+                best_formula_str,
             );
 
             match write_generation_stats_to_csv(&csv_path, &stats_history, &metadata) {
@@ -279,13 +290,6 @@ fn main() {
         } else {
             println!("⚠ No file name provided — results not saved.");
         }
-
-
-        let best_last = ga
-            .get_population()
-            .iter()
-            .max_by(|a: &&Solution<DNFVec>, b| a.partial_cmp(b).unwrap())
-            .unwrap();
 
         //Check its precision and recall as well
         let best_formula = best_last.get_formula();

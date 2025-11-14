@@ -78,6 +78,16 @@ impl DgeState{
             _ => panic!("Number out of the range has been generated for DgeState"),
         }
     }
+
+    /// Returns only UP or DOWN, excluding NORMAL
+    pub fn get_random_up_down_only<R: Rng>(rng: &mut R) -> Self{
+        let rnd_state_i  = rng.random_range(0..2);
+        match  rnd_state_i{
+            0 => DgeState::Down,
+            1 => DgeState::Up,
+            _ => panic!("Number out of the range has been generated for DgeState::get_random_up_down_only"),
+        }
+    }
 }
 
 pub type TissueId = String;

@@ -169,7 +169,7 @@ where
         let rnd_index = self.rng.random_range(0..tissues.len());
         
         if let Some(tissue_name) = tissues.get(rnd_index){
-            let tissue_expr = TissueExpression::new(tissue_name.clone(), DgeState::get_random(self.rng));
+            let tissue_expr = TissueExpression::new(tissue_name.clone(), DgeState::get_random_up_down_only(self.rng));
             formula.tissue_expressions.push(tissue_expr)
         }
     }
@@ -180,17 +180,16 @@ where
             return; // or handle with Result
         }
         let rnd_index = self.rng.random_range(0..formula.tissue_expressions.len());
-        let mut tissue_term = formula.tissue_expressions.get_mut(rnd_index).expect("It should return a TissueExpression");
+        let tissue_term = formula.tissue_expressions.get_mut(rnd_index).expect("It should return a TissueExpression");
         
-        let dge_states = [DgeState::Down, DgeState::Normal, DgeState::Up];
-
+        // Only toggle between UP and DOWN (exclude NORMAL)
         let new_state = match tissue_term.state {
-            DgeState::Down =>  [DgeState::Normal, DgeState::Up].choose(&mut self.rng).expect("Should return one state"),
-            DgeState::Normal =>  [DgeState::Down, DgeState::Up].choose(&mut self.rng).expect("Should return one state"),
-            DgeState::Up =>  [DgeState::Normal, DgeState::Down].choose(&mut self.rng).expect("Should return one state"),
+            DgeState::Down => DgeState::Up,
+            DgeState::Normal => DgeState::get_random_up_down_only(self.rng), // If somehow NORMAL exists, convert to UP/DOWN
+            DgeState::Up => DgeState::Down,
         };
 
-        tissue_term.state =  new_state.clone();
+        tissue_term.state = new_state;
     }
 
     
@@ -389,7 +388,7 @@ mod tests {
     fn get_tissue_express_vec(seed: u64, size: usize) -> Vec<TissueExpression>{
         let mut uber_rng = SmallRng::seed_from_u64(seed);
         let tiss_exprs : Vec<TissueExpression> = (0..size)
-                        .map(|i| (i,DgeState::get_random(&mut uber_rng)))
+                        .map(|i| (i,DgeState::get_random_up_down_only(&mut uber_rng)))
                         .map(|(i, state)| TissueExpression::new(format!("tissue_{}", i), state))
                         .collect();
         tiss_exprs

@@ -76,7 +76,7 @@ where
     fn select_random_tissue_annot(&mut self) -> TissueExpression {
         let term_id = self.tissue_terms[self.rng.random_range(0..self.tissue_terms.len())].clone();
 
-        let state = DgeState::get_random(&mut self.rng);
+        let state = DgeState::get_random_up_down_only(&mut self.rng);
 
         return TissueExpression::new(term_id, state);
     }
@@ -125,7 +125,7 @@ where
         let chosen_tissues: Vec<TissueExpression> = shuffled_tissue_terms
             .iter()
             .take(self.n_tissue_terms)
-            .map(|term_id| TissueExpression::new(term_id.clone(), DgeState::get_random(&mut self.rng)))
+            .map(|term_id| TissueExpression::new(term_id.clone(), DgeState::get_random_up_down_only(&mut self.rng)))
             .collect();
 
 

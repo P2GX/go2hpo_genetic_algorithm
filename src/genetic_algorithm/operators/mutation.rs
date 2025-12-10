@@ -17,16 +17,34 @@ use crate::{
 };
 
 
-// FORMULA MUTATION OPERATOR
+/// Trait for mutation operators in the genetic algorithm.
+///
+/// Mutation operators introduce genetic diversity by randomly modifying
+/// candidate solutions (formulas) in the population. Each implementation
+/// defines how to mutate a specific type of formula representation.
 pub trait Mutation<T> {
+    /// Mutates the given formula in place.
+    ///
+    /// The mutation operation is non-deterministic and modifies the formula
+    /// to explore different regions of the search space.
     fn mutate(&mut self, formula: &mut T);
 }
 
+/// Mutation operator for `Conjunction` formulas.
+///
+/// This operator performs various mutations on conjunction formulas, including:
+/// - Modifying GO terms (replacing with parent/child terms, adding, removing, toggling exclusion status)
+/// - Modifying tissue expression terms (adding, removing, toggling expression states)
+///
+/// The operator randomly selects one of eight mutation operations when `mutate` is called.
+/// If a filtered GO term pool is provided, new terms are selected from that pool instead
+/// of the entire ontology.
 pub struct ConjunctionMutation<'a, O, R: Rng> {
     go: &'a O,
     gtex: &'a GtexSummary,
     max_n_terms: usize,
     rng: &'a mut R,
+    filtered_go_terms: Option<&'a Vec<TermId>>, // Optional filtered GO term pool for random selection
 }
 
 impl<O, R> Mutation<Conjunction> for ConjunctionMutation<'_, O, R>
@@ -34,6 +52,15 @@ where
     O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
     R: Rng,
 {
+    /// Randomly selects and applies one of eight mutation operations:
+    /// 0: Replace a GO term with one of its parents
+    /// 1: Replace a GO term with one of its children
+    /// 2: Delete a random GO term
+    /// 3: Add a random GO term
+    /// 4: Toggle the exclusion status of a GO term
+    /// 5: Delete a random tissue expression term
+    /// 6: Add a random tissue expression term
+    /// 7: Toggle the expression state of a tissue term (UP/DOWN)
     fn mutate(&mut self, formula: &mut Conjunction) {
         let rnd_num = self.rng.random_range(0..=7);
         match rnd_num {
@@ -55,7 +82,11 @@ where
     O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
     R: Rng,
 {
-    /// Exchange a GO term with a parent
+    /// Replaces a randomly selected GO term with one of its parent terms from the ontology.
+    ///
+    /// This mutation generalizes the formula by moving up the GO hierarchy.
+    /// If the formula is empty, adds a random term instead.
+    /// If the selected term has no parents, no change is made.
     pub fn mutate_with_parent_term(&mut self, formula: &mut Conjunction) {
         // Get a term from a random index. Maybe a more sophisticated way will be used in the future
         if formula.term_observations.is_empty() {
@@ -78,7 +109,10 @@ where
         }
     }
 
-    ///  Exchange a GO term with one of its children
+    /// Replaces a randomly selected GO term with one of its child terms from the ontology.
+    ///
+    /// This mutation specializes the formula by moving down the GO hierarchy.
+    /// If the formula is empty or the selected term has no children, no change is made.
     pub fn mutate_with_child_term(&mut self, formula: &mut Conjunction) {
         // Get a term from a random index. Maybe a more sophisticated way will be used in the future
         if formula.term_observations.is_empty() {
@@ -100,7 +134,9 @@ where
         }
     }
 
-    /// Delete a GO term
+    /// Removes a randomly selected GO term from the conjunction.
+    ///
+    /// If the formula is empty, no change is made.
     pub fn delete_random_term(&mut self, formula: &mut Conjunction) {
         if formula.term_observations.is_empty() {
             return; // or handle with Result
@@ -109,7 +145,14 @@ where
         formula.term_observations.remove(rnd_index);
     }
 
-    /// Add a random GO term
+    /// Adds a random GO term to the conjunction.
+    ///
+    /// The term is selected from either the filtered GO term pool (if provided)
+    /// or from all terms in the ontology. The term's exclusion status is randomly
+    /// set to included or excluded.
+    ///
+    /// If the maximum number of terms has been reached, performs a different
+    /// mutation operation instead (parent/child replacement, deletion, or toggle).
     pub fn add_random_term(&mut self, formula: &mut Conjunction) {
         if formula.len() >= self.max_n_terms{
             let rnd_indx = self.rng.random_range(0..4);
@@ -122,14 +165,30 @@ where
             };
             return;
         }
-        let rnd_index = self.rng.random_range(0..self.go.len());
-        if let Some(new_term) = self.go.iter_term_ids().nth(rnd_index) {
-            let term_obs = TermObservation::new(new_term.clone(), self.rng.random_bool(0.5));
+        // Use filtered GO term pool if available, otherwise use all terms from ontology
+        let new_term = if let Some(filtered_terms) = self.filtered_go_terms {
+            if !filtered_terms.is_empty() {
+                let rnd_index = self.rng.random_range(0..filtered_terms.len());
+                filtered_terms.get(rnd_index).cloned()
+            } else {
+                None
+            }
+        } else {
+            let rnd_index = self.rng.random_range(0..self.go.len());
+            self.go.iter_term_ids().nth(rnd_index).map(|t| t.clone())
+        };
+        
+        if let Some(new_term) = new_term {
+            let term_obs = TermObservation::new(new_term, self.rng.random_bool(0.5));
             formula.term_observations.push(term_obs);
         }
     }
 
-    /// Toggle the status of GO terms with is_excluded
+    /// Toggles the exclusion status (`is_excluded`) of a randomly selected GO term.
+    ///
+    /// This mutation changes whether a term is included or excluded in the conjunction,
+    /// effectively inverting its logical contribution to the formula.
+    /// If the formula is empty, no change is made.
     pub fn toggle_term_status(&mut self, formula: &mut Conjunction) {
         if formula.term_observations.is_empty() {
             return;
@@ -142,7 +201,9 @@ where
         term_ob.is_excluded = !term_ob.is_excluded;
     }
 
-    /// Delete a gene expression term
+    /// Removes a randomly selected tissue expression term from the conjunction.
+    ///
+    /// If the formula has no tissue expression terms, no change is made.
     pub fn delete_tissue_expression_term(&mut self, formula: &mut Conjunction) {
         
         if formula.tissue_expressions.is_empty() {
@@ -152,7 +213,13 @@ where
         formula.tissue_expressions.remove(rnd_index);
     }
 
-    /// Add a gene expression term from a random tissue
+    /// Adds a tissue expression term for a randomly selected tissue.
+    ///
+    /// The expression state (UP or DOWN) is randomly assigned. The tissue is selected
+    /// from available tissues in the GTEx summary data.
+    ///
+    /// If the maximum number of terms has been reached, performs a different
+    /// mutation operation instead (toggle state or delete term).
     pub fn add_tissue_expression_term(&mut self, formula: &mut Conjunction) {
         if formula.len() >= self.max_n_terms{
             let rnd_indx = self.rng.random_range(0..2);
@@ -174,7 +241,11 @@ where
         }
     }
 
-    // toggle of a tissue expression state from lo to hi or vice versa
+    /// Toggles the expression state of a randomly selected tissue expression term.
+    ///
+    /// Switches between UP and DOWN states. If the state is NORMAL (which should
+    /// not occur in practice), it is randomly converted to UP or DOWN.
+    /// If the formula has no tissue expression terms, no change is made.
     pub fn toggle_tissue_expression_state(&mut self, formula: &mut Conjunction) {
         if formula.tissue_expressions.is_empty() {
             return; // or handle with Result
@@ -193,17 +264,38 @@ where
     }
 
     
+    /// Creates a new `ConjunctionMutation` operator.
+    ///
+    /// New GO terms will be selected from all terms in the ontology.
     pub fn new(go: &'a O, gtex: &'a GtexSummary, max_n_terms: usize, rng: &'a mut R,) -> Self{
-        Self{go, gtex, max_n_terms, rng}
+        Self{go, gtex, max_n_terms, rng, filtered_go_terms: None}
+    }
+
+    /// Creates a new `ConjunctionMutation` operator with a filtered GO term pool.
+    ///
+    /// New GO terms will be selected only from the provided `filtered_go_terms` vector,
+    /// which can be useful for constraining the search space to specific terms of interest.
+    pub fn new_with_filtered_go_terms(go: &'a O, gtex: &'a GtexSummary, max_n_terms: usize, rng: &'a mut R, filtered_go_terms: &'a Vec<TermId>) -> Self{
+        Self{go, gtex, max_n_terms, rng, filtered_go_terms: Some(filtered_go_terms)}
     }
     
 }
 
+/// Simple mutation operator for `DNFBitmask` formulas.
+///
+/// This operator toggles the activation state of a randomly selected conjunction
+/// in the DNF formula. This effectively adds or removes a conjunction from the
+/// disjunctive normal form, changing the formula's structure.
 pub struct SimpleDNFBitmaskMutation<'a, R: Rng>{
     rng: &'a mut R,
 }
 
 impl<'a, R: Rng> Mutation<DNFBitmask<'_>> for SimpleDNFBitmaskMutation<'a, R> {
+    /// Toggles the activation state of a randomly selected conjunction.
+    ///
+    /// This mutation either activates a previously inactive conjunction or
+    /// deactivates an active one, effectively adding or removing it from
+    /// the disjunctive normal form.
     fn mutate(&mut self, formula: &mut DNFBitmask) {
         let n_conjunctions = formula.total_conjunctions_count();
         let rnd_index = self.rng.random_range(0..n_conjunctions);
@@ -215,12 +307,18 @@ impl<'a, R: Rng> Mutation<DNFBitmask<'_>> for SimpleDNFBitmaskMutation<'a, R> {
 }
 
 impl<'a, R: Rng> SimpleDNFBitmaskMutation<'a, R> {
+    /// Creates a new `SimpleDNFBitmaskMutation` operator.
     pub fn new(rng: &'a mut R) -> Self{
         Self {rng}
     }
 }
 
 
+/// Simple mutation operator for `DNFVec` formulas.
+///
+/// This operator performs mutations at the DNF level by modifying, adding, or
+/// removing conjunctions. It uses a `ConjunctionMutation` operator to mutate
+/// individual conjunctions and a `ConjunctionGenerator` to create new ones.
 pub struct SimpleDNFVecMutation<'a, O, G, R> 
 where 
 O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
@@ -238,6 +336,10 @@ where
 O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
 G: ConjunctionGenerator,
 R: Rng,{
+    /// Creates a new `SimpleDNFVecMutation` operator.
+    ///
+    /// Requires a `ConjunctionMutation` operator for mutating individual conjunctions
+    /// and a `ConjunctionGenerator` for creating new conjunctions.
     pub fn new(
         conjunction_mutation: ConjunctionMutation<'a, O, R>,
         conjunction_generator: G,
@@ -259,6 +361,10 @@ where
     O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
     G: ConjunctionGenerator,
     R: Rng, {
+    /// Randomly selects and applies one of three mutation operations:
+    /// 0: Mutate an existing conjunction
+    /// 1: Add a new random conjunction
+    /// 2: Remove a random conjunction
     fn mutate(&mut self, formula: &mut DNFVec) {
         let rnd_num = self.rng.random_range(0..=2);
         match rnd_num {
@@ -277,7 +383,10 @@ where
     G: ConjunctionGenerator,
     R: Rng,
 {
-    /// Choose one conjunction randomly and then modifies it with ConjunctionMutation
+    /// Selects a random active conjunction and applies `ConjunctionMutation` to it.
+    ///
+    /// This modifies the internal structure of the selected conjunction (e.g., adding/removing
+    /// GO terms, toggling term status, modifying tissue expressions).
     pub fn mutate_conjunction(&mut self, formula: &mut DNFVec) {
         let mut conjunctions = formula.get_mut_active_conjunctions();
         let rnd_index = self.rng.random_range(0..conjunctions.len());
@@ -287,7 +396,11 @@ where
         self.conjunction_mutation.mutate(&mut conjunction);
     }
 
-    /// creates a new conjunction and assigns it to the formula
+    /// Adds a new randomly generated conjunction to the DNF formula.
+    ///
+    /// The new conjunction is generated using the `ConjunctionGenerator` and activated
+    /// in the formula. If the maximum number of conjunctions has been reached,
+    /// instead mutates an existing conjunction.
     pub fn add_random_conjunction(&mut self, formula: &mut DNFVec) {
         // If the max number of conjunctions has been reached, instead of adding a conjunction, mutate 1
         if formula.len() >= self.max_n_conj{
@@ -298,7 +411,9 @@ where
         formula.activate_conjunction(conjunction).expect("The conjunction should be added without errors")
     }
 
-    /// Removes a conjunction randomly 
+    /// Removes a randomly selected active conjunction from the DNF formula.
+    ///
+    /// If no active conjunctions exist, adds a new random conjunction instead.
     pub fn remove_random_conjunction(&mut self, formula: &mut DNFVec) {
         let conjunctions = formula.get_mut_active_conjunctions();
 
@@ -313,9 +428,14 @@ where
 
 }
 
+/// Biased mutation operator for `DNFBitmask` formulas.
+///
+/// This operator is intended to perform mutations with bias toward certain
+/// conjunctions (e.g., based on fitness or other criteria), but is not yet implemented.
 pub struct BiasedDNFMutation;
 
 impl Mutation<DNFBitmask<'_>> for BiasedDNFMutation {
+    /// Not yet implemented.
     fn mutate(&mut self, formula: &mut DNFBitmask) {
         todo!()
     }

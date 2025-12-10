@@ -171,6 +171,15 @@ impl GeneSetAnnotations{
         self.gene_annotations.get(gene)
     }
 
+    /// Get all GO terms annotated to genes that have the specified HPO phenotype
+    pub fn get_go_terms_for_hpo_phenotype(&self, hpo_term: &TermId) -> HashSet<TermId> {
+        self.gene_annotations
+            .values()
+            .filter(|ann| ann.contains_phenotype(hpo_term))
+            .flat_map(|ann| ann.get_term_annotations())
+            .cloned()
+            .collect()
+    }
 
     /// to check how many keys between the two hashmaps are shared. Useful to detect diffent ID types/formats
     pub fn get_keys_intersection<T, U>(

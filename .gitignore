@@ -4,4 +4,10 @@
 /flamegraph.svg
 /stats/*.csv
 
+# plots and images
+/stats/plots/
+*.png
+*.jpg
+*.jpeg
+
 

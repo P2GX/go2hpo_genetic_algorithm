@@ -555,7 +555,7 @@ dependencies = [
 [[package]]
 name = "gtex_analyzer"
 version = "0.1.0"
-source = "git+https://github.com/loremod/gtex_analyzer?branch=main#782df6653727a36d6fe8216e0287c7824817e0b0"
+source = "git+https://github.com/loremod/gtex_analyzer?branch=main#0b6b92c14e06ae61fa04f8acbf48355b6ae5db9a"
 dependencies = [
  "anyhow",
  "bincode",

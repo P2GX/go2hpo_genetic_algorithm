@@ -1,87 +1,12 @@
-use go2hpo_genetic_algorithm::{
-    annotations::{GeneAnnotations, GeneSetAnnotations},
-    genetic_algorithm::{
-        ConjunctionMutation, ConjunctionScorer, DNFScorer, DNFVecCrossover, ElitesByNumberSelector, FitnessScorer, FormulaEvaluator, GeneticAlgorithm, Mutation, ScoreMetric, Selection, SimpleDNFVecMutation, TournamentSelection
-    },
-    logical_formula::{
-        Conjunction, DNFVec, GenePickerConjunctionGenerator, NaiveSatisfactionChecker, RandomConjunctionGenerator, RandomDNFVecGenerator, SatisfactionChecker, DNF
-    }, utils::fixtures::gene_set_annotations::phenotype2genes, Solution,
-};
+mod ga_common;
+
+use ga_common::{estimate_fscore_beta, run_ga, GaConfig};
+use go2hpo_genetic_algorithm::annotations::GeneSetAnnotations;
+use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{go_ontology, gtex_summary, gene_set_annotations, phenotype2genes};
 use gtex_analyzer::expression_analysis::GtexSummary;
-
-use ontolius::{ontology::csr::MinimalCsrOntology, term::MinimalTerm};
-use ontolius::ontology::OntologyTerms;
+use ontolius::ontology::csr::MinimalCsrOntology;
 use ontolius::TermId;
-
-use rand::{rngs::SmallRng, SeedableRng};
-use std::{collections::{HashMap, HashSet}, fs, io::{self, Write}};
-
-use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
-    go_ontology, gtex_summary, gene_set_annotations,
-};
-
-use csv::Writer;
-use std::fs::File;
-
-
-use std::sync::Arc;
-
-fn get_hpo_gene_count(
-    phenotype2genes: &HashMap<TermId, HashSet<String>>,
-    hpo_term: &TermId,
-) -> u32 {
-    phenotype2genes
-        .get(hpo_term)              
-        .map(|genes| genes.len() as u32)  
-        .unwrap_or(0)               
-}
-
-
-
-/// Writes GA statistics to a CSV file, preceded by metadata comments.
-/// Metadata lines start with `#` and are ignored by pandas/R when reading with `comment="#"`.
-pub fn write_generation_stats_to_csv(
-    path: &str,
-    stats_history: &[(f64, f64, f64, usize, f64, usize, f64, f64)],
-    metadata: &str, // e.g. parameters description
-) -> Result<(), Box<dyn std::error::Error>> {
-    // Open file for writing
-    let mut file = File::create(path)?;
-
-    // Write metadata block at top (convert newlines to "# " prefixed lines)
-    if !metadata.is_empty() {
-        writeln!(file, "# {}", metadata.replace('\n', "\n# "))?;
-    }
-
-    // Prepare CSV writer using same file handle
-    let mut wtr = Writer::from_writer(file);
-
-    // Header
-    wtr.write_record(&[
-        "generation", "min", "avg", "max", "min_len", "avg_len", "max_len",
-        "best_one_precision", "best_one_recall"
-    ])?;
-
-    // Data rows with fixed precision (5 decimals)
-    for (gen, (min, avg, max, min_len, avg_len, max_len, best_one_precision, best_one_recall))
-        in stats_history.iter().enumerate()
-    {
-        wtr.write_record(&[
-            gen.to_string(),
-            format!("{:.5}", min),
-            format!("{:.5}", avg),
-            format!("{:.5}", max),
-            min_len.to_string(),
-            format!("{:.2}", avg_len),
-            max_len.to_string(),
-            format!("{:.5}", best_one_precision),
-            format!("{:.5}", best_one_recall),
-        ])?;
-    }
-
-    wtr.flush()?;
-    Ok(())
-}
+use std::io::{self, Write};
 
 
 
@@ -167,173 +92,59 @@ fn main() {
         io::stdin().read_line(&mut file_in).unwrap();
         let file_name = file_in.trim().to_string();
 
-    
-        println!(
-            "\nRunning GA: HPO={}, pop_size={}, gens={}, mutation_rate={}",
-            hpo_term, pop_size, generations, mutation_rate
-        );
-
-        let hpo_gene_count = get_hpo_gene_count(&hpo2genes, &hpo_term);
-        println!("Phenotype {} has {} genes annotated", hpo_term, hpo_gene_count);
-
-        // --- RNGs ---
-        let mut rng_main = SmallRng::seed_from_u64(42);
-        let mut rng_conj_gen = rng_main.clone();
-        let mut rng_dnf_gen = rng_main.clone();
-        let mut rng_selection = rng_main.clone();
-        let mut rng_crossover = rng_main.clone();
-        let mut rng_conj_mut = rng_main.clone();
-        let mut rng_disj_mut = rng_main.clone();
-
-        // --- Generator chain ---
-        let mut conj_gen = GenePickerConjunctionGenerator::new(
-            &mut rng_conj_gen,
-            0.5,
-            0.5,
-            &gene_set_annotations,
-            Some(hpo_term.clone()),
-            Some(2),
-            Some(2),
-        );
-        let dnf_gen = RandomDNFVecGenerator::new(&mut conj_gen, 2, rng_dnf_gen);
-
-        // --- Evaluator ---
-        let checker = Arc::new(NaiveSatisfactionChecker::new(&go_ontology, &gene_set_annotations));
-        let conj_scorer = ConjunctionScorer::new(Arc::clone(&checker), ScoreMetric::FScore(2.0)); //2.0 to prioritize recall over precision
-        let scorer = DNFScorer::new(conj_scorer, penalty_lambda);
-        let evaluator = FormulaEvaluator::new(Box::new(scorer));
-
-        // --- Operators ---
-        let go_terms: Vec<_> = go_ontology.iter_term_ids().cloned().collect();
-        let tissue_terms: Vec<String> = gtex
-            .metadata
-            .get_tissue_names()
-            .into_iter()
-            .cloned()
-            .collect();
-
-        let selection = Box::new(TournamentSelection::new(
-            tournament_size, 
-            &mut rng_selection));
-        let crossover = Box::new(DNFVecCrossover::new(&mut rng_crossover));
-        let mutation = Box::new(SimpleDNFVecMutation::new(
-            ConjunctionMutation::new(&go_ontology, &gtex, max_n_terms, &mut rng_conj_mut),
-            RandomConjunctionGenerator::new(1, &go_terms, 1, &tissue_terms, rng_main.clone()),
-            max_n_conj,
-            &mut rng_disj_mut,
-        ));
-
-        let numb_elites = (pop_size as f64 * 0.1).ceil() as usize;
-        let elites = Box::new(ElitesByNumberSelector::new(numb_elites));
-
-        // --- Build GA ---
-        let mut ga = GeneticAlgorithm::new_with_size(
-            pop_size,
-            evaluator,
-            selection,
-            crossover,
-            mutation,
-            elites,
-            Box::new(dnf_gen),
-            mutation_rate,
-            generations,
-            rng_main,
-            hpo_term.clone(),
-        );
-
-        // --- Run GA ---
-        let stats_history = ga.fit_with_stats_history();
-
-        for (gen, (min, avg_score, max, min_len, avg_len, max_len, best_one_precision, best_one_recall)) in stats_history.iter().enumerate() {
-            println!(
-                "Gen {}: min = {:.4}, avg = {:.4}, max = {:.4}, min_len = {}, avg_len = {:.4}, max_len = {}, best_one_precision = {}, best_one_recall = {}",
-                gen, min, avg_score, max, min_len, avg_len, max_len, best_one_precision, best_one_recall
-            );
-        }
-
-        // Compute best solution for metadata and later use
-        let best_last = ga
-            .get_population()
-            .iter()
-            .max_by(|a: &&Solution<DNFVec>, b| a.partial_cmp(b).unwrap())
-            .unwrap();
-
-        if !file_name.is_empty() {
-            // Ensure the "stats" folder exists
-            if let Err(e) = fs::create_dir_all("stats") {
-                eprintln!("⚠ Failed to create 'stats' directory: {}", e);
-            }
-
-            // Build full path inside the folder
-            let csv_path = format!("stats/{}.csv", file_name);
-
-            // Get the formula string representation
-            let best_formula_str = format!("{}", best_last.get_formula());
-
-            let metadata = format!(
-                "HPO term: {}\nPopulation size: {}\nGenerations: {}\nMutation rate: {}\nTournament size: {}\nMax terms per Conjunction: {}\nMax conjunctions in DNF: {}\nPenalty lambda: {}\nBest formula: {}",
-                hpo_term,
-                pop_size,
-                generations,
-                mutation_rate,
-                tournament_size,
-                max_n_terms,
-                max_n_conj,
-                penalty_lambda,
-                best_formula_str,
-            );
-
-            match write_generation_stats_to_csv(&csv_path, &stats_history, &metadata) {
-                Ok(_) => println!("✔ Results saved to {}", csv_path),
-                Err(e) => eprintln!("⚠ Failed to write CSV: {}", e),
-            }
-        } else {
-            println!("⚠ No file name provided — results not saved.");
-        }
-
-        //Check its precision and recall as well
-        let best_formula = best_last.get_formula();
-        let phenotype = hpo_term.clone();
-
-        println!("Best solution (last generation) = {}\n", best_last);
+        // Estimate beta first to show to user
+        let hpo_gene_count = ga_common::get_hpo_gene_count(&hpo2genes, &hpo_term);
+        let total_gene_count = gene_set_annotations.get_gene_annotations_map().len();
+        let positive_count = hpo_gene_count as usize;
+        let (estimated_beta, method, imbalance_ratio) = estimate_fscore_beta(positive_count, total_gene_count);
         
-        let hpo_annot_genes: HashMap<&String, &GeneAnnotations> = checker.get_gene_set().get_gene_annotations_map()
-                .iter()
-                .filter(|(_, ann)| ann.contains_phenotype(&hpo_term))
-                .collect();
-
         println!(
-            "Total genes annotated to {} = {}",
-            hpo_term,
-            hpo_annot_genes.len()
+            "Class imbalance: {} positives / {} total (ratio: {:.2}:1). Estimated beta: {:.2} (method: {})",
+            positive_count, total_gene_count, imbalance_ratio, estimated_beta, method
         );
 
-        for conj in best_last.get_formula().get_active_conjunctions(){
-            let satisfied: HashMap<String, bool> = checker.all_satisfactions(conj);
-            let num_all_satisfied = satisfied.values().filter(|&&v| v).count();
-
-            // count how many HPO-annotated genes are satisfied
-            let mut num_hpo_satisfied = 0;
-            for (gene_id, ann) in &hpo_annot_genes {
-                if checker.is_satisfied(gene_id, conj) {
-                    num_hpo_satisfied += 1;
+        // Ask user if they want to use the estimated beta or override it
+        print!("Use estimated beta ({:.2})? [Y/n, or enter custom value]: ", estimated_beta);
+        io::stdout().flush().unwrap();
+        let mut beta_in = String::new();
+        io::stdin().read_line(&mut beta_in).unwrap();
+        let beta_input = beta_in.trim();
+        
+        let fscore_beta: Option<f64> = if beta_input.is_empty() || beta_input.eq_ignore_ascii_case("y") || beta_input.eq_ignore_ascii_case("yes") {
+            None // Use estimated (will be set in run_ga)
+        } else {
+            match beta_input.parse() {
+                Ok(beta) => Some(beta),
+                Err(_) => {
+                    println!("Invalid input, using estimated beta {:.2}", estimated_beta);
+                    None
                 }
             }
+        };
 
-            println!("Conjunction {} satisfied by {} genes, of which {} annot. to the hpo term", conj, num_all_satisfied, num_hpo_satisfied);
+        // Build configuration
+        let config = GaConfig {
+            hpo_term,
+            pop_size,
+            generations,
+            mutation_rate,
+            tournament_size,
+            max_n_terms,
+            max_n_conj,
+            penalty_lambda,
+            fscore_beta,
+            output_file: if file_name.is_empty() { None } else { Some(file_name) },
+            rng_seed: 42,
+        };
 
-            println!("Term names in conjunction:");
-            for term in &conj.term_observations{
-                let term_id = &term.term_id; 
-                if let Some(term) = go_ontology.term_by_id(term_id) {
-                    println!("{}: {}", term_id, term.name());
-                } else {
-                    println!("{}: (name not found)", term_id);
-                }   
-            }
-            println!("--------------------------------");
-            
-        }
+        // Run the GA
+        let (_stats_history, _best_solution) = run_ga(
+            &config,
+            &go_ontology,
+            &gtex,
+            &gene_set_annotations,
+            &hpo2genes,
+        );
 
 
     }

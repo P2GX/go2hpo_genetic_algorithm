@@ -2,14 +2,13 @@ mod ga_common;
 
 use ga_common::{estimate_fscore_beta, run_ga, GaConfig};
 use go2hpo_genetic_algorithm::annotations::GeneSetAnnotations;
-use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{go_ontology, gtex_summary, gene_set_annotations, phenotype2genes};
+use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
+    gene_set_annotations, go_ontology, gtex_summary, phenotype2genes,
+};
 use gtex_analyzer::expression_analysis::GtexSummary;
 use ontolius::ontology::csr::MinimalCsrOntology;
 use ontolius::TermId;
 use std::io::{self, Write};
-
-
-
 
 fn main() {
     let go_ontology: MinimalCsrOntology = go_ontology();
@@ -96,21 +95,28 @@ fn main() {
         let hpo_gene_count = ga_common::get_hpo_gene_count(&hpo2genes, &hpo_term);
         let total_gene_count = gene_set_annotations.get_gene_annotations_map().len();
         let positive_count = hpo_gene_count as usize;
-        let (estimated_beta, method, imbalance_ratio) = estimate_fscore_beta(positive_count, total_gene_count);
-        
+        let (estimated_beta, method, imbalance_ratio) =
+            estimate_fscore_beta(positive_count, total_gene_count);
+
         println!(
             "Class imbalance: {} positives / {} total (ratio: {:.2}:1). Estimated beta: {:.2} (method: {})",
             positive_count, total_gene_count, imbalance_ratio, estimated_beta, method
         );
 
         // Ask user if they want to use the estimated beta or override it
-        print!("Use estimated beta ({:.2})? [Y/n, or enter custom value]: ", estimated_beta);
+        print!(
+            "Use estimated beta ({:.2})? [Y/n, or enter custom value]: ",
+            estimated_beta
+        );
         io::stdout().flush().unwrap();
         let mut beta_in = String::new();
         io::stdin().read_line(&mut beta_in).unwrap();
         let beta_input = beta_in.trim();
-        
-        let fscore_beta: Option<f64> = if beta_input.is_empty() || beta_input.eq_ignore_ascii_case("y") || beta_input.eq_ignore_ascii_case("yes") {
+
+        let fscore_beta: Option<f64> = if beta_input.is_empty()
+            || beta_input.eq_ignore_ascii_case("y")
+            || beta_input.eq_ignore_ascii_case("yes")
+        {
             None // Use estimated (will be set in run_ga)
         } else {
             match beta_input.parse() {
@@ -133,8 +139,14 @@ fn main() {
             max_n_conj,
             penalty_lambda,
             fscore_beta,
-            output_file: if file_name.is_empty() { None } else { Some(file_name) },
+            output_file: if file_name.is_empty() {
+                None
+            } else {
+                Some(file_name)
+            },
             rng_seed: 42,
+            export_bin: None,
+            import_bin: None,
         };
 
         // Run the GA
@@ -145,12 +157,9 @@ fn main() {
             &gene_set_annotations,
             &hpo2genes,
         );
-
-
     }
     println!("Exited interactive GA session.");
 }
-
 
 // TO RUN IT
 // cargo run --bin ga_interactive

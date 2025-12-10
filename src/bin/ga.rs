@@ -4,7 +4,7 @@ use clap::Parser;
 use ga_common::{run_ga, GaConfig};
 use go2hpo_genetic_algorithm::annotations::GeneSetAnnotations;
 use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
-    go_ontology, gtex_summary, gene_set_annotations, phenotype2genes,
+    gene_set_annotations, go_ontology, gtex_summary, phenotype2genes,
 };
 use gtex_analyzer::expression_analysis::GtexSummary;
 use ontolius::ontology::csr::MinimalCsrOntology;
@@ -58,6 +58,14 @@ struct Args {
     /// Random seed for reproducibility
     #[arg(long, default_value_t = 42)]
     rng_seed: u64,
+
+    /// Export last generation as bincode snapshot
+    #[arg(long)]
+    export_bin: Option<String>,
+
+    /// Import snapshot to seed the initial population
+    #[arg(long)]
+    import_bin: Option<String>,
 }
 
 fn main() {
@@ -93,6 +101,8 @@ fn main() {
         fscore_beta: args.fscore_beta,
         output_file: args.output_file,
         rng_seed: args.rng_seed,
+        export_bin: args.export_bin,
+        import_bin: args.import_bin,
     };
 
     // Run the GA
@@ -104,4 +114,3 @@ fn main() {
         &hpo2genes,
     );
 }
-

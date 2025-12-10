@@ -1,12 +1,17 @@
+use csv::Writer;
 use go2hpo_genetic_algorithm::{
     annotations::{GeneAnnotations, GeneSetAnnotations},
+    export_import::{
+        export_snapshot, import_snapshot, rebuild_population_from_snapshot, GaPopulationSnapshot,
+        GaRunMetadata, SerializableSolution, SNAPSHOT_SCHEMA_VERSION,
+    },
     genetic_algorithm::{
         ConjunctionMutation, ConjunctionScorer, DNFScorer, DNFVecCrossover, ElitesByNumberSelector,
         FormulaEvaluator, GeneticAlgorithm, ScoreMetric, SimpleDNFVecMutation, TournamentSelection,
     },
     logical_formula::{
-        DNFVec, GenePickerConjunctionGenerator, NaiveSatisfactionChecker, RandomConjunctionGenerator,
-        RandomDNFVecGenerator, SatisfactionChecker, DNF,
+        DNFVec, GenePickerConjunctionGenerator, NaiveSatisfactionChecker,
+        RandomConjunctionGenerator, RandomDNFVecGenerator, SatisfactionChecker, DNF,
     },
     Solution,
 };
@@ -20,7 +25,6 @@ use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Write;
 use std::sync::Arc;
-use csv::Writer;
 
 /// Configuration for running the Genetic Algorithm
 #[derive(Debug, Clone)]
@@ -36,6 +40,8 @@ pub struct GaConfig {
     pub fscore_beta: Option<f64>, // None means use estimated beta
     pub output_file: Option<String>,
     pub rng_seed: u64,
+    pub export_bin: Option<String>,
+    pub import_bin: Option<String>,
 }
 
 impl Default for GaConfig {
@@ -52,41 +58,40 @@ impl Default for GaConfig {
             fscore_beta: None,
             output_file: None,
             rng_seed: 42,
+            export_bin: None,
+            import_bin: None,
         }
     }
 }
 
 /// Estimates the optimal F-score beta value based on class imbalance.
-/// 
+///
 /// Approaches:
 /// 1. **Class imbalance ratio**: beta = sqrt(negative_count / positive_count)
 ///    This gives higher beta for more imbalanced datasets
 /// 2. **Logarithmic scaling**: beta = log10(imbalance_ratio + 1) + 1
 ///    More conservative, caps beta at reasonable values
 /// 3. **Fixed heuristic**: Based on imbalance ratio ranges
-/// 
+///
 /// Returns: (recommended_beta, method_used, imbalance_ratio)
-pub fn estimate_fscore_beta(
-    positive_count: usize,
-    total_count: usize,
-) -> (f64, &'static str, f64) {
+pub fn estimate_fscore_beta(positive_count: usize, total_count: usize) -> (f64, &'static str, f64) {
     if positive_count == 0 {
         return (1.0, "default (no positives)", 0.0);
     }
-    
+
     let negative_count = total_count - positive_count;
     let imbalance_ratio = negative_count as f64 / positive_count as f64;
-    
+
     // Method: Square root of imbalance ratio (common heuristic in imbalanced learning)
     // This gives beta proportional to how imbalanced the data is
     // Formula: beta = sqrt(negative_count / positive_count)
     // Rationale: For highly imbalanced data, we need higher beta to emphasize recall
-    // 
+    //
     // Alternative methods (not used but documented):
     // - Logarithmic: beta = log10(imbalance_ratio + 1) + 1 (more conservative)
     // - Fixed ranges: beta = 1.0-3.0 based on imbalance thresholds
     let recommended_beta = imbalance_ratio.sqrt().clamp(1.0, 3.0);
-    
+
     (recommended_beta, "sqrt(imbalance_ratio)", imbalance_ratio)
 }
 
@@ -121,13 +126,20 @@ pub fn write_generation_stats_to_csv(
 
     // Header
     wtr.write_record(&[
-        "generation", "min", "avg", "max", "min_len", "avg_len", "max_len",
-        "best_one_precision", "best_one_recall"
+        "generation",
+        "min",
+        "avg",
+        "max",
+        "min_len",
+        "avg_len",
+        "max_len",
+        "best_one_precision",
+        "best_one_recall",
     ])?;
 
     // Data rows with fixed precision (5 decimals)
-    for (gen, (min, avg, max, min_len, avg_len, max_len, best_one_precision, best_one_recall))
-        in stats_history.iter().enumerate()
+    for (gen, (min, avg, max, min_len, avg_len, max_len, best_one_precision, best_one_recall)) in
+        stats_history.iter().enumerate()
     {
         wtr.write_record(&[
             gen.to_string(),
@@ -147,7 +159,7 @@ pub fn write_generation_stats_to_csv(
 }
 
 /// Runs the Genetic Algorithm with the given configuration
-/// 
+///
 /// Returns the stats history and the best solution from the last generation
 pub fn run_ga(
     config: &GaConfig,
@@ -162,19 +174,16 @@ pub fn run_ga(
     // Elite preservation: lower values (5%) promote more diversity and exploration
     // Higher values (10-20%) preserve best solutions but may cause premature convergence
     let elite_percentage = 0.05; // Recommended: 0.05 (5%) for better exploration
-    let numb_elites = ((config.pop_size as f64 * elite_percentage).ceil() as usize).max(1);
-
-    println!(
-        "\nRunning GA: HPO={}, pop_size={}, gens={}, mutation_rate={}, penalty_lambda={}, tournament_size={}, elites={}",
-        config.hpo_term, config.pop_size, config.generations, config.mutation_rate,
-        config.penalty_lambda, config.tournament_size, numb_elites
-    );
 
     let hpo_gene_count = get_hpo_gene_count(hpo2genes, &config.hpo_term);
-    println!("Phenotype {} has {} genes annotated", config.hpo_term, hpo_gene_count);
+    println!(
+        "Phenotype {} has {} genes annotated",
+        config.hpo_term, hpo_gene_count
+    );
 
     // --- Get filtered GO terms for this HPO term ---
-    let filtered_go_terms_set = gene_set_annotations.get_go_terms_for_hpo_phenotype(&config.hpo_term);
+    let filtered_go_terms_set =
+        gene_set_annotations.get_go_terms_for_hpo_phenotype(&config.hpo_term);
     let filtered_go_terms: Vec<TermId> = filtered_go_terms_set.into_iter().collect();
     println!(
         "Found {} GO terms annotated to genes with phenotype {}",
@@ -185,7 +194,8 @@ pub fn run_ga(
     // --- Estimate optimal F-score beta based on class imbalance ---
     let total_gene_count = gene_set_annotations.get_gene_annotations_map().len();
     let positive_count = hpo_gene_count as usize;
-    let (estimated_beta, method, imbalance_ratio) = estimate_fscore_beta(positive_count, total_gene_count);
+    let (estimated_beta, method, imbalance_ratio) =
+        estimate_fscore_beta(positive_count, total_gene_count);
     println!(
         "Class imbalance: {} positives / {} total (ratio: {:.2}:1). Estimated beta: {:.2} (method: {})",
         positive_count, total_gene_count, imbalance_ratio, estimated_beta, method
@@ -217,12 +227,16 @@ pub fn run_ga(
     let dnf_gen = RandomDNFVecGenerator::new(&mut conj_gen, 2, rng_dnf_gen);
 
     // --- Evaluator ---
-    let checker = Arc::new(NaiveSatisfactionChecker::new(go_ontology, gene_set_annotations));
-    let conj_scorer = ConjunctionScorer::new(Arc::clone(&checker), ScoreMetric::FScore(fscore_beta));
+    let checker = Arc::new(NaiveSatisfactionChecker::new(
+        go_ontology,
+        gene_set_annotations,
+    ));
+    let conj_scorer =
+        ConjunctionScorer::new(Arc::clone(&checker), ScoreMetric::FScore(fscore_beta));
     let scorer = DNFScorer::new(conj_scorer, config.penalty_lambda);
     let evaluator = FormulaEvaluator::new(Box::new(scorer));
 
-    // --- Operators ---
+    // --- Operators & pools ---
     // Use filtered GO terms if available, otherwise use all terms from ontology
     let go_terms_pool: Vec<_> = if !filtered_go_terms.is_empty() {
         filtered_go_terms.clone()
@@ -236,6 +250,62 @@ pub fn run_ga(
         .into_iter()
         .cloned()
         .collect();
+
+    // --- Optional import of an existing population snapshot ---
+    let mut imported_population: Option<Vec<Solution<DNFVec>>> = None;
+    if let Some(import_path) = &config.import_bin {
+        println!("Importing population from {}", import_path);
+        let snapshot = match import_snapshot(import_path) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("⚠ Failed to read snapshot {}: {}", import_path, e);
+                std::process::exit(1);
+            }
+        };
+
+        let snapshot_hpo_term: TermId = match snapshot.metadata.hpo_term.parse() {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!(
+                    "⚠ Snapshot HPO term ({}) could not be parsed: {}",
+                    snapshot.metadata.hpo_term, e
+                );
+                std::process::exit(1);
+            }
+        };
+
+        if snapshot_hpo_term != config.hpo_term {
+            eprintln!(
+                "⚠ Snapshot HPO term ({}) does not match requested term ({})",
+                snapshot_hpo_term, config.hpo_term
+            );
+            std::process::exit(1);
+        }
+
+        let rebuilt_population = match rebuild_population_from_snapshot(
+            &snapshot,
+            &evaluator,
+            &config.hpo_term,
+            go_ontology,
+            &tissue_terms,
+        ) {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("⚠ Failed to rebuild population from snapshot: {}", e);
+                std::process::exit(1);
+            }
+        };
+
+        if snapshot.metadata.pop_size != rebuilt_population.len() {
+            eprintln!(
+                "⚠ Snapshot pop_size ({}) differs from reconstructed size ({}); using reconstructed size.",
+                snapshot.metadata.pop_size,
+                rebuilt_population.len()
+            );
+        }
+
+        imported_population = Some(rebuilt_population);
+    }
 
     let selection = Box::new(TournamentSelection::new(
         config.tournament_size,
@@ -259,28 +329,58 @@ pub fn run_ga(
         &mut rng_disj_mut,
     ));
 
+    let pop_size_for_run = imported_population
+        .as_ref()
+        .map(|p| p.len())
+        .unwrap_or(config.pop_size);
+    let numb_elites = ((pop_size_for_run as f64 * elite_percentage).ceil() as usize).max(1);
+
+    println!(
+        "\nRunning GA: HPO={}, pop_size={}, gens={}, mutation_rate={}, penalty_lambda={}, tournament_size={}, elites={}",
+        config.hpo_term, pop_size_for_run, config.generations, config.mutation_rate,
+        config.penalty_lambda, config.tournament_size, numb_elites
+    );
+
     let elites = Box::new(ElitesByNumberSelector::new(numb_elites));
 
     // --- Build GA ---
-    let mut ga = GeneticAlgorithm::new_with_size(
-        config.pop_size,
-        evaluator,
-        selection,
-        crossover,
-        mutation,
-        elites,
-        Box::new(dnf_gen),
-        config.mutation_rate,
-        config.generations,
-        rng_main,
-        config.hpo_term.clone(),
-    );
+    let mut ga = if let Some(population) = imported_population {
+        GeneticAlgorithm::new_with_population(
+            population,
+            evaluator,
+            selection,
+            crossover,
+            mutation,
+            elites,
+            Box::new(dnf_gen),
+            config.mutation_rate,
+            config.generations,
+            rng_main,
+            config.hpo_term.clone(),
+        )
+    } else {
+        GeneticAlgorithm::new_with_size(
+            pop_size_for_run,
+            evaluator,
+            selection,
+            crossover,
+            mutation,
+            elites,
+            Box::new(dnf_gen),
+            config.mutation_rate,
+            config.generations,
+            rng_main,
+            config.hpo_term.clone(),
+        )
+    };
 
     // --- Run GA ---
     let stats_history = ga.fit_with_stats_history();
 
-    for (gen, (min, avg_score, max, min_len, avg_len, max_len, best_one_precision, best_one_recall)) in
-        stats_history.iter().enumerate()
+    for (
+        gen,
+        (min, avg_score, max, min_len, avg_len, max_len, best_one_precision, best_one_recall),
+    ) in stats_history.iter().enumerate()
     {
         println!(
             "Gen {}: min = {:.4}, avg = {:.4}, max = {:.4}, min_len = {}, avg_len = {:.4}, max_len = {}, best_one_precision = {}, best_one_recall = {}",
@@ -295,6 +395,43 @@ pub fn run_ga(
         .max_by(|a: &&Solution<DNFVec>, b| a.partial_cmp(b).unwrap())
         .unwrap()
         .clone();
+
+    // Export binary snapshot of the last generation if requested
+    if let Some(ref export_path) = config.export_bin {
+        let snapshot = GaPopulationSnapshot {
+            metadata: GaRunMetadata {
+                schema_version: SNAPSHOT_SCHEMA_VERSION,
+                hpo_term: config.hpo_term.to_string(),
+                pop_size: ga.get_population().len(),
+                generations: config.generations,
+                mutation_rate: config.mutation_rate,
+                tournament_size: config.tournament_size,
+                max_n_terms: config.max_n_terms,
+                max_n_conj: config.max_n_conj,
+                penalty_lambda: config.penalty_lambda,
+                fscore_beta,
+                rng_seed: config.rng_seed,
+                generation_index: config.generations,
+                filtered_go_terms: if !filtered_go_terms.is_empty() {
+                    Some(filtered_go_terms.iter().map(|t| t.to_string()).collect())
+                } else {
+                    None
+                },
+                tissue_terms_used: tissue_terms.clone(),
+                best_score: best_last.get_score(),
+            },
+            population: ga
+                .get_population()
+                .iter()
+                .map(SerializableSolution::from)
+                .collect(),
+        };
+
+        match export_snapshot(export_path, &snapshot) {
+            Ok(_) => println!("✔ Exported GA snapshot to {}", export_path),
+            Err(e) => eprintln!("⚠ Failed to export snapshot to {}: {}", export_path, e),
+        }
+    }
 
     // Save results if output file is specified
     if let Some(ref file_name) = config.output_file {
@@ -313,7 +450,7 @@ pub fn run_ga(
             let metadata = format!(
                 "HPO term: {}\nPopulation size: {}\nGenerations: {}\nMutation rate: {}\nTournament size: {}\nMax terms per Conjunction: {}\nMax conjunctions in DNF: {}\nPenalty lambda: {}\nF-score beta: {:.2}\nBest formula: {}",
                 config.hpo_term,
-                config.pop_size,
+                pop_size_for_run,
                 config.generations,
                 config.mutation_rate,
                 config.tournament_size,
@@ -378,4 +515,3 @@ pub fn run_ga(
 
     (stats_history, best_last)
 }
-

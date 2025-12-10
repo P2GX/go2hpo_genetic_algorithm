@@ -1,40 +1,40 @@
 use go2hpo_genetic_algorithm::annotations::GeneSetAnnotations;
 use ontolius::ontology::OntologyTerms;
 use ontolius::TermId;
-use rand::{rng, Rng};
 use rand::rngs::ThreadRng;
+use rand::{rng, Rng};
 
 use rstest::rstest;
 
-use go2hpo_genetic_algorithm::genetic_algorithm::{ConjunctionMutation, Mutation, Selection, SimpleDNFBitmaskMutation, SimpleDNFVecMutation};
-use go2hpo_genetic_algorithm::genetic_algorithm::TournamentSelection;
 use go2hpo_genetic_algorithm::genetic_algorithm::Crossover;
-use go2hpo_genetic_algorithm::genetic_algorithm::{DNFVecCrossover, ConjunctionCrossover};
-use go2hpo_genetic_algorithm::genetic_algorithm::ElitesSelector;
 use go2hpo_genetic_algorithm::genetic_algorithm::ElitesByNumberSelector;
+use go2hpo_genetic_algorithm::genetic_algorithm::ElitesSelector;
+use go2hpo_genetic_algorithm::genetic_algorithm::TournamentSelection;
+use go2hpo_genetic_algorithm::genetic_algorithm::{ConjunctionCrossover, DNFVecCrossover};
+use go2hpo_genetic_algorithm::genetic_algorithm::{
+    ConjunctionMutation, Mutation, Selection, SimpleDNFBitmaskMutation, SimpleDNFVecMutation,
+};
 
 use go2hpo_genetic_algorithm::Solution;
 
 use go2hpo_genetic_algorithm::logical_formula::{
-    Conjunction, DNFBitmask, DNFVec, DgeState, Formula, RandomConjunctionGenerator, TermObservation, TissueExpression, DNF
+    Conjunction, DNFBitmask, DNFVec, DgeState, Formula, RandomConjunctionGenerator,
+    TermObservation, TissueExpression, DNF,
 };
 
-use rand::{rngs::SmallRng, SeedableRng};
+use go2hpo_genetic_algorithm::genetic_algorithm::GeneticAlgorithm;
 use gtex_analyzer::expression_analysis::GtexSummary;
 use ontolius::ontology::csr::MinimalCsrOntology;
-use go2hpo_genetic_algorithm::genetic_algorithm::GeneticAlgorithm;
+use rand::{rngs::SmallRng, SeedableRng};
 
 use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
-    go_sample,
-    gtex_summary_sample,
-    gene_set_annotations,
+    gene_set_annotations, go_sample, gtex_summary_sample,
 };
 
-
 use go2hpo_genetic_algorithm::logical_formula::FormulaGenerator;
-use go2hpo_genetic_algorithm::logical_formula::{GenePickerConjunctionGenerator, RandomDNFVecGenerator};
-
-
+use go2hpo_genetic_algorithm::logical_formula::{
+    GenePickerConjunctionGenerator, RandomDNFVecGenerator,
+};
 
 // ==========================
 // 1) SELECTION
@@ -67,15 +67,11 @@ fn crossover_conjunction_balanced() {
             TermObservation::new("GO:0051146".parse().unwrap(), true),
             TermObservation::new("GO:0052693".parse().unwrap(), false),
         ],
-        tissue_expressions: vec![
-            TissueExpression::new("Heart".to_string(), DgeState::Up),
-        ],
+        tissue_expressions: vec![TissueExpression::new("Heart".to_string(), DgeState::Up)],
     };
 
     let p2 = Conjunction {
-        term_observations: vec![
-            TermObservation::new("GO:0005634".parse().unwrap(), true),
-        ],
+        term_observations: vec![TermObservation::new("GO:0005634".parse().unwrap(), true)],
         tissue_expressions: vec![
             TissueExpression::new("Liver".to_string(), DgeState::Down),
             TissueExpression::new("Lungs".to_string(), DgeState::Up),
@@ -113,7 +109,10 @@ fn crossover_dnfvec_balanced() {
 
     let d2 = DNFVec::from_conjunctions(vec![
         Conjunction {
-            term_observations: vec![TermObservation::new("GO:0052693".parse().unwrap(), true), TermObservation::new("GO:0012345".parse().unwrap(), false)],
+            term_observations: vec![
+                TermObservation::new("GO:0052693".parse().unwrap(), true),
+                TermObservation::new("GO:0012345".parse().unwrap(), false),
+            ],
             tissue_expressions: vec![],
         },
         Conjunction {
@@ -123,7 +122,7 @@ fn crossover_dnfvec_balanced() {
         Conjunction {
             term_observations: vec![TermObservation::new("GO:0043215".parse().unwrap(), false)],
             tissue_expressions: vec![TissueExpression::new("Liver".to_string(), DgeState::Down)],
-        }
+        },
     ]);
 
     let mut cx = DNFVecCrossover::new(&mut rng);
@@ -161,22 +160,18 @@ fn survival_elites_by_number() {
     assert!(next.iter().any(|s| *s.get_formula() == 12));
 }
 
-
 #[rstest]
-fn test_gene_picker_conjunction_generator(
-    gene_set_annotations: GeneSetAnnotations,
-) {
-    
+fn test_gene_picker_conjunction_generator(gene_set_annotations: GeneSetAnnotations) {
     let mut rng = SmallRng::seed_from_u64(42);
     let mut gen = GenePickerConjunctionGenerator::new(
-            &mut rng,
-            1.0,
-            1.0,
-            &gene_set_annotations,
-            None,  // no HPO filter
-            Some(3),
-            Some(4)
-        );
+        &mut rng,
+        1.0,
+        1.0,
+        &gene_set_annotations,
+        None, // no HPO filter
+        Some(3),
+        Some(4),
+    );
 
     // Generate a conjunction
     let conj: Conjunction = gen.generate();
@@ -190,22 +185,33 @@ fn test_gene_picker_conjunction_generator(
 
     // Ensure terms and tissues come from the gene set
     let annotations_map = gene_set_annotations.get_gene_annotations_map();
-    let mut all_terms: Vec<_> = annotations_map.values().flat_map(|ga| ga.get_term_annotations()).collect();
-    let mut all_tissues: Vec<_> = annotations_map.values().flat_map(|ga| ga.get_tissue_expressions()).collect();
+    let mut all_terms: Vec<_> = annotations_map
+        .values()
+        .flat_map(|ga| ga.get_term_annotations())
+        .collect();
+    let mut all_tissues: Vec<_> = annotations_map
+        .values()
+        .flat_map(|ga| ga.get_tissue_expressions())
+        .collect();
 
     for obs in &conj.term_observations {
-        assert!(all_terms.contains(&&obs.term_id), "Unexpected term {:?}", obs.term_id);
+        assert!(
+            all_terms.contains(&&obs.term_id),
+            "Unexpected term {:?}",
+            obs.term_id
+        );
     }
     for tissue in &conj.tissue_expressions {
-        assert!(all_tissues.contains(&tissue), "Unexpected tissue {:?}", tissue);
+        assert!(
+            all_tissues.contains(&tissue),
+            "Unexpected tissue {:?}",
+            tissue
+        );
     }
 }
 
 #[rstest]
-fn test_gene_picker_conjunction_generator_specific_hpo(
-    gene_set_annotations: GeneSetAnnotations,
-) {
-    
+fn test_gene_picker_conjunction_generator_specific_hpo(gene_set_annotations: GeneSetAnnotations) {
     let mut rng = SmallRng::seed_from_u64(42);
     let target_hpo: TermId = "HP:0001250".parse().unwrap(); // e.g. Seizures
     let mut gen = GenePickerConjunctionGenerator::new(
@@ -213,9 +219,9 @@ fn test_gene_picker_conjunction_generator_specific_hpo(
         1.0,
         1.0,
         &gene_set_annotations,
-        Some(target_hpo),  // restrict to this phenotype
+        Some(target_hpo), // restrict to this phenotype
         Some(2),
-        Some(2)
+        Some(2),
     );
 
     // Generate a conjunction
@@ -224,24 +230,33 @@ fn test_gene_picker_conjunction_generator_specific_hpo(
 
     // Ensure terms and tissues come from the gene set
     let annotations_map = gene_set_annotations.get_gene_annotations_map();
-    let mut all_terms: Vec<_> = annotations_map.values().flat_map(|ga| ga.get_term_annotations()).collect();
-    let mut all_tissues: Vec<_> = annotations_map.values().flat_map(|ga| ga.get_tissue_expressions()).collect();
+    let mut all_terms: Vec<_> = annotations_map
+        .values()
+        .flat_map(|ga| ga.get_term_annotations())
+        .collect();
+    let mut all_tissues: Vec<_> = annotations_map
+        .values()
+        .flat_map(|ga| ga.get_tissue_expressions())
+        .collect();
 
     for obs in &conj.term_observations {
-        assert!(all_terms.contains(&&obs.term_id), "Unexpected term {:?}", obs.term_id);
+        assert!(
+            all_terms.contains(&&obs.term_id),
+            "Unexpected term {:?}",
+            obs.term_id
+        );
     }
     for tissue in &conj.tissue_expressions {
-        assert!(all_tissues.contains(&tissue), "Unexpected tissue {:?}", tissue);
+        assert!(
+            all_tissues.contains(&tissue),
+            "Unexpected tissue {:?}",
+            tissue
+        );
     }
 }
 
-
-
-
 #[rstest]
-fn test_random_dnfvec_generator(
-    gene_set_annotations: GeneSetAnnotations,
-) {
+fn test_random_dnfvec_generator(gene_set_annotations: GeneSetAnnotations) {
     let mut rng = SmallRng::seed_from_u64(99);
     let mut rng2 = SmallRng::seed_from_u64(99);
 
@@ -252,13 +267,13 @@ fn test_random_dnfvec_generator(
         1.0,
         1.0,
         &gene_set_annotations,
-        Some(target_hpo),  // restrict to this phenotype
+        Some(target_hpo), // restrict to this phenotype
         Some(2),
-        Some(2)
+        Some(2),
     );
 
     // DNF generator with 3 conjunctions
-    let mut dnf_gen = RandomDNFVecGenerator::new(&mut conj_gen, 3, rng2  );
+    let mut dnf_gen = RandomDNFVecGenerator::new(&mut conj_gen, 3, rng2);
 
     let dnf: DNFVec = dnf_gen.generate();
     println!("Generated DNFVec: {}", dnf);
@@ -275,9 +290,6 @@ fn test_random_dnfvec_generator(
         );
     }
 }
-
-
-
 
 #[rstest]
 fn test_conjunction_mutation_sequence(
@@ -339,7 +351,6 @@ fn test_conjunction_mutation_sequence(
     assert_eq!(after_len_tissues, before_len_tissues.saturating_sub(1));
 }
 
-
 #[rstest]
 fn test_conjunction_mutation_parent_child(
     go_sample: MinimalCsrOntology,
@@ -350,20 +361,22 @@ fn test_conjunction_mutation_parent_child(
 
     // Take a few GO and tissue terms
     let go_terms: Vec<_> = go_sample.iter_term_ids().take(5).cloned().collect();
-    let tissue_terms: Vec<String> = gtex.metadata.get_tissue_names().into_iter().cloned().take(5).collect();
+    let tissue_terms: Vec<String> = gtex
+        .metadata
+        .get_tissue_names()
+        .into_iter()
+        .cloned()
+        .take(5)
+        .collect();
 
     // Create a conjunction with one GO term
     let mut conj = Conjunction {
-        term_observations: vec![
-            TermObservation::new(go_terms[0].clone(), false),
-        ],
+        term_observations: vec![TermObservation::new(go_terms[0].clone(), false)],
         tissue_expressions: vec![],
     };
 
     let mut conj2 = Conjunction {
-        term_observations: vec![
-            TermObservation::new(go_terms[2].clone(), false),
-        ],
+        term_observations: vec![TermObservation::new(go_terms[2].clone(), false)],
         tissue_expressions: vec![],
     };
 
@@ -371,7 +384,7 @@ fn test_conjunction_mutation_parent_child(
 
     // CONJUNCTION 1
     println!("INITIAL CONJUNCTION: {}", conj);
-    // Test mutate_with_parent_term 
+    // Test mutate_with_parent_term
     mutation.mutate_with_parent_term(&mut conj);
     println!("AFTER PARENT MUTATION: {}", conj);
     assert!(conj.term_observations.len() >= 1);
@@ -386,10 +399,9 @@ fn test_conjunction_mutation_parent_child(
         assert!(exists, "Term {:?} is not in ontology", obs.term_id);
     }
 
-
     // CONJUNCTION 2
     println!("\nINITIAL CONJUNCTION: {}", conj2);
-    // Test mutate_with_parent_term 
+    // Test mutate_with_parent_term
     mutation.mutate_with_parent_term(&mut conj2);
     println!("AFTER PARENT MUTATION: {}", conj2);
     assert!(conj2.term_observations.len() >= 1);
@@ -403,42 +415,46 @@ fn test_conjunction_mutation_parent_child(
         let exists = go_sample.iter_term_ids().any(|tid| tid == &obs.term_id);
         assert!(exists, "Term {:?} is not in ontology", obs.term_id);
     }
-
-
 }
-
-
-
 
 #[rstest]
 fn test_dnfbitmask_mutation_toggle(
     go_sample: MinimalCsrOntology,
-    gtex_summary_sample: std::io::Result<GtexSummary>
+    gtex_summary_sample: std::io::Result<GtexSummary>,
 ) {
     let gtex = gtex_summary_sample.expect("Fixture GTEx summary must be ok");
     let mut rng = SmallRng::seed_from_u64(7);
 
     // build a trivial DNFBitmask with 2 conjunctions
-    let conj1 = Conjunction { term_observations: vec![TermObservation::new("GO:0051146".parse().unwrap(), false)], tissue_expressions: vec![] };
-    let conj2 = Conjunction { term_observations: vec![], tissue_expressions: vec![TissueExpression::new("Liver".to_string(), DgeState::Up)] };
-    let conj3 = Conjunction { term_observations: vec![TermObservation::new("GO:0012345".parse().unwrap(), true)], tissue_expressions: vec![TissueExpression::new("Heart".to_string(), DgeState::Up)] };
+    let conj1 = Conjunction {
+        term_observations: vec![TermObservation::new("GO:0051146".parse().unwrap(), false)],
+        tissue_expressions: vec![],
+    };
+    let conj2 = Conjunction {
+        term_observations: vec![],
+        tissue_expressions: vec![TissueExpression::new("Liver".to_string(), DgeState::Up)],
+    };
+    let conj3 = Conjunction {
+        term_observations: vec![TermObservation::new("GO:0012345".parse().unwrap(), true)],
+        tissue_expressions: vec![TissueExpression::new("Heart".to_string(), DgeState::Up)],
+    };
     let conjunctions = [conj1, conj2, conj3];
     let mut dnf = DNFBitmask::new(&conjunctions);
-    dnf.activate_conjunction(1).expect("It should activate the conjunction at position 1");
-    println!("BEFORE BITMASK MUTATION: {}",dnf);
+    dnf.activate_conjunction(1)
+        .expect("It should activate the conjunction at position 1");
+    println!("BEFORE BITMASK MUTATION: {}", dnf);
     let before = dnf.len();
     let mut mutator = SimpleDNFBitmaskMutation::new(&mut rng);
     mutator.mutate(&mut dnf);
-    println!("AFTER BITMASK FIRST MUTATION: {}",dnf);
+    println!("AFTER BITMASK FIRST MUTATION: {}", dnf);
     let after = dnf.len();
     assert!(after == before + 1 || after == before.saturating_sub(1));
 
     mutator.mutate(&mut dnf);
-    println!("AFTER BITMASK SECOND MUTATION {}",dnf);
+    println!("AFTER BITMASK SECOND MUTATION {}", dnf);
     let after2 = dnf.len();
     assert!(after2 == after + 1 || after2 == after.saturating_sub(1));
 }
-
 
 #[rstest]
 fn test_simple_dnfvec_mutation(
@@ -447,11 +463,17 @@ fn test_simple_dnfvec_mutation(
 ) {
     let gtex = gtex_summary_sample.expect("Fixture GTEx summary must be ok");
     let mut rng = SmallRng::seed_from_u64(123);
-    let mut rng2 = SmallRng::seed_from_u64(30); 
+    let mut rng2 = SmallRng::seed_from_u64(30);
 
     // Build a random Conjunction generator using a small GO + GTEx subset
     let go_terms: Vec<_> = go_sample.iter_term_ids().take(5).cloned().collect();
-    let tissue_terms: Vec<String> = gtex.metadata.get_tissue_names().into_iter().cloned().take(5).collect();
+    let tissue_terms: Vec<String> = gtex
+        .metadata
+        .get_tissue_names()
+        .into_iter()
+        .cloned()
+        .take(5)
+        .collect();
 
     let conj_gen = RandomConjunctionGenerator::new(2, &go_terms, 2, &tissue_terms, rng.clone());
 
@@ -464,35 +486,34 @@ fn test_simple_dnfvec_mutation(
             term_observations: vec![TermObservation::new("GO:0051146".parse().unwrap(), false)],
             tissue_expressions: vec![],
         },
-         Conjunction { 
-            term_observations: vec![TermObservation::new("GO:0005634".parse().unwrap(), true)], 
-            tissue_expressions: vec![TissueExpression::new("Heart".to_string(), DgeState::Up)] 
+        Conjunction {
+            term_observations: vec![TermObservation::new("GO:0005634".parse().unwrap(), true)],
+            tissue_expressions: vec![TissueExpression::new("Heart".to_string(), DgeState::Up)],
         },
     ]);
-    println!("BEFORE VECTOR MUTATION: {}",dnf);
+    println!("BEFORE VECTOR MUTATION: {}", dnf);
     let before_len = dnf.len();
     dnf_mut.mutate(&mut dnf);
     let after_len = dnf.len();
-    println!("AFTER FIRST VECTOR MUTATION: {}",dnf);
+    println!("AFTER FIRST VECTOR MUTATION: {}", dnf);
     dnf_mut.mutate(&mut dnf);
     let after_len2 = dnf.len();
-    println!("AFTER SECOND VECTOR MUTATION: {}",dnf);
+    println!("AFTER SECOND VECTOR MUTATION: {}", dnf);
     dnf_mut.mutate(&mut dnf);
     let after_len3 = dnf.len();
-    println!("AFTER THIRD VECTOR MUTATION: {}",dnf);
-
+    println!("AFTER THIRD VECTOR MUTATION: {}", dnf);
 }
 
+use go2hpo_genetic_algorithm::genetic_algorithm::{
+    ConjunctionScorer, DNFScorer, FormulaEvaluator, ScoreMetric,
+};
 use go2hpo_genetic_algorithm::logical_formula::NaiveSatisfactionChecker;
-use go2hpo_genetic_algorithm::genetic_algorithm::{ConjunctionScorer, DNFScorer, FormulaEvaluator, ScoreMetric};
 
 #[rstest]
 fn test_formula_evaluator_with_conjunctionscorer(
     go_sample: MinimalCsrOntology,
     gene_set_annotations: GeneSetAnnotations,
 ) {
-
-
     let checker = NaiveSatisfactionChecker::new(&go_sample, &gene_set_annotations);
     let scorer = ConjunctionScorer::new(checker, ScoreMetric::Accuracy);
     let evaluator = FormulaEvaluator::new(Box::new(scorer));
@@ -517,12 +538,10 @@ fn test_formula_evaluator_with_dnfscorer(
     go_sample: MinimalCsrOntology,
     gene_set_annotations: GeneSetAnnotations,
 ) {
-
-
     let checker = NaiveSatisfactionChecker::new(&go_sample, &gene_set_annotations);
     let conjunction_scorer = ConjunctionScorer::new(checker, ScoreMetric::Accuracy);
     let scorer = DNFScorer::new(conjunction_scorer, 0.3);
-    let evaluator = FormulaEvaluator::new(Box::new(scorer));;
+    let evaluator = FormulaEvaluator::new(Box::new(scorer));
 
     let t1: TermId = "GO:0051146".parse().unwrap();
     let conj = Conjunction {
@@ -540,8 +559,6 @@ fn test_formula_evaluator_with_dnfscorer(
     assert!(solution.get_score() >= 0.0 && solution.get_score() <= 1.0);
 }
 
-
-
 #[rstest]
 fn test_genetic_algorithm_sanity(
     go_sample: MinimalCsrOntology,
@@ -555,13 +572,12 @@ fn test_genetic_algorithm_sanity(
     let mut rng_main = SmallRng::seed_from_u64(7);
 
     // Separate RNG clones for each operator
-    let mut rng_conj_gen   = rng_main.clone();
-    let mut rng_dnf_gen    = rng_main.clone();
-    let mut rng_selection  = rng_main.clone();
-    let mut rng_crossover  = rng_main.clone();
-    let mut rng_conj_mutation   = rng_main.clone();
-    let mut rng_disj_mutation   = rng_main.clone();
-
+    let mut rng_conj_gen = rng_main.clone();
+    let mut rng_dnf_gen = rng_main.clone();
+    let mut rng_selection = rng_main.clone();
+    let mut rng_crossover = rng_main.clone();
+    let mut rng_conj_mutation = rng_main.clone();
+    let mut rng_disj_mutation = rng_main.clone();
 
     // Simple generator chain
     let mut conj_gen = GenePickerConjunctionGenerator::new(
@@ -573,7 +589,7 @@ fn test_genetic_algorithm_sanity(
         Some(2),
         Some(2),
     );
-    let  dnf_gen = RandomDNFVecGenerator::new(&mut conj_gen, 2, rng_dnf_gen);
+    let dnf_gen = RandomDNFVecGenerator::new(&mut conj_gen, 2, rng_dnf_gen);
 
     // Evaluator
     let checker = NaiveSatisfactionChecker::new(&go_sample, &gene_set_annotations);
@@ -583,18 +599,18 @@ fn test_genetic_algorithm_sanity(
 
     // Operators (keep simple)
     let go_terms: Vec<_> = go_sample.iter_term_ids().take(5).cloned().collect();
-    let tissue_terms: Vec<String> = gtex.metadata.get_tissue_names().into_iter().cloned().take(5).collect();
+    let tissue_terms: Vec<String> = gtex
+        .metadata
+        .get_tissue_names()
+        .into_iter()
+        .cloned()
+        .take(5)
+        .collect();
     let selection = Box::new(TournamentSelection::new(2, &mut rng_selection));
     let crossover = Box::new(DNFVecCrossover::new(&mut rng_crossover));
     let mutation = Box::new(SimpleDNFVecMutation::new(
         ConjunctionMutation::new(&go_sample, &gtex, 8, &mut rng_conj_mutation),
-        RandomConjunctionGenerator::new(
-            1,
-            &go_terms,
-            1,
-            &tissue_terms,
-            rng_main.clone(),
-        ),
+        RandomConjunctionGenerator::new(1, &go_terms, 1, &tissue_terms, rng_main.clone()),
         4,
         &mut rng_disj_mutation,
     ));
@@ -610,10 +626,10 @@ fn test_genetic_algorithm_sanity(
         mutation,
         elites,
         Box::new(dnf_gen),
-        0.2,    // mutation rate
-        2, 
+        0.2, // mutation rate
+        2,
         rng_main,
-        "HP:0000001".parse().unwrap(),  // dummy phenotype
+        "HP:0000001".parse().unwrap(), // dummy phenotype
     );
 
     // Run one generation
@@ -624,10 +640,6 @@ fn test_genetic_algorithm_sanity(
     assert_eq!(ga.get_population().len(), pop_size);
     assert!(best.get_score().is_finite());
 }
-
-
-
-
 
 // #[rstest]
 // fn test_genetic_algorithm_end_to_end(
@@ -702,20 +714,6 @@ fn test_genetic_algorithm_sanity(
 //     assert!(best.get_score().is_finite());
 // }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // ==========================
 // 5) (Optional) GA stub
 // ==========================
@@ -723,7 +721,6 @@ fn test_genetic_algorithm_sanity(
 // This is a minimal smoke test template. Uncomment and fill once you confirm
 // the exact `GeneticAlgorithm::new(...)` signature and the simplest Mutation
 // type you want to plug (e.g., a SimpleDNFVecMutation + a generator).
-
 
 // use go2hpo_genetic_algorithm::genetic_algorithm::GeneticAlgorithm;
 // use go2hpo_genetic_algorithm::SimpleDNFVecMutation;

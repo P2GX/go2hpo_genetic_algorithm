@@ -1,13 +1,13 @@
 //! Generators that produce Conjunction or DNF formulas from random sources or gene annotations.
 use crate::annotations::GeneSetAnnotations;
 
-use super::{Conjunction, DNFBitmask, DNFVec, TermObservation, TissueExpression, DNF};
 use super::DgeState;
+use super::{Conjunction, DNFBitmask, DNFVec, TermObservation, TissueExpression, DNF};
+use crate::annotations::GeneAnnotations;
+use bitvec::prelude::BitVec;
 use ontolius::TermId;
 use rand::{seq::SliceRandom, Rng};
 use std::collections::{HashMap, HashSet};
-use bitvec::prelude::BitVec;
-use crate::annotations::GeneAnnotations;
 
 pub trait FormulaGenerator {
     type Output;
@@ -16,14 +16,13 @@ pub trait FormulaGenerator {
     fn generate(&mut self) -> Self::Output;
 }
 
-
 pub trait ConjunctionGenerator: FormulaGenerator<Output = Conjunction> {}
 
 pub trait DNFGenerator<T>: FormulaGenerator<Output = T>
 where
     T: DNF,
-{}
-
+{
+}
 
 /// Creates Conjunctions randomly that might have redundant terms
 pub struct RedundantRandomConjunctionGenerator<'a, R> {
@@ -34,7 +33,7 @@ pub struct RedundantRandomConjunctionGenerator<'a, R> {
     rng: R,
 }
 
-impl<'a, R> FormulaGenerator  for RedundantRandomConjunctionGenerator<'a, R> 
+impl<'a, R> FormulaGenerator for RedundantRandomConjunctionGenerator<'a, R>
 where
     R: Rng,
 {
@@ -62,8 +61,8 @@ where
 
 impl<'a, R> ConjunctionGenerator for RedundantRandomConjunctionGenerator<'a, R> where R: Rng {}
 
-impl<'a, R> RedundantRandomConjunctionGenerator<'a, R> 
-where 
+impl<'a, R> RedundantRandomConjunctionGenerator<'a, R>
+where
     R: Rng,
 {
     //randomly generate a TermObeservation
@@ -83,13 +82,21 @@ where
 
         return TissueExpression::new(term_id, state);
     }
-    
-    pub fn new(n_go_terms: usize,
-            go_terms: &'a Vec<TermId>,
-            n_tissue_terms: usize,
-            tissue_terms: &'a Vec<String>,
-            rng: R,) -> Self{
-        Self { n_go_terms, go_terms, n_tissue_terms, tissue_terms, rng }
+
+    pub fn new(
+        n_go_terms: usize,
+        go_terms: &'a Vec<TermId>,
+        n_tissue_terms: usize,
+        tissue_terms: &'a Vec<String>,
+        rng: R,
+    ) -> Self {
+        Self {
+            n_go_terms,
+            go_terms,
+            n_tissue_terms,
+            tissue_terms,
+            rng,
+        }
     }
 }
 
@@ -102,22 +109,20 @@ pub struct RandomConjunctionGenerator<'a, R> {
     rng: R,
 }
 
-impl<'a, R> FormulaGenerator for RandomConjunctionGenerator<'a, R> 
-where 
+impl<'a, R> FormulaGenerator for RandomConjunctionGenerator<'a, R>
+where
     R: Rng,
 {
     type Output = Conjunction;
 
     /// Build a conjunction by shuffling pools and taking the first N terms/tissues.
     fn generate(&mut self) -> Conjunction {
-
         // Shuffle the annotation vectors
         let mut shuffled_go_terms = self.go_terms.clone();
         shuffled_go_terms.shuffle(&mut self.rng);
 
         let mut shuffled_tissue_terms = self.tissue_terms.clone();
         shuffled_tissue_terms.shuffle(&mut self.rng);
-
 
         // Take the first n according to the value specified in the relative field
         let chosen_go_terms: Vec<TermObservation> = shuffled_go_terms
@@ -129,9 +134,13 @@ where
         let chosen_tissues: Vec<TissueExpression> = shuffled_tissue_terms
             .iter()
             .take(self.n_tissue_terms)
-            .map(|term_id| TissueExpression::new(term_id.clone(), DgeState::get_random_up_down_only(&mut self.rng)))
+            .map(|term_id| {
+                TissueExpression::new(
+                    term_id.clone(),
+                    DgeState::get_random_up_down_only(&mut self.rng),
+                )
+            })
             .collect();
-
 
         Conjunction {
             term_observations: chosen_go_terms,
@@ -142,15 +151,26 @@ where
 
 impl<'a, R> ConjunctionGenerator for RandomConjunctionGenerator<'a, R> where R: Rng {}
 
-impl<'a, R> RandomConjunctionGenerator<'a, R> 
-where 
+impl<'a, R> RandomConjunctionGenerator<'a, R>
+where
     R: Rng,
 {
-    pub fn new(n_go_terms: usize, go_terms: &'a Vec<TermId>, n_tissue_terms: usize, tissue_terms: &'a Vec<String>, rng: R) -> Self{
-        Self {n_go_terms, go_terms, n_tissue_terms, tissue_terms, rng}
+    pub fn new(
+        n_go_terms: usize,
+        go_terms: &'a Vec<TermId>,
+        n_tissue_terms: usize,
+        tissue_terms: &'a Vec<String>,
+        rng: R,
+    ) -> Self {
+        Self {
+            n_go_terms,
+            go_terms,
+            n_tissue_terms,
+            tissue_terms,
+            rng,
+        }
     }
 }
-
 
 /// Picks some terms from a list of genes
 pub struct GenePickerConjunctionGenerator<'a, R> {
@@ -180,7 +200,6 @@ where
         max_terms: Option<usize>,
         max_tissues: Option<usize>,
     ) -> Self {
-
         let annotations_map = gene_set.get_gene_annotations_map();
         let candidate_genes: Vec<_> = match &target_phenotype {
             Some(phenotype) => annotations_map
@@ -201,8 +220,6 @@ where
         }
     }
 }
-
-
 
 impl<'a, R> FormulaGenerator for GenePickerConjunctionGenerator<'a, R>
 where
@@ -244,12 +261,7 @@ where
     }
 }
 
-
-
-impl<'a, R> ConjunctionGenerator for GenePickerConjunctionGenerator<'a, R>
-where 
-R: Rng{}
-
+impl<'a, R> ConjunctionGenerator for GenePickerConjunctionGenerator<'a, R> where R: Rng {}
 
 //DNFBitmask Generators
 
@@ -282,9 +294,11 @@ where
     R: Rng,
 {
     pub fn new(conjunction_list: &'a [Conjunction], rng: R) -> Self {
-        Self { conjunction_list, rng }
+        Self {
+            conjunction_list,
+            rng,
+        }
     }
-
 }
 
 impl<'a, R> DNFGenerator<DNFBitmask<'a>> for RandomDNFBistmaskGenerator<'a, R> where R: Rng {}
@@ -292,40 +306,43 @@ impl<'a, R> DNFGenerator<DNFBitmask<'a>> for RandomDNFBistmaskGenerator<'a, R> w
 //DNFVec Generators
 
 pub struct RandomDNFVecGenerator<'a, CG, R>
-where 
-    CG: ConjunctionGenerator{
-    conjunction_generator: &'a mut  CG,
+where
+    CG: ConjunctionGenerator,
+{
+    conjunction_generator: &'a mut CG,
     num_conjunctions: usize,
     rng: R,
 }
 
 impl<'a, CG, R> FormulaGenerator for RandomDNFVecGenerator<'a, CG, R>
 where
-    CG: ConjunctionGenerator, 
+    CG: ConjunctionGenerator,
     R: Rng,
 {
     type Output = DNFVec;
-    
+
     /// Build a DNFVec with `num_conjunctions` generated conjunctions.
     fn generate(&mut self) -> Self::Output {
-        let conjunctions: Vec<Conjunction> = (0..self.num_conjunctions).map(|_| self.conjunction_generator.generate()).collect();
+        let conjunctions: Vec<Conjunction> = (0..self.num_conjunctions)
+            .map(|_| self.conjunction_generator.generate())
+            .collect();
         DNFVec::from_conjunctions(conjunctions)
     }
 }
 
 impl<'a, CG, R> RandomDNFVecGenerator<'a, CG, R>
 where
-    CG: ConjunctionGenerator, 
+    CG: ConjunctionGenerator,
     R: Rng,
 {
-    pub fn new(conjunction_generator: &'a mut  CG, num_conjunctions: usize, rng: R) -> Self {
-        Self { conjunction_generator, num_conjunctions, rng }
+    pub fn new(conjunction_generator: &'a mut CG, num_conjunctions: usize, rng: R) -> Self {
+        Self {
+            conjunction_generator,
+            num_conjunctions,
+            rng,
+        }
     }
-
 }
-
-
-
 
 //TO DO: fare dei test per testare anche RandomDNFBistmaskGenerator e Generators
 
@@ -342,12 +359,13 @@ mod tests {
             .into_iter()
             .map(|s| s.parse().unwrap())
             .collect();
-
-        static ref small_test_tissues: Vec<String> = vec!["Colon_Transverse_Muscularis".to_string(),
-                                                         "Colon_Transverse_Mixed_Cell".to_string(),
-                                                          "Colon_Transverse_Muscularis".to_string(),
-                                                          "Testis".to_string(),
-                                                          "Small_Intestine_Terminal_Ileum_Mixed_Cell".to_string()];
+        static ref small_test_tissues: Vec<String> = vec![
+            "Colon_Transverse_Muscularis".to_string(),
+            "Colon_Transverse_Mixed_Cell".to_string(),
+            "Colon_Transverse_Muscularis".to_string(),
+            "Testis".to_string(),
+            "Small_Intestine_Terminal_Ileum_Mixed_Cell".to_string()
+        ];
     }
 
     #[test]
@@ -370,28 +388,31 @@ mod tests {
         );
 
         let tissue = generator.select_random_tissue_annot();
-        
+
         assert!(
             small_test_tissues.contains(&tissue.term_id),
             "Tissue ID is not in the list"
         );
-
     }
 
-    fn _test_generate_random_conjunction<T: ConjunctionGenerator>(conjunction_generator: &mut T){
+    fn _test_generate_random_conjunction<T: ConjunctionGenerator>(conjunction_generator: &mut T) {
         let conjunction: Conjunction = conjunction_generator.generate();
         println!("{:?}", conjunction);
 
-        assert_eq!(conjunction.len(), 4, "The real number of terms differs from the expected one");
-        
-        for term_obs in conjunction.term_observations{
+        assert_eq!(
+            conjunction.len(),
+            4,
+            "The real number of terms differs from the expected one"
+        );
+
+        for term_obs in conjunction.term_observations {
             assert!(
                 small_test_terms.contains(&term_obs.term_id),
                 "Term ID is not in the list"
             );
         }
 
-        for tissue_term in conjunction.tissue_expressions{
+        for tissue_term in conjunction.tissue_expressions {
             assert!(
                 small_test_tissues.contains(&tissue_term.term_id),
                 "Term ID is not in the list"
@@ -406,7 +427,7 @@ mod tests {
             go_terms: &small_test_terms,
             n_tissue_terms: 2,
             tissue_terms: &small_test_tissues,
-            rng: rng(), 
+            rng: rng(),
         };
         _test_generate_random_conjunction(&mut generator);
     }
@@ -418,9 +439,8 @@ mod tests {
             go_terms: &small_test_terms,
             n_tissue_terms: 2,
             tissue_terms: &small_test_tissues,
-            rng: rng(), 
+            rng: rng(),
         };
         _test_generate_random_conjunction(&mut generator);
     }
-
 }

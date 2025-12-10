@@ -1,16 +1,15 @@
-use hpo2gene_mapper::mapper::{GenePhenotypeMemoryMapper};
 use anyhow::Result;
+use hpo2gene_mapper::mapper::GenePhenotypeMemoryMapper;
+use hpo2gene_mapper::GenePhenotypeMapping;
 use ontolius::TermId;
 use std::path::Path;
-use hpo2gene_mapper::GenePhenotypeMapping;
 
 #[test]
 fn test_memory_mapper_from_sample_file() -> Result<()> {
     let hpo1: TermId = "HP:0002188".parse().unwrap();
-    
+
     let omim1: TermId = "OMIM:619031".parse().unwrap();
     let omim2: TermId = "OMIM:619036".parse().unwrap();
-
 
     let path = Path::new("data/hpo2gene/phenotype_to_genes.txt");
     let mapper = GenePhenotypeMemoryMapper::from_file(path).unwrap();
@@ -37,4 +36,3 @@ fn test_memory_mapper_from_sample_file() -> Result<()> {
 
     Ok(())
 }
-

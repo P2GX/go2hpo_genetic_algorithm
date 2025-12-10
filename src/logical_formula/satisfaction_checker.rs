@@ -37,8 +37,6 @@ impl<C: SatisfactionChecker + ?Sized> SatisfactionChecker for Arc<C> {
     }
 }
 
-
-
 pub struct NaiveSatisfactionChecker<'a, O> {
     go: &'a O,
     gene_set_annotations: &'a GeneSetAnnotations,
@@ -48,25 +46,28 @@ impl<'a, O: HierarchyWalks> SatisfactionChecker for NaiveSatisfactionChecker<'a,
 where
     O: HierarchyWalks,
 {
-
-    fn get_gene_set(&self) -> &GeneSetAnnotations { 
+    fn get_gene_set(&self) -> &GeneSetAnnotations {
         return self.gene_set_annotations;
     }
 
     /// Checks if a gene satisfies the annotations of a conjunction
     fn is_satisfied(&self, symbol: &GeneId, conjunction: &Conjunction) -> bool {
         let gene_annotations_lookup = self.gene_set_annotations.get_gene_annotations(symbol);
-        match gene_annotations_lookup{
+        match gene_annotations_lookup {
             Some(gene_annotations) => {
-                if self.are_term_annotations_satisfied(gene_annotations, conjunction) == false {return false;}
-                if self.are_tissue_expressions_satisfied(gene_annotations, conjunction) == false {return false;}
+                if self.are_term_annotations_satisfied(gene_annotations, conjunction) == false {
+                    return false;
+                }
+                if self.are_tissue_expressions_satisfied(gene_annotations, conjunction) == false {
+                    return false;
+                }
                 return true;
-            },
+            }
             None => panic!("Couldn't find the gene ID in the Gene Annotation Set"),
         }
     }
 
-    /// Checks satisfaction for all genes wrt to a conjunction and returns a HashMap of gene symbols 
+    /// Checks satisfaction for all genes wrt to a conjunction and returns a HashMap of gene symbols
     /// and boolean value indicating the satisfaction
     fn all_satisfactions(&self, conjunction: &Conjunction) -> HashMap<String, bool> {
         self.gene_set_annotations
@@ -81,13 +82,22 @@ where
     }
 }
 
-impl<'a, O> NaiveSatisfactionChecker<'a, O> 
-where O: HierarchyWalks {
+impl<'a, O> NaiveSatisfactionChecker<'a, O>
+where
+    O: HierarchyWalks,
+{
     pub fn new(go: &'a O, gene_set_annotations: &'a GeneSetAnnotations) -> Self {
-        Self { go, gene_set_annotations }
+        Self {
+            go,
+            gene_set_annotations,
+        }
     }
 
-    pub fn are_term_annotations_satisfied(&self, gene_annotations: &GeneAnnotations, conjunction: &Conjunction) -> bool{
+    pub fn are_term_annotations_satisfied(
+        &self,
+        gene_annotations: &GeneAnnotations,
+        conjunction: &Conjunction,
+    ) -> bool {
         let direct_annotations = gene_annotations.get_term_annotations();
         for term_ob in &conjunction.term_observations {
             //LONGER VERSION:
@@ -120,8 +130,13 @@ where O: HierarchyWalks {
         true
     }
 
-    pub fn are_tissue_expressions_satisfied(&self, gene_annotations: &GeneAnnotations, conjunction: &Conjunction) -> bool{
-        conjunction.tissue_expressions
+    pub fn are_tissue_expressions_satisfied(
+        &self,
+        gene_annotations: &GeneAnnotations,
+        conjunction: &Conjunction,
+    ) -> bool {
+        conjunction
+            .tissue_expressions
             .iter()
             .all(|tissue_expr| gene_annotations.contains_tissue_expressions(tissue_expr))
     }
@@ -131,11 +146,11 @@ where O: HierarchyWalks {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs::File, hash::Hash, io::BufReader};
-    use rstest::rstest;
-    use rstest::fixture;
     use flate2::bufread::GzDecoder;
     use ontolius::{io::OntologyLoaderBuilder, ontology::csr::MinimalCsrOntology};
+    use rstest::fixture;
+    use rstest::rstest;
+    use std::{fs::File, hash::Hash, io::BufReader};
 
     use crate::logical_formula::TermObservation;
 
@@ -143,7 +158,7 @@ mod tests {
 
     // GO ONTOLOGY SAMPLE
     #[fixture]
-    pub fn go_sample() -> MinimalCsrOntology{
+    pub fn go_sample() -> MinimalCsrOntology {
         let go_path = "data/go/go.toy.json.gz";
         let reader = flate2::bufread::GzDecoder::new(BufReader::new(
             File::open(go_path).expect("The file should be in the repo"),
@@ -180,7 +195,6 @@ mod tests {
 
         let gene_set = GeneSetAnnotations::from(term_map, tissue_map, phenotypes);
         gene_set
-        
     }
 
     #[rstest]
@@ -200,7 +214,8 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
+        let checker: NaiveSatisfactionChecker<MinimalCsrOntology> =
+            NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
@@ -223,7 +238,8 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
+        let checker: NaiveSatisfactionChecker<MinimalCsrOntology> =
+            NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
@@ -248,7 +264,8 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
+        let checker: NaiveSatisfactionChecker<MinimalCsrOntology> =
+            NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, false);
@@ -273,7 +290,8 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
+        let checker: NaiveSatisfactionChecker<MinimalCsrOntology> =
+            NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
@@ -298,7 +316,8 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
+        let checker: NaiveSatisfactionChecker<MinimalCsrOntology> =
+            NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, false);
@@ -322,13 +341,12 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
+        let checker: NaiveSatisfactionChecker<MinimalCsrOntology> =
+            NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
     }
-
-
 
     #[rstest]
     fn test_is_not_satisfied_with_ontology(go_sample: MinimalCsrOntology) {
@@ -346,7 +364,8 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
+        let checker: NaiveSatisfactionChecker<MinimalCsrOntology> =
+            NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, false);
@@ -367,12 +386,12 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
+        let checker: NaiveSatisfactionChecker<MinimalCsrOntology> =
+            NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, true);
     }
-
 
     #[rstest]
     fn test_is_not_satisfied_with_ontology_and_exclusion(go_sample: MinimalCsrOntology) {
@@ -389,10 +408,10 @@ mod tests {
         };
 
         let mock_gene_set = initialize_data();
-        let checker:NaiveSatisfactionChecker<MinimalCsrOntology> = NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
+        let checker: NaiveSatisfactionChecker<MinimalCsrOntology> =
+            NaiveSatisfactionChecker::new(&go_sample, &mock_gene_set);
         let actual = checker.is_satisfied(&symbol, &conjunction);
 
         assert_eq!(actual, false);
     }
-
 }

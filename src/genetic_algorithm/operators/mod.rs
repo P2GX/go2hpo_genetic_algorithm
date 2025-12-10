@@ -3,10 +3,13 @@ mod mutation;
 mod selection;
 mod survival;
 
-pub use crossover::{Crossover, ConjunctionCrossover, DNFVecCrossover, DNFBitmaskCrossover};
+pub use crossover::{ConjunctionCrossover, Crossover, DNFBitmaskCrossover, DNFVecCrossover};
 
-pub use mutation::{ Mutation, BiasedDNFMutation, ConjunctionMutation, SimpleDNFBitmaskMutation, SimpleDNFVecMutation };
+pub use mutation::{
+    BiasedDNFMutation, ConjunctionMutation, Mutation, SimpleDNFBitmaskMutation,
+    SimpleDNFVecMutation,
+};
 
-pub use survival::{ElitesSelector, ElitesByNumberSelector, ElitesByThresholdSelector};
+pub use survival::{ElitesByNumberSelector, ElitesByThresholdSelector, ElitesSelector};
 
-pub use selection::{Selection, TournamentSelection, RouletteWheelSelection, RankSelection};
+pub use selection::{RankSelection, RouletteWheelSelection, Selection, TournamentSelection};

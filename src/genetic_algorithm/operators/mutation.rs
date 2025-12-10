@@ -1,7 +1,7 @@
 use crate::genetic_algorithm::Solution;
-use rand::prelude::*;
 use crate::logical_formula::{ConjunctionGenerator, DgeState, Formula, TissueExpression};
 use gtex_analyzer::expression_analysis::GtexSummary;
+use rand::prelude::*;
 
 use ontolius::term::simple::SimpleMinimalTerm;
 use ontolius::{
@@ -9,13 +9,11 @@ use ontolius::{
     TermId,
 };
 
-
 use crate::logical_formula::DNFVec;
 use crate::{
     logical_formula::{Conjunction, TermObservation},
     logical_formula::{DNFBitmask, DNF},
 };
-
 
 /// Trait for mutation operators in the genetic algorithm.
 ///
@@ -72,7 +70,9 @@ where
             5 => self.delete_tissue_expression_term(formula),
             6 => self.add_tissue_expression_term(formula),
             7 => self.toggle_tissue_expression_state(formula),
-            _ => panic!("A random number outside of the range has been generated. No associated mutation"),
+            _ => panic!(
+                "A random number outside of the range has been generated. No associated mutation"
+            ),
         }
     }
 }
@@ -91,7 +91,7 @@ where
         // Get a term from a random index. Maybe a more sophisticated way will be used in the future
         if formula.term_observations.is_empty() {
             self.add_random_term(formula);
-            return; 
+            return;
         }
         let rnd_index = self.rng.random_range(0..formula.term_observations.len());
         let mut term_ob = formula
@@ -102,7 +102,7 @@ where
         // Get the parents' term IDs, I collect them to know the length without consuming it
         let parents_ids: Vec<&TermId> = self.go.iter_parent_ids(&term_ob.term_id).collect(); //or go.iter_ancestor_ids(term)
 
-        if parents_ids.len() > 0{
+        if parents_ids.len() > 0 {
             // Select one of them randomly and subsitute it with the current termId in the formula
             let rnd_index = self.rng.random_range(0..parents_ids.len());
             term_ob.term_id = parents_ids.get(rnd_index).copied().unwrap().clone();
@@ -127,7 +127,7 @@ where
         // Get the childrens' term IDs, I collect them to know the length without consuming it
         let child_ids: Vec<&TermId> = self.go.iter_child_ids(&term_ob.term_id).collect(); //or go.iter_descendant_ids(term)
 
-        if child_ids.len() > 0{   
+        if child_ids.len() > 0 {
             // Select one of them randomly and subsitute it with the current termId in the formula
             let rnd_index = self.rng.random_range(0..child_ids.len());
             term_ob.term_id = child_ids.get(rnd_index).copied().unwrap().clone();
@@ -154,14 +154,16 @@ where
     /// If the maximum number of terms has been reached, performs a different
     /// mutation operation instead (parent/child replacement, deletion, or toggle).
     pub fn add_random_term(&mut self, formula: &mut Conjunction) {
-        if formula.len() >= self.max_n_terms{
+        if formula.len() >= self.max_n_terms {
             let rnd_indx = self.rng.random_range(0..4);
             match rnd_indx {
                 0 => self.mutate_with_parent_term(formula),
                 1 => self.mutate_with_child_term(formula),
                 2 => self.delete_random_term(formula),
                 3 => self.toggle_term_status(formula),
-                _ => panic!("A random number outside of the range has been generated in add_random_term"),
+                _ => panic!(
+                    "A random number outside of the range has been generated in add_random_term"
+                ),
             };
             return;
         }
@@ -177,7 +179,7 @@ where
             let rnd_index = self.rng.random_range(0..self.go.len());
             self.go.iter_term_ids().nth(rnd_index).map(|t| t.clone())
         };
-        
+
         if let Some(new_term) = new_term {
             let term_obs = TermObservation::new(new_term, self.rng.random_bool(0.5));
             formula.term_observations.push(term_obs);
@@ -205,7 +207,6 @@ where
     ///
     /// If the formula has no tissue expression terms, no change is made.
     pub fn delete_tissue_expression_term(&mut self, formula: &mut Conjunction) {
-        
         if formula.tissue_expressions.is_empty() {
             return; // or handle with Result
         }
@@ -221,7 +222,7 @@ where
     /// If the maximum number of terms has been reached, performs a different
     /// mutation operation instead (toggle state or delete term).
     pub fn add_tissue_expression_term(&mut self, formula: &mut Conjunction) {
-        if formula.len() >= self.max_n_terms{
+        if formula.len() >= self.max_n_terms {
             let rnd_indx = self.rng.random_range(0..2);
             match rnd_indx {
                 0 => self.toggle_tissue_expression_state(formula),
@@ -232,11 +233,14 @@ where
         }
 
         let tissues = self.gtex.metadata.get_tissue_names();
-        
+
         let rnd_index = self.rng.random_range(0..tissues.len());
-        
-        if let Some(tissue_name) = tissues.get(rnd_index){
-            let tissue_expr = TissueExpression::new(tissue_name.clone(), DgeState::get_random_up_down_only(self.rng));
+
+        if let Some(tissue_name) = tissues.get(rnd_index) {
+            let tissue_expr = TissueExpression::new(
+                tissue_name.clone(),
+                DgeState::get_random_up_down_only(self.rng),
+            );
             formula.tissue_expressions.push(tissue_expr)
         }
     }
@@ -251,8 +255,11 @@ where
             return; // or handle with Result
         }
         let rnd_index = self.rng.random_range(0..formula.tissue_expressions.len());
-        let tissue_term = formula.tissue_expressions.get_mut(rnd_index).expect("It should return a TissueExpression");
-        
+        let tissue_term = formula
+            .tissue_expressions
+            .get_mut(rnd_index)
+            .expect("It should return a TissueExpression");
+
         // Only toggle between UP and DOWN (exclude NORMAL)
         let new_state = match tissue_term.state {
             DgeState::Down => DgeState::Up,
@@ -263,22 +270,38 @@ where
         tissue_term.state = new_state;
     }
 
-    
     /// Creates a new `ConjunctionMutation` operator.
     ///
     /// New GO terms will be selected from all terms in the ontology.
-    pub fn new(go: &'a O, gtex: &'a GtexSummary, max_n_terms: usize, rng: &'a mut R,) -> Self{
-        Self{go, gtex, max_n_terms, rng, filtered_go_terms: None}
+    pub fn new(go: &'a O, gtex: &'a GtexSummary, max_n_terms: usize, rng: &'a mut R) -> Self {
+        Self {
+            go,
+            gtex,
+            max_n_terms,
+            rng,
+            filtered_go_terms: None,
+        }
     }
 
     /// Creates a new `ConjunctionMutation` operator with a filtered GO term pool.
     ///
     /// New GO terms will be selected only from the provided `filtered_go_terms` vector,
     /// which can be useful for constraining the search space to specific terms of interest.
-    pub fn new_with_filtered_go_terms(go: &'a O, gtex: &'a GtexSummary, max_n_terms: usize, rng: &'a mut R, filtered_go_terms: &'a Vec<TermId>) -> Self{
-        Self{go, gtex, max_n_terms, rng, filtered_go_terms: Some(filtered_go_terms)}
+    pub fn new_with_filtered_go_terms(
+        go: &'a O,
+        gtex: &'a GtexSummary,
+        max_n_terms: usize,
+        rng: &'a mut R,
+        filtered_go_terms: &'a Vec<TermId>,
+    ) -> Self {
+        Self {
+            go,
+            gtex,
+            max_n_terms,
+            rng,
+            filtered_go_terms: Some(filtered_go_terms),
+        }
     }
-    
 }
 
 /// Simple mutation operator for `DNFBitmask` formulas.
@@ -286,7 +309,7 @@ where
 /// This operator toggles the activation state of a randomly selected conjunction
 /// in the DNF formula. This effectively adds or removes a conjunction from the
 /// disjunctive normal form, changing the formula's structure.
-pub struct SimpleDNFBitmaskMutation<'a, R: Rng>{
+pub struct SimpleDNFBitmaskMutation<'a, R: Rng> {
     rng: &'a mut R,
 }
 
@@ -308,22 +331,21 @@ impl<'a, R: Rng> Mutation<DNFBitmask<'_>> for SimpleDNFBitmaskMutation<'a, R> {
 
 impl<'a, R: Rng> SimpleDNFBitmaskMutation<'a, R> {
     /// Creates a new `SimpleDNFBitmaskMutation` operator.
-    pub fn new(rng: &'a mut R) -> Self{
-        Self {rng}
+    pub fn new(rng: &'a mut R) -> Self {
+        Self { rng }
     }
 }
-
 
 /// Simple mutation operator for `DNFVec` formulas.
 ///
 /// This operator performs mutations at the DNF level by modifying, adding, or
 /// removing conjunctions. It uses a `ConjunctionMutation` operator to mutate
 /// individual conjunctions and a `ConjunctionGenerator` to create new ones.
-pub struct SimpleDNFVecMutation<'a, O, G, R> 
-where 
-O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
-G: ConjunctionGenerator,
-R: Rng,
+pub struct SimpleDNFVecMutation<'a, O, G, R>
+where
+    O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
+    G: ConjunctionGenerator,
+    R: Rng,
 {
     conjunction_mutation: ConjunctionMutation<'a, O, R>,
     conjunction_generator: G,
@@ -331,11 +353,12 @@ R: Rng,
     rng: &'a mut R,
 }
 
-impl<'a, O, G, R> SimpleDNFVecMutation<'a, O, G, R> 
-where 
-O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
-G: ConjunctionGenerator,
-R: Rng,{
+impl<'a, O, G, R> SimpleDNFVecMutation<'a, O, G, R>
+where
+    O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
+    G: ConjunctionGenerator,
+    R: Rng,
+{
     /// Creates a new `SimpleDNFVecMutation` operator.
     ///
     /// Requires a `ConjunctionMutation` operator for mutating individual conjunctions
@@ -355,12 +378,12 @@ R: Rng,{
     }
 }
 
-
 impl<'a, O, G, R> Mutation<DNFVec> for SimpleDNFVecMutation<'a, O, G, R>
 where
     O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
     G: ConjunctionGenerator,
-    R: Rng, {
+    R: Rng,
+{
     /// Randomly selects and applies one of three mutation operations:
     /// 0: Mutate an existing conjunction
     /// 1: Add a new random conjunction
@@ -371,11 +394,12 @@ where
             0 => self.mutate_conjunction(formula),
             1 => self.add_random_conjunction(formula),
             2 => self.remove_random_conjunction(formula),
-            _ => panic!("A random number outside of the range has been generated. No associated mutation"),
+            _ => panic!(
+                "A random number outside of the range has been generated. No associated mutation"
+            ),
         }
     }
 }
-
 
 impl<'a, O, G, R> SimpleDNFVecMutation<'a, O, G, R>
 where
@@ -403,12 +427,14 @@ where
     /// instead mutates an existing conjunction.
     pub fn add_random_conjunction(&mut self, formula: &mut DNFVec) {
         // If the max number of conjunctions has been reached, instead of adding a conjunction, mutate 1
-        if formula.len() >= self.max_n_conj{
+        if formula.len() >= self.max_n_conj {
             self.mutate_conjunction(formula);
             return;
         }
         let conjunction: Conjunction = self.conjunction_generator.generate();
-        formula.activate_conjunction(conjunction).expect("The conjunction should be added without errors")
+        formula
+            .activate_conjunction(conjunction)
+            .expect("The conjunction should be added without errors")
     }
 
     /// Removes a randomly selected active conjunction from the DNF formula.
@@ -425,7 +451,6 @@ where
         let rnd_index = self.rng.random_range(0..conjunctions.len());
         conjunctions.remove(rnd_index);
     }
-
 }
 
 /// Biased mutation operator for `DNFBitmask` formulas.
@@ -441,13 +466,14 @@ impl Mutation<DNFBitmask<'_>> for BiasedDNFMutation {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use lazy_static::lazy_static;
     use num::Saturating;
 
-    use crate::logical_formula::{Formula, FormulaGenerator, RandomConjunctionGenerator, RandomDNFBistmaskGenerator};
+    use crate::logical_formula::{
+        Formula, FormulaGenerator, RandomConjunctionGenerator, RandomDNFBistmaskGenerator,
+    };
 
     use super::*;
 
@@ -456,15 +482,17 @@ mod tests {
     use flate2::bufread::GzDecoder;
     use ontolius::{
         io::OntologyLoaderBuilder,
-        ontology::{csr::{CsrOntology, MinimalCsrOntology}, HierarchyQueries},
+        ontology::{
+            csr::{CsrOntology, MinimalCsrOntology},
+            HierarchyQueries,
+        },
     };
 
     // use ontolius::ontology::OntologyTerms;
     use gtex_analyzer::expression_analysis::GtexSummaryLoader;
 
-
     lazy_static! {
-        // static ref GO: ontolius::ontology::csr::CsrOntology<u32, SimpleMinimalTerm> = get_go(); 
+        // static ref GO: ontolius::ontology::csr::CsrOntology<u32, SimpleMinimalTerm> = get_go();
         static ref small_test_tissues: Vec<String> = vec!["Colon_Transverse_Muscularis".to_string(),
                                                          "Colon_Transverse_Mixed_Cell".to_string(),
                                                           "Colon_Transverse_Muscularis".to_string(),
@@ -481,7 +509,7 @@ mod tests {
         static ref SMALL_CONJUNCTION_LIST: Vec<Conjunction> = get_random_conjunction_list(10, 2, &small_test_terms.to_vec(), 2, &small_test_tissues.to_vec(), 64);
     }
 
-    fn get_go() -> MinimalCsrOntology{
+    fn get_go() -> MinimalCsrOntology {
         let go_path = "data/go/go.toy.json.gz";
         let reader = GzDecoder::new(BufReader::new(
             File::open(go_path).expect("The file should be in the repo"),
@@ -494,7 +522,7 @@ mod tests {
         go
     }
 
-    fn get_gtex_summary() -> GtexSummary{
+    fn get_gtex_summary() -> GtexSummary {
         let file_path: &str = "data/gtex/GTEx_RNASeq_gene_median_tpm_HEAD.gct";
 
         let file = File::open(file_path).expect("The gtex file should open");
@@ -505,209 +533,301 @@ mod tests {
         summary.unwrap()
     }
 
-    fn get_tissue_express_vec(seed: u64, size: usize) -> Vec<TissueExpression>{
+    fn get_tissue_express_vec(seed: u64, size: usize) -> Vec<TissueExpression> {
         let mut uber_rng = SmallRng::seed_from_u64(seed);
-        let tiss_exprs : Vec<TissueExpression> = (0..size)
-                        .map(|i| (i,DgeState::get_random_up_down_only(&mut uber_rng)))
-                        .map(|(i, state)| TissueExpression::new(format!("tissue_{}", i), state))
-                        .collect();
+        let tiss_exprs: Vec<TissueExpression> = (0..size)
+            .map(|i| (i, DgeState::get_random_up_down_only(&mut uber_rng)))
+            .map(|(i, state)| TissueExpression::new(format!("tissue_{}", i), state))
+            .collect();
         tiss_exprs
     }
 
-    fn get_term_obs_vec(seed: u64, size: usize, term_ids: Vec<TermId>) -> Vec<TermObservation>{
+    fn get_term_obs_vec(seed: u64, size: usize, term_ids: Vec<TermId>) -> Vec<TermObservation> {
         let mut uber_rng = SmallRng::seed_from_u64(seed);
         let mut term_chooser = SmallRng::seed_from_u64(seed);
-        let term_obs : Vec<TermObservation> = (0..size)
-                        .map(|i| (i, uber_rng.random_bool(0.5)))
-                        .map(|(i, state)| TermObservation::new(term_ids.choose(&mut term_chooser).unwrap().clone(), state))
-                        .collect();
+        let term_obs: Vec<TermObservation> = (0..size)
+            .map(|i| (i, uber_rng.random_bool(0.5)))
+            .map(|(i, state)| {
+                TermObservation::new(term_ids.choose(&mut term_chooser).unwrap().clone(), state)
+            })
+            .collect();
         term_obs
     }
 
-    fn get_random_conjunction_list<'a>(list_size: usize,n_go_terms: usize, go_terms: &'a Vec<TermId>, n_tissue_terms: usize, tissue_terms: &'a Vec<String>, seed: u64) -> Vec<Conjunction>{
+    fn get_random_conjunction_list<'a>(
+        list_size: usize,
+        n_go_terms: usize,
+        go_terms: &'a Vec<TermId>,
+        n_tissue_terms: usize,
+        tissue_terms: &'a Vec<String>,
+        seed: u64,
+    ) -> Vec<Conjunction> {
         let mut uber_rng = SmallRng::seed_from_u64(seed);
-        let mut random_conjunction_generator = RandomConjunctionGenerator::new(n_go_terms, go_terms, n_tissue_terms, tissue_terms, uber_rng);
-        let small_conjunction_list: Vec<Conjunction> = (0..list_size).map(|_| random_conjunction_generator.generate()).collect(); 
+        let mut random_conjunction_generator = RandomConjunctionGenerator::new(
+            n_go_terms,
+            go_terms,
+            n_tissue_terms,
+            tissue_terms,
+            uber_rng,
+        );
+        let small_conjunction_list: Vec<Conjunction> = (0..list_size)
+            .map(|_| random_conjunction_generator.generate())
+            .collect();
         small_conjunction_list
     }
 
     #[test]
-    fn test_toggle_tissue_expression_state(){
-        let go = get_go(); 
-        for seed in SEED_LIST.to_vec(){
+    fn test_toggle_tissue_expression_state() {
+        let go = get_go();
+        for seed in SEED_LIST.to_vec() {
             let mut formula = Conjunction::new();
             formula.tissue_expressions = SMALL_TISS_EXPR_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
             let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, 8, &mut rng);
-    
+
             let mut rng_twin = SmallRng::seed_from_u64(seed);
             let rnd_index = rng_twin.random_range(0..formula.tissue_expressions.len());
-            
+
             conjunction_mutation.toggle_tissue_expression_state(&mut formula);
-            
-            for i in (0..SMALL_TISS_EXPR_LIST.len()){
-                if i == rnd_index{
-                    assert_ne!(SMALL_TISS_EXPR_LIST.get(rnd_index).expect("It should be Some").state,formula.tissue_expressions.get(rnd_index).expect("it should be Some").state)
-                }else{
-                    assert_eq!(SMALL_TISS_EXPR_LIST.get(i).expect("It should be Some").state,formula.tissue_expressions.get(i).expect("it should be Some").state)
+
+            for i in (0..SMALL_TISS_EXPR_LIST.len()) {
+                if i == rnd_index {
+                    assert_ne!(
+                        SMALL_TISS_EXPR_LIST
+                            .get(rnd_index)
+                            .expect("It should be Some")
+                            .state,
+                        formula
+                            .tissue_expressions
+                            .get(rnd_index)
+                            .expect("it should be Some")
+                            .state
+                    )
+                } else {
+                    assert_eq!(
+                        SMALL_TISS_EXPR_LIST
+                            .get(i)
+                            .expect("It should be Some")
+                            .state,
+                        formula
+                            .tissue_expressions
+                            .get(i)
+                            .expect("it should be Some")
+                            .state
+                    )
                 }
             }
         }
-        
     }
 
     #[test]
-    fn test_add_tissue_expression_term(){
-        let go = get_go(); 
-        for seed in SEED_LIST.to_vec(){
+    fn test_add_tissue_expression_term() {
+        let go = get_go();
+        for seed in SEED_LIST.to_vec() {
             let mut formula = Conjunction::new();
             formula.tissue_expressions = SMALL_TISS_EXPR_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
             let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, 6, &mut rng);
-            
+
             conjunction_mutation.add_tissue_expression_term(&mut formula);
-            
-            assert_eq!(SMALL_TISS_EXPR_LIST.len() + 1, formula.tissue_expressions.len())
+
+            assert_eq!(
+                SMALL_TISS_EXPR_LIST.len() + 1,
+                formula.tissue_expressions.len()
+            )
         }
     }
 
     #[test]
-    fn test_delete_tissue_expression_term(){
-        let go = get_go(); 
-        for seed in SEED_LIST.to_vec(){
+    fn test_delete_tissue_expression_term() {
+        let go = get_go();
+        for seed in SEED_LIST.to_vec() {
             let mut formula = Conjunction::new();
             formula.tissue_expressions = SMALL_TISS_EXPR_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
             let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, 10, &mut rng);
-            
+
             conjunction_mutation.delete_tissue_expression_term(&mut formula);
-            
-            assert_eq!(SMALL_TISS_EXPR_LIST.len().saturating_sub(1), formula.tissue_expressions.len())
+
+            assert_eq!(
+                SMALL_TISS_EXPR_LIST.len().saturating_sub(1),
+                formula.tissue_expressions.len()
+            )
         }
     }
 
     #[test]
-    fn test_toggle_term_status(){
-        let go: MinimalCsrOntology = get_go(); 
-        for seed in SEED_LIST.to_vec(){
+    fn test_toggle_term_status() {
+        let go: MinimalCsrOntology = get_go();
+        for seed in SEED_LIST.to_vec() {
             let mut formula = Conjunction::new();
             formula.term_observations = SMALL_TERM_OBS_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
             let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, 12, &mut rng);
-    
+
             let mut rng_twin = SmallRng::seed_from_u64(seed);
             let rnd_index = rng_twin.random_range(0..formula.term_observations.len());
-            
+
             conjunction_mutation.toggle_term_status(&mut formula);
-            
-            for i in (0..SMALL_TERM_OBS_LIST.len()){
-                if i == rnd_index{
-                    assert_ne!(SMALL_TERM_OBS_LIST.get(rnd_index).expect("It should be Some").is_excluded, formula.term_observations.get(rnd_index).expect("it should be Some").is_excluded)
-                }else{
-                    assert_eq!(SMALL_TERM_OBS_LIST.get(i).expect("It should be Some").is_excluded, formula.term_observations.get(i).expect("it should be Some").is_excluded)
+
+            for i in (0..SMALL_TERM_OBS_LIST.len()) {
+                if i == rnd_index {
+                    assert_ne!(
+                        SMALL_TERM_OBS_LIST
+                            .get(rnd_index)
+                            .expect("It should be Some")
+                            .is_excluded,
+                        formula
+                            .term_observations
+                            .get(rnd_index)
+                            .expect("it should be Some")
+                            .is_excluded
+                    )
+                } else {
+                    assert_eq!(
+                        SMALL_TERM_OBS_LIST
+                            .get(i)
+                            .expect("It should be Some")
+                            .is_excluded,
+                        formula
+                            .term_observations
+                            .get(i)
+                            .expect("it should be Some")
+                            .is_excluded
+                    )
                 }
             }
         }
     }
 
     #[test]
-    fn test_add_random_term(){
-        let go = get_go(); 
-        for seed in SEED_LIST.to_vec(){
+    fn test_add_random_term() {
+        let go = get_go();
+        for seed in SEED_LIST.to_vec() {
             let mut formula = Conjunction::new();
             formula.term_observations = SMALL_TERM_OBS_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
             let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, 8, &mut rng);
-                
+
             conjunction_mutation.add_random_term(&mut formula);
-            
-            assert_eq!(SMALL_TERM_OBS_LIST.len() + 1, formula.term_observations.len())
+
+            assert_eq!(
+                SMALL_TERM_OBS_LIST.len() + 1,
+                formula.term_observations.len()
+            )
         }
     }
 
     #[test]
-    fn test_delete_random_term(){
-        let go = get_go(); 
-        for seed in SEED_LIST.to_vec(){
+    fn test_delete_random_term() {
+        let go = get_go();
+        for seed in SEED_LIST.to_vec() {
             let mut formula = Conjunction::new();
             formula.term_observations = SMALL_TERM_OBS_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
             let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, 10, &mut rng);
-            
+
             conjunction_mutation.delete_random_term(&mut formula);
-            
-            assert_eq!(SMALL_TERM_OBS_LIST.len().saturating_sub(1), formula.term_observations.len())
+
+            assert_eq!(
+                SMALL_TERM_OBS_LIST.len().saturating_sub(1),
+                formula.term_observations.len()
+            )
         }
     }
 
     #[test]
-    fn test_mutate_with_child_term(){
-        let go: MinimalCsrOntology = get_go(); 
-        for seed in SEED_LIST.to_vec(){
+    fn test_mutate_with_child_term() {
+        let go: MinimalCsrOntology = get_go();
+        for seed in SEED_LIST.to_vec() {
             let mut formula = Conjunction::new();
             formula.term_observations = SMALL_TERM_OBS_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
             let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, 10, &mut rng);
-    
+
             let mut rng_twin = SmallRng::seed_from_u64(seed);
             let rnd_index = rng_twin.random_range(0..formula.term_observations.len());
-            
+
             conjunction_mutation.mutate_with_child_term(&mut formula);
-            
-            for i in (0..SMALL_TERM_OBS_LIST.len()){
-                if i == rnd_index{
-                    let parent = SMALL_TERM_OBS_LIST.get(rnd_index).expect("It should be Some").term_id.clone();
+
+            for i in (0..SMALL_TERM_OBS_LIST.len()) {
+                if i == rnd_index {
+                    let parent = SMALL_TERM_OBS_LIST
+                        .get(rnd_index)
+                        .expect("It should be Some")
+                        .term_id
+                        .clone();
                     let children_ids: Vec<&TermId> = go.iter_child_ids(&parent).collect();
-                    if children_ids.len() > 0{
-                        let child = formula.term_observations.get(rnd_index).expect("It should be Some").term_id.clone();
+                    if children_ids.len() > 0 {
+                        let child = formula
+                            .term_observations
+                            .get(rnd_index)
+                            .expect("It should be Some")
+                            .term_id
+                            .clone();
                         assert!(go.is_child_of(&child, &parent));
                     }
-                }else{
-                    assert_eq!(SMALL_TERM_OBS_LIST.get(i).expect("It should be Some"), formula.term_observations.get(i).expect("it should be Some"))
+                } else {
+                    assert_eq!(
+                        SMALL_TERM_OBS_LIST.get(i).expect("It should be Some"),
+                        formula.term_observations.get(i).expect("it should be Some")
+                    )
                 }
             }
         }
     }
 
     #[test]
-    fn test_mutate_with_parent_term(){
-        let go: MinimalCsrOntology = get_go(); 
-        for seed in SEED_LIST.to_vec(){
+    fn test_mutate_with_parent_term() {
+        let go: MinimalCsrOntology = get_go();
+        for seed in SEED_LIST.to_vec() {
             let mut formula = Conjunction::new();
             formula.term_observations = SMALL_TERM_OBS_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
             let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, 10, &mut rng);
-    
+
             let mut rng_twin = SmallRng::seed_from_u64(seed);
             let rnd_index = rng_twin.random_range(0..formula.term_observations.len());
-            
+
             conjunction_mutation.mutate_with_parent_term(&mut formula);
-            
-            for i in (0..SMALL_TERM_OBS_LIST.len()){
-                if i == rnd_index{
-                    let child = SMALL_TERM_OBS_LIST.get(rnd_index).expect("It should be Some").term_id.clone();
+
+            for i in (0..SMALL_TERM_OBS_LIST.len()) {
+                if i == rnd_index {
+                    let child = SMALL_TERM_OBS_LIST
+                        .get(rnd_index)
+                        .expect("It should be Some")
+                        .term_id
+                        .clone();
                     let parent_ids: Vec<&TermId> = go.iter_parent_ids(&child).collect();
-                    if parent_ids.len() > 0{
-                        let parent = formula.term_observations.get(rnd_index).expect("It should be Some").term_id.clone();
+                    if parent_ids.len() > 0 {
+                        let parent = formula
+                            .term_observations
+                            .get(rnd_index)
+                            .expect("It should be Some")
+                            .term_id
+                            .clone();
                         assert!(go.is_parent_of(&parent, &child));
                     }
-                }else{
-                    assert_eq!(SMALL_TERM_OBS_LIST.get(i).expect("It should be Some"), formula.term_observations.get(i).expect("it should be Some"))
+                } else {
+                    assert_eq!(
+                        SMALL_TERM_OBS_LIST.get(i).expect("It should be Some"),
+                        formula.term_observations.get(i).expect("it should be Some")
+                    )
                 }
             }
         }
     }
 
     #[test]
-    fn test_mutate_dnfbitmask(){
+    fn test_mutate_dnfbitmask() {
         let go: MinimalCsrOntology = get_go();
-        // let conjunction_generator = 
+        // let conjunction_generator =
         let conjunctions = SMALL_CONJUNCTION_LIST.to_vec();
-        for seed in SEED_LIST.to_vec(){
+        for seed in SEED_LIST.to_vec() {
             let mut rng = SmallRng::seed_from_u64(seed);
             let mut dnfbitmask_generator = RandomDNFBistmaskGenerator::new(&conjunctions, &mut rng);
             let mut formula = dnfbitmask_generator.generate();
-            
+
             let count_before = formula.len();
 
             let mut dnfbitmask_mutation = SimpleDNFBitmaskMutation::new(&mut rng);
@@ -724,7 +844,7 @@ mod tests {
     // #[test]
     // fn test_go_terms(){
     //     let seed = 64;
-    //     let go: MinimalCsrOntology = get_go(); 
+    //     let go: MinimalCsrOntology = get_go();
     //     dbg!(go.len());
     //     let mut rng = SmallRng::seed_from_u64(seed);
     //     // let rnd_index = rng.random_range(0..go.len());
@@ -747,7 +867,4 @@ mod tests {
     //         println!("\n\n\n");
     //     }
     // }
-
-
-
 }

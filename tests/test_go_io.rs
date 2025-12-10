@@ -1,10 +1,7 @@
 use std::{fs::File, io::BufReader};
 
 use flate2::bufread::GzDecoder;
-use ontolius::{
-    io::OntologyLoaderBuilder,
-    ontology::csr::MinimalCsrOntology,
-};
+use ontolius::{io::OntologyLoaderBuilder, ontology::csr::MinimalCsrOntology};
 
 use ontolius::ontology::OntologyTerms;
 
@@ -22,4 +19,3 @@ fn test_loading_go() {
 
     assert_eq!(go.len(), 32); // this includes the terms that are not GO terms, e.g. `OIO#hasRelatedSynonym`
 }
-

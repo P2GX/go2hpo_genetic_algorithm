@@ -1,14 +1,15 @@
 use go2hpo_genetic_algorithm::{
     annotations::{GeneAnnotations, GeneSetAnnotations},
     genetic_algorithm::{
-        ConjunctionMutation, ConjunctionScorer, ElitesByNumberSelector, FormulaEvaluator,
-        GeneticAlgorithm, Mutation, ScoreMetric, Selection, TournamentSelection, ConjunctionCrossover
+        ConjunctionCrossover, ConjunctionMutation, ConjunctionScorer, ElitesByNumberSelector,
+        FormulaEvaluator, GeneticAlgorithm, Mutation, ScoreMetric, Selection, TournamentSelection,
     },
     logical_formula::{
-        Conjunction, GenePickerConjunctionGenerator,
-        NaiveSatisfactionChecker, SatisfactionChecker,
+        Conjunction, GenePickerConjunctionGenerator, NaiveSatisfactionChecker, SatisfactionChecker,
     },
-    utils::fixtures::gene_set_annotations::{gene_set_annotations, gtex_summary, go_ontology, phenotype2genes},
+    utils::fixtures::gene_set_annotations::{
+        gene_set_annotations, go_ontology, gtex_summary, phenotype2genes,
+    },
     Solution,
 };
 use gtex_analyzer::expression_analysis::GtexSummary;
@@ -88,7 +89,10 @@ fn main() {
         );
 
         let hpo_gene_count = get_hpo_gene_count(&hpo2genes, &hpo_term);
-        println!("Phenotype {} has {} genes annotated", hpo_term, hpo_gene_count);
+        println!(
+            "Phenotype {} has {} genes annotated",
+            hpo_term, hpo_gene_count
+        );
 
         // --- RNGs ---
         let mut rng_main = SmallRng::seed_from_u64(42);
@@ -109,14 +113,22 @@ fn main() {
         );
 
         // --- Evaluator ---
-        let checker = Arc::new(NaiveSatisfactionChecker::new(&go_ontology, &gene_set_annotations));
+        let checker = Arc::new(NaiveSatisfactionChecker::new(
+            &go_ontology,
+            &gene_set_annotations,
+        ));
         let conj_scorer = ConjunctionScorer::new(Arc::clone(&checker), ScoreMetric::FScore(2.0)); // F2 = recall-oriented
         let evaluator = FormulaEvaluator::new(Box::new(conj_scorer));
 
         // --- Operators ---
         let selection = Box::new(TournamentSelection::new(2, &mut rng_selection));
         let crossover = Box::new(ConjunctionCrossover::new(&mut rng_crossover));
-        let mutation = Box::new(ConjunctionMutation::new(&go_ontology, &gtex, 6,&mut rng_conj_mut));
+        let mutation = Box::new(ConjunctionMutation::new(
+            &go_ontology,
+            &gtex,
+            6,
+            &mut rng_conj_mut,
+        ));
 
         // Elites
         let numb_elites = (pop_size as f64 * 0.1).ceil() as usize;
@@ -140,7 +152,20 @@ fn main() {
         // --- Run GA ---
         let stats_history = ga.fit_with_stats_history();
 
-        for (gen, (min, avg_score, max, _min_len, _avg_len, _max_len, best_one_precision, best_one_recall)) in stats_history.iter().enumerate() {
+        for (
+            gen,
+            (
+                min,
+                avg_score,
+                max,
+                _min_len,
+                _avg_len,
+                _max_len,
+                best_one_precision,
+                best_one_recall,
+            ),
+        ) in stats_history.iter().enumerate()
+        {
             println!(
                 "Gen {}: min = {:.4}, avg = {:.4}, max = {:.4}, best_one_precision = {:.4}, best_one_recall = {:.4}",
                 gen, min, avg_score, max, best_one_precision, best_one_recall

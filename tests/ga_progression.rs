@@ -1,38 +1,40 @@
 use go2hpo_genetic_algorithm::annotations::GeneSetAnnotations;
 use ontolius::ontology::OntologyTerms;
 use ontolius::TermId;
-use rand::{rng, Rng};
 use rand::rngs::ThreadRng;
+use rand::{rng, Rng};
 
 use rstest::rstest;
 
-use go2hpo_genetic_algorithm::genetic_algorithm::{ConjunctionMutation, ConjunctionScorer, DNFScorer, FormulaEvaluator, GeneticAlgorithm, Mutation, ScoreMetric, Selection, SimpleDNFBitmaskMutation, SimpleDNFVecMutation};
-use go2hpo_genetic_algorithm::genetic_algorithm::TournamentSelection;
 use go2hpo_genetic_algorithm::genetic_algorithm::Crossover;
-use go2hpo_genetic_algorithm::genetic_algorithm::{DNFVecCrossover, ConjunctionCrossover};
-use go2hpo_genetic_algorithm::genetic_algorithm::ElitesSelector;
 use go2hpo_genetic_algorithm::genetic_algorithm::ElitesByNumberSelector;
+use go2hpo_genetic_algorithm::genetic_algorithm::ElitesSelector;
+use go2hpo_genetic_algorithm::genetic_algorithm::TournamentSelection;
+use go2hpo_genetic_algorithm::genetic_algorithm::{ConjunctionCrossover, DNFVecCrossover};
+use go2hpo_genetic_algorithm::genetic_algorithm::{
+    ConjunctionMutation, ConjunctionScorer, DNFScorer, FormulaEvaluator, GeneticAlgorithm,
+    Mutation, ScoreMetric, Selection, SimpleDNFBitmaskMutation, SimpleDNFVecMutation,
+};
 
 use go2hpo_genetic_algorithm::Solution;
 
 use go2hpo_genetic_algorithm::logical_formula::{
-    Conjunction, DNFBitmask, DNFVec, DgeState, NaiveSatisfactionChecker, RandomConjunctionGenerator, TermObservation, TissueExpression, DNF
+    Conjunction, DNFBitmask, DNFVec, DgeState, NaiveSatisfactionChecker,
+    RandomConjunctionGenerator, TermObservation, TissueExpression, DNF,
 };
 
-use rand::{rngs::SmallRng, SeedableRng};
 use gtex_analyzer::expression_analysis::GtexSummary;
 use ontolius::ontology::csr::MinimalCsrOntology;
-
+use rand::{rngs::SmallRng, SeedableRng};
 
 use go2hpo_genetic_algorithm::logical_formula::FormulaGenerator;
-use go2hpo_genetic_algorithm::logical_formula::{GenePickerConjunctionGenerator, RandomDNFVecGenerator};
-
-use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
-    go_ontology,
-    gtex_summary,
-    gene_set_annotations,
+use go2hpo_genetic_algorithm::logical_formula::{
+    GenePickerConjunctionGenerator, RandomDNFVecGenerator,
 };
 
+use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
+    gene_set_annotations, go_ontology, gtex_summary,
+};
 
 #[rstest]
 fn test_genetic_algorithm_sanity(
@@ -47,13 +49,12 @@ fn test_genetic_algorithm_sanity(
     let mut rng_main = SmallRng::seed_from_u64(7);
 
     // Separate RNG clones for each operator
-    let mut rng_conj_gen   = rng_main.clone();
-    let mut rng_dnf_gen    = rng_main.clone();
-    let mut rng_selection  = rng_main.clone();
-    let mut rng_crossover  = rng_main.clone();
-    let mut rng_conj_mutation   = rng_main.clone();
-    let mut rng_disj_mutation   = rng_main.clone();
-
+    let mut rng_conj_gen = rng_main.clone();
+    let mut rng_dnf_gen = rng_main.clone();
+    let mut rng_selection = rng_main.clone();
+    let mut rng_crossover = rng_main.clone();
+    let mut rng_conj_mutation = rng_main.clone();
+    let mut rng_disj_mutation = rng_main.clone();
 
     // Simple generator chain
     let mut conj_gen = GenePickerConjunctionGenerator::new(
@@ -65,7 +66,7 @@ fn test_genetic_algorithm_sanity(
         Some(2),
         Some(2),
     );
-    let  dnf_gen = RandomDNFVecGenerator::new(&mut conj_gen, 2, rng_dnf_gen);
+    let dnf_gen = RandomDNFVecGenerator::new(&mut conj_gen, 2, rng_dnf_gen);
 
     // Evaluator
     let checker = NaiveSatisfactionChecker::new(&go_ontology, &gene_set_annotations);
@@ -75,18 +76,18 @@ fn test_genetic_algorithm_sanity(
 
     // Operators (keep simple)
     let go_terms: Vec<_> = go_ontology.iter_term_ids().take(5).cloned().collect();
-    let tissue_terms: Vec<String> = gtex.metadata.get_tissue_names().into_iter().cloned().take(5).collect();
+    let tissue_terms: Vec<String> = gtex
+        .metadata
+        .get_tissue_names()
+        .into_iter()
+        .cloned()
+        .take(5)
+        .collect();
     let selection = Box::new(TournamentSelection::new(2, &mut rng_selection));
     let crossover = Box::new(DNFVecCrossover::new(&mut rng_crossover));
     let mutation = Box::new(SimpleDNFVecMutation::new(
         ConjunctionMutation::new(&go_ontology, &gtex, 8, &mut rng_conj_mutation),
-        RandomConjunctionGenerator::new(
-            1,
-            &go_terms,
-            1,
-            &tissue_terms,
-            rng_main.clone(),
-        ),
+        RandomConjunctionGenerator::new(1, &go_terms, 1, &tissue_terms, rng_main.clone()),
         4,
         &mut rng_disj_mutation,
     ));
@@ -102,10 +103,10 @@ fn test_genetic_algorithm_sanity(
         mutation,
         elites,
         Box::new(dnf_gen),
-        0.2,    // mutation rate
-        2, 
+        0.2, // mutation rate
+        2,
         rng_main,
-        "HP:0000001".parse().unwrap(),  
+        "HP:0000001".parse().unwrap(),
     );
 
     let best = ga.fit();
@@ -115,7 +116,6 @@ fn test_genetic_algorithm_sanity(
     assert_eq!(ga.get_population().len(), pop_size);
     assert!(best.get_score().is_finite());
 }
-
 
 #[rstest]
 fn test_genetic_algorithm_history(
@@ -130,12 +130,12 @@ fn test_genetic_algorithm_history(
     let mut rng_main = SmallRng::seed_from_u64(7);
 
     // Separate RNG clones for each operator
-    let mut rng_conj_gen   = rng_main.clone();
-    let mut rng_dnf_gen    = rng_main.clone();
-    let mut rng_selection  = rng_main.clone();
-    let mut rng_crossover  = rng_main.clone();
-    let mut rng_conj_mutation   = rng_main.clone();
-    let mut rng_disj_mutation   = rng_main.clone();
+    let mut rng_conj_gen = rng_main.clone();
+    let mut rng_dnf_gen = rng_main.clone();
+    let mut rng_selection = rng_main.clone();
+    let mut rng_crossover = rng_main.clone();
+    let mut rng_conj_mutation = rng_main.clone();
+    let mut rng_disj_mutation = rng_main.clone();
 
     // Simple generator chain
     let mut conj_gen = GenePickerConjunctionGenerator::new(
@@ -147,7 +147,7 @@ fn test_genetic_algorithm_history(
         Some(2),
         Some(2),
     );
-    let  dnf_gen = RandomDNFVecGenerator::new(&mut conj_gen, 2, rng_dnf_gen);
+    let dnf_gen = RandomDNFVecGenerator::new(&mut conj_gen, 2, rng_dnf_gen);
 
     // Evaluator
     let checker = NaiveSatisfactionChecker::new(&go_ontology, &gene_set_annotations);
@@ -157,18 +157,18 @@ fn test_genetic_algorithm_history(
 
     // Operators (keep simple)
     let go_terms: Vec<_> = go_ontology.iter_term_ids().take(5).cloned().collect();
-    let tissue_terms: Vec<String> = gtex.metadata.get_tissue_names().into_iter().cloned().take(5).collect();
+    let tissue_terms: Vec<String> = gtex
+        .metadata
+        .get_tissue_names()
+        .into_iter()
+        .cloned()
+        .take(5)
+        .collect();
     let selection = Box::new(TournamentSelection::new(2, &mut rng_selection));
     let crossover = Box::new(DNFVecCrossover::new(&mut rng_crossover));
     let mutation = Box::new(SimpleDNFVecMutation::new(
         ConjunctionMutation::new(&go_ontology, &gtex, 8, &mut rng_conj_mutation),
-        RandomConjunctionGenerator::new(
-            1,
-            &go_terms,
-            1,
-            &tissue_terms,
-            rng_main.clone(),
-        ),
+        RandomConjunctionGenerator::new(1, &go_terms, 1, &tissue_terms, rng_main.clone()),
         4,
         &mut rng_disj_mutation,
     ));
@@ -184,10 +184,10 @@ fn test_genetic_algorithm_history(
         mutation,
         elites,
         Box::new(dnf_gen),
-        0.2,    // mutation rate
-        10, 
+        0.2, // mutation rate
+        10,
         rng_main,
-        "HP:0000001".parse().unwrap(),  // dummy phenotype
+        "HP:0000001".parse().unwrap(), // dummy phenotype
     );
 
     let history = ga.fit_with_history();
@@ -201,9 +201,6 @@ fn test_genetic_algorithm_history(
     // Assertions: population size stays the same, score is finite
     assert_eq!(ga.get_population().len(), pop_size);
 }
-
-
-
 
 #[rstest]
 fn test_genetic_algorithm_stats_history(
@@ -220,12 +217,12 @@ fn test_genetic_algorithm_stats_history(
 
     // RNGs
     let mut rng_main = SmallRng::seed_from_u64(7);
-    let mut rng_conj_gen   = rng_main.clone();
-    let mut rng_dnf_gen    = rng_main.clone();
-    let mut rng_selection  = rng_main.clone();
-    let mut rng_crossover  = rng_main.clone();
-    let mut rng_conj_mutation   = rng_main.clone();
-    let mut rng_disj_mutation   = rng_main.clone();
+    let mut rng_conj_gen = rng_main.clone();
+    let mut rng_dnf_gen = rng_main.clone();
+    let mut rng_selection = rng_main.clone();
+    let mut rng_crossover = rng_main.clone();
+    let mut rng_conj_mutation = rng_main.clone();
+    let mut rng_disj_mutation = rng_main.clone();
 
     // Simple generator chain
     let mut conj_gen = GenePickerConjunctionGenerator::new(
@@ -247,18 +244,18 @@ fn test_genetic_algorithm_stats_history(
 
     // Operators
     let go_terms: Vec<_> = go_ontology.iter_term_ids().take(5).cloned().collect();
-    let tissue_terms: Vec<String> = gtex.metadata.get_tissue_names().into_iter().cloned().take(5).collect();
+    let tissue_terms: Vec<String> = gtex
+        .metadata
+        .get_tissue_names()
+        .into_iter()
+        .cloned()
+        .take(5)
+        .collect();
     let selection = Box::new(TournamentSelection::new(2, &mut rng_selection));
     let crossover = Box::new(DNFVecCrossover::new(&mut rng_crossover));
     let mutation = Box::new(SimpleDNFVecMutation::new(
         ConjunctionMutation::new(&go_ontology, &gtex, 8, &mut rng_conj_mutation),
-        RandomConjunctionGenerator::new(
-            1,
-            &go_terms,
-            1,
-            &tissue_terms,
-            rng_main.clone(),
-        ),
+        RandomConjunctionGenerator::new(1, &go_terms, 1, &tissue_terms, rng_main.clone()),
         4,
         &mut rng_disj_mutation,
     ));
@@ -274,8 +271,8 @@ fn test_genetic_algorithm_stats_history(
         mutation,
         elites,
         Box::new(dnf_gen),
-        0.2,    // mutation rate
-        5,     // generations
+        0.2, // mutation rate
+        5,   // generations
         rng_main,
         hpo_term, // pass it here
     );
@@ -283,12 +280,14 @@ fn test_genetic_algorithm_stats_history(
     let stats_history = ga.fit_with_stats_history();
 
     // Print stats for each generation
-    for (gen, (min, avg_score, max, min_len, avg_len, max_len, max_precision, max_recall)) in stats_history.iter().enumerate() {
-            println!(
+    for (gen, (min, avg_score, max, min_len, avg_len, max_len, max_precision, max_recall)) in
+        stats_history.iter().enumerate()
+    {
+        println!(
                 "Gen {}: min = {:.4}, avg = {:.4}, max = {:.4}, min_len = {}, avg_len = {:.4}, max_len = {}, max_precision = {}, max_recall = {}",
                 gen, min, avg_score, max, min_len, avg_len, max_len, max_precision, max_recall
             );
-        }
+    }
 
     // Print the best solution from the last generation
     let best_last = ga
@@ -301,20 +300,6 @@ fn test_genetic_algorithm_stats_history(
     // Assertions: population size stays the same at the end
     assert_eq!(ga.get_population().len(), pop_size);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // #[rstest]
 // fn test_genetic_algorithm_end_to_end(
@@ -389,20 +374,6 @@ fn test_genetic_algorithm_stats_history(
 //     assert!(best.get_score().is_finite());
 // }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // ==========================
 // 5) (Optional) GA stub
 // ==========================
@@ -410,7 +381,6 @@ fn test_genetic_algorithm_stats_history(
 // This is a minimal smoke test template. Uncomment and fill once you confirm
 // the exact `GeneticAlgorithm::new(...)` signature and the simplest Mutation
 // type you want to plug (e.g., a SimpleDNFVecMutation + a generator).
-
 
 // use go2hpo_genetic_algorithm::genetic_algorithm::GeneticAlgorithm;
 // use go2hpo_genetic_algorithm::SimpleDNFVecMutation;

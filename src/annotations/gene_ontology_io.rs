@@ -7,13 +7,13 @@ use std::io::{BufReader, BufWriter};
 use anyhow::{Error, Result};
 use bincode;
 use ontolius::term::AltTermIdAware;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
+use ontolius::io::{GraphEdge as OntGraphEdge, OntologyData, Relationship as OntRelationship};
 use ontolius::ontology::csr::MinimalCsrOntology;
-use ontolius::io::{OntologyData, GraphEdge as OntGraphEdge, Relationship as OntRelationship};
 use ontolius::term::simple::SimpleMinimalTerm;
+use ontolius::term::MinimalTerm;
 use ontolius::{Identified, TermId};
-use ontolius::term::{MinimalTerm};
 
 //
 // ---------- Newtype wrapper to bypass orphan rule ----------
@@ -66,12 +66,20 @@ pub struct SerGraphEdge<I> {
 
 impl<I: Clone> From<OntGraphEdge<I>> for SerGraphEdge<I> {
     fn from(e: OntGraphEdge<I>) -> Self {
-        Self { sub: e.sub, pred: e.pred.into(), obj: e.obj }
+        Self {
+            sub: e.sub,
+            pred: e.pred.into(),
+            obj: e.obj,
+        }
     }
 }
 impl<I: Clone> From<SerGraphEdge<I>> for OntGraphEdge<I> {
     fn from(e: SerGraphEdge<I>) -> Self {
-        Self { sub: e.sub, pred: e.pred.into(), obj: e.obj }
+        Self {
+            sub: e.sub,
+            pred: e.pred.into(),
+            obj: e.obj,
+        }
     }
 }
 
@@ -88,8 +96,8 @@ impl From<SimpleMinimalTerm> for SerSimpleMinimalTerm {
         SerSimpleMinimalTerm {
             term_id: term.identifier().to_string(), // via Identified
             alt_term_ids: term.iter_alt_term_ids().map(|id| id.to_string()).collect(),
-            name: term.name().to_string(),          // via MinimalTerm
-            is_obsolete: term.is_obsolete(),        // via MinimalTerm
+            name: term.name().to_string(),   // via MinimalTerm
+            is_obsolete: term.is_obsolete(), // via MinimalTerm
         }
     }
 }

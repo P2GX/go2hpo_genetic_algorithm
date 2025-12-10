@@ -1,3 +1,4 @@
+//! Crossover operators for conjunctions, DNF vectors, and bitmask representations.
 use bitvec::vec::BitVec;
 use rand::prelude::*;
 use std::panic;
@@ -18,21 +19,27 @@ use crate::logical_formula::{Conjunction, TermObservation, TissueExpression, Dge
 
 // CROSSOVER OPERATOR
 
+/// Generic crossover interface: combine two parents into one offspring.
 pub trait Crossover<T> {
+    /// Combine two parents into a single offspring (representation-specific).
     fn crossover(&mut self, parent1: &T, parent2: &T) -> T;
 }
 
 
+/// Crossover for a single conjunction: samples literals from each parent.
 pub struct ConjunctionCrossover<'a, R: Rng>{
+    /// Fraction of literals drawn from parent1 (remainder from parent2).
     parent1_fraction: f64, //0.5 for balanced fraction of the parents contribution on the offspring 
     rng: &'a mut R,
 }
 
 impl<'a, R: Rng> ConjunctionCrossover<'a, R>{
+    /// Balanced mix (50/50).
     pub fn new(rng:  &'a mut R) -> Self{
         Self {parent1_fraction: 0.5, rng} // rng: rand::rng()
     }
     
+    /// Bias the fraction taken from parent1 (0..1).
     pub fn new_with_parent_bias(parent1_fraction: f64, rng:  &'a mut R) -> Self{
         if parent1_fraction < 0.0 || parent1_fraction > 1.0{
             panic!("parent1_fraction should be a probability (from 0 to 1). The current value is {}", parent1_fraction);
@@ -42,11 +49,12 @@ impl<'a, R: Rng> ConjunctionCrossover<'a, R>{
 }
 
 impl<'a, R: Rng> ConjunctionCrossover<'a, R>{
+    /// Pick a subset from each parent field (GO terms or tissues) according to the bias.
     fn field_crossover<T>(&mut self, parent1_annots: &Vec<T>, parent2_annots: &Vec<T>) -> Vec<T>
     where 
     T: Clone{
 
-        let mut offspring_terms = Vec::new();
+        let mut offspring_terms = Vec::with_capacity(parent1_annots.len().saturating_add(parent2_annots.len()));
         
         let amount_parent1: usize = ((parent1_annots.len() as f64) * self.parent1_fraction).round() as usize;
         let amount_parent2: usize = ((parent2_annots.len() as f64) * (1.0 - self.parent1_fraction)).round() as usize;
@@ -64,6 +72,7 @@ impl<'a, R: Rng> ConjunctionCrossover<'a, R>{
 
 impl<'a, R: Rng>  Crossover<Conjunction> for ConjunctionCrossover<'a, R>{
 
+    /// Mixes GO/tissue literals from both parents according to parent1_fraction.
     fn crossover(&mut self, parent1: &Conjunction, parent2: &Conjunction) -> Conjunction {
         
         let new_term_observation = self.field_crossover(&parent1.term_observations, &parent2.term_observations);
@@ -75,8 +84,10 @@ impl<'a, R: Rng>  Crossover<Conjunction> for ConjunctionCrossover<'a, R>{
     }
 }
 
+/// Crossover for `DNFVec`: samples active conjunctions from both parents.
 pub struct DNFVecCrossover<'a, R: Rng>{
     //this a field that makes the choice between the parents unbalanced towards one of the two
+    /// Fraction of conjunctions taken from parent1 (remainder from parent2).
     parent1_fraction: f64, //0.5 for balanced feraction of the parents contribution on the offspring 
     rng: &'a mut R,
 }
@@ -86,6 +97,7 @@ impl<'a, R: Rng> DNFVecCrossover<'a, R>{
         Self{parent1_fraction: 0.5, rng}
     }
 
+    /// Bias the fraction of conjunctions taken from parent1.
     pub fn new_with_parent_bias(parent1_fraction: f64, rng: &'a mut R) -> Self{
         if parent1_fraction < 0.0 || parent1_fraction > 1.0{
             panic!("parent1_fraction should be a probability (from 0 to 1). The current value is {}", parent1_fraction);
@@ -95,6 +107,7 @@ impl<'a, R: Rng> DNFVecCrossover<'a, R>{
 }
 
 impl<'a, R: Rng> Crossover<DNFVec> for DNFVecCrossover<'a, R>{
+    /// Samples active conjunctions from each parent (per bias) and unions them.
     fn crossover(&mut self, parent1: &DNFVec, parent2: &DNFVec) -> DNFVec {
 
         let mut offspring_conjunctions: Vec<Conjunction> = Vec::new();
@@ -124,7 +137,9 @@ impl<'a, R: Rng> Crossover<DNFVec> for DNFVecCrossover<'a, R>{
 }
 
 
+/// Crossover for `DNFBitmask`: bitwise inheritance with a parent1 probability.
 pub struct DNFBitmaskCrossover<'a, R: Rng>{
+    /// Probability a bit is inherited from parent1; else parent2.
     parent1_prob: f64,
     rng: &'a mut R, 
 }
@@ -134,6 +149,7 @@ impl<'a, R: Rng> DNFBitmaskCrossover<'a, R>{
         Self{parent1_prob: 0.5, rng}
     }
 
+    /// Bias bitwise inheritance toward parent1 probability.
     pub fn new_with_parent_bias(parent1_prob: f64, rng: &'a mut R) -> Self{
         if parent1_prob < 0.0 || parent1_prob > 1.0{
             panic!("parent1_prob should be a probability (from 0 to 1). The current value is {}", parent1_prob);
@@ -144,6 +160,7 @@ impl<'a, R: Rng> DNFBitmaskCrossover<'a, R>{
 
 // I can do a map on the offspring in which for each bit I decide weather to take the parent 1 or 2 given the prob
 impl<'a, R: Rng> Crossover<DNFBitmask<'a>> for DNFBitmaskCrossover<'a, R>{
+    /// For each bit, pick parent1 vs parent2 according to parent1_prob.
     fn crossover(&mut self, parent1: &DNFBitmask<'a>, parent2: &DNFBitmask<'a>) -> DNFBitmask<'a> {
 
         if parent1.get_possible_conjunctions() != parent2.get_possible_conjunctions(){

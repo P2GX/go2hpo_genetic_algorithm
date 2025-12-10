@@ -1,3 +1,4 @@
+//! Selection strategies (tournament, roulette, rank) for choosing parents.
 use crate::genetic_algorithm::Solution;
 use crate::logical_formula::ConjunctionGenerator;
 use num::Num;
@@ -26,6 +27,7 @@ use crate::{
 //      RankSelection
 
 pub trait Selection<T> {
+    /// Pick one solution from a population according to the strategy.
     fn select(&mut self, population: &Vec<Solution<T>>) -> Solution<T>;
 }
 
@@ -38,6 +40,7 @@ impl<'a, R> TournamentSelection<'a, R>
 where
     R: Rng,
 {
+    /// Create a tournament selector with a given tournament size (>=1).
     pub fn new(tournament_size: usize, rng: &'a mut R) -> Self {
         if tournament_size < 1 {
             panic!(
@@ -57,6 +60,7 @@ where
     T: Clone,
     R: Rng,
 {
+    /// Sample `tournament_size` individuals and return the best by score.
     fn select(&mut self, population: & Vec<Solution<T>>) -> Solution<T>{
         let rand_index = self.rng.random_range(0..population.len());
         let mut best: &Solution<T> = population
@@ -91,6 +95,7 @@ where
     T: Clone,
     R: Rng,
 {
+    /// Fitness-proportional selection; rebuilds weights if population changed.
     fn select(&mut self, population: &Vec<Solution<T>>) -> Solution<T> 
     {
         if !self.is_population_same(population) {
@@ -106,10 +111,12 @@ impl<'a, T, R> RouletteWheelSelection<'a, T, R>
 where
     R: Rng,
 {
+    /// Build a roulette selector; `transform` can rescale scores (e.g., square).
     pub fn new(rng: &'a mut R, transform: Box<dyn Fn(f64) -> f64>) -> Self {
         Self { rng, transform, ref_population: None, scores: Vec::new(), tot: None}
     }
 
+    /// Identity-transform default.
     pub fn default(rng: &'a mut R) -> Self {
         let identity = Box::new(|x: f64| x);
         RouletteWheelSelection::new(rng, identity)
@@ -162,6 +169,7 @@ where
     T: Clone,
     R: Rng,
 {
+    /// Rank-based selection: higher ranks have higher draw probability.
     fn select<'b>(&mut self, population: &'b Vec<Solution<T>>) -> Solution<T> {
         if !self.is_population_same(population) {
             self.initialize(population);

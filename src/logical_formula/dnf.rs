@@ -1,18 +1,24 @@
+//! DNF representations: vector-backed and bitmask-backed forms.
 use crate::logical_formula::base::Formula;
 
 use super::conjunctions::{self, Conjunction};
 use std::fmt;
 use bitvec::prelude::*;
 
+/// Disjunctive normal form interface: a set of active conjunctions (OR of ANDs).
 pub trait DNF: Formula{
     type SelectionType;
 
+    /// Get active conjunctions that make up this DNF.
     fn get_active_conjunctions(&self) -> Vec<&Conjunction>;
 
+    /// Activate a conjunction (by value or index, depending on impl).
     fn activate_conjunction(&mut self, conjunction: Self::SelectionType) -> Result<(), String>;
 }
 
 
+/// DNF represented as an owned vector of conjunctions.
+/// Example display: `(GO:0008150 AND UP(Liver)) OR (NOT(GO:0003674) AND DOWN(Heart))`.
 #[derive(Clone, Debug)]
 pub struct DNFVec {
     conjunctions: Vec<Conjunction>,
@@ -27,6 +33,7 @@ impl PartialEq for DNFVec{
 impl DNF for DNFVec {
     type SelectionType = Conjunction; //the istance itself
 
+    /// Push a conjunction onto the active list.
     fn activate_conjunction(&mut self, conjunction: Self::SelectionType) -> Result<(), String> {
         self.conjunctions.push(conjunction);
         Ok(())
@@ -44,6 +51,7 @@ impl Formula for DNFVec{
 }
 
 impl DNFVec {
+    /// Empty DNF (no active conjunctions).
     pub fn new() -> Self {
         let conjs: Vec<Conjunction> = Vec::new();
         Self {
@@ -51,10 +59,12 @@ impl DNFVec {
         }
     }
 
+    /// Build from a vector of conjunctions (all considered active).
     pub fn from_conjunctions(conjunctions: Vec<Conjunction>) -> Self{
         Self { conjunctions }
     }
 
+    /// Mutable access to the underlying conjunction list.
     pub fn get_mut_active_conjunctions(&mut self) -> &mut Vec<Conjunction>{
         return &mut self.conjunctions;
     }
@@ -72,6 +82,7 @@ impl fmt::Display for DNFVec {
     }
 }
 
+/// DNF represented by a precomputed slice of conjunctions plus a bitmask of active ones.
 pub struct DNFBitmask<'a> {
     conjunctions: &'a [Conjunction], //Precomputed conjunctions
     conjunction_mask: BitVec,
@@ -86,6 +97,7 @@ impl PartialEq for DNFBitmask<'_>{
 impl<'a> DNF for DNFBitmask<'a> {
     type SelectionType = usize; //the index
 
+    /// Set the bit at `index` to activate a conjunction.
     fn activate_conjunction(&mut self, index: usize) -> Result<(), String> {
         if index < self.conjunction_mask.len() {
             self.conjunction_mask.set(index, true);
@@ -116,6 +128,7 @@ impl<'a> Formula for DNFBitmask<'a>{
 }
 
 impl<'a> DNFBitmask<'a> {
+    /// Create an empty (all false) bitmask over provided conjunctions.
     pub fn new(conjunctions: &'a [Conjunction]) -> Self {
         Self {
             conjunction_mask: bitvec![0; conjunctions.len()], // Initialize bitmask (all `false`)
@@ -123,14 +136,17 @@ impl<'a> DNFBitmask<'a> {
         }
     }
 
+    /// Create with a custom bitmask (must match conjunctions length).
     pub fn new_with_bitmask(conjunctions: &'a[Conjunction], conjunction_mask: BitVec) -> Self{
         Self { conjunctions, conjunction_mask }
     }
 
+    /// Access the full list of possible conjunctions (active + inactive).
     pub fn get_possible_conjunctions(&self) -> &'a [Conjunction]{
         return self.conjunctions;
     }
 
+    /// Access the raw bitmask of active conjunctions.
     pub fn get_conjunction_mask(&self) -> &BitVec{
         &self.conjunction_mask
     }
@@ -144,6 +160,7 @@ impl DNFBitmask<'_>{
         self.conjunctions.len()  // Total number of conjunctions (active + inactive)
     }
 
+    /// Flip activation state of a conjunction at `index`.
     pub fn toggle_conjunction(&mut self, index: usize) -> Result<(), String>{
         if index < self.conjunction_mask.len() {
             let current_value = self.conjunction_mask[index];

@@ -1,3 +1,4 @@
+//! Genetic algorithm driver: population state, operators, and run loops.
 use std::sync::Arc;
 
 use ontolius::TermId;
@@ -10,7 +11,9 @@ use crate::genetic_algorithm::ScoreMetric;
 use crate::logical_formula::{Formula, FormulaGenerator};
 
 
-//GeneticAlgorithm, GAEstimator
+/// GeneticAlgorithm orchestrates population evolution (selection, crossover, mutation,
+/// elitism) for formulas predicting a target phenotype.
+/// Holds the current population and all operators needed to produce new generations.
 pub struct GeneticAlgorithm<'a, T, R> {
     population: Vec<Solution<T>>,
     evaluator: FormulaEvaluator<'a, T, TermId>,
@@ -28,6 +31,8 @@ pub struct GeneticAlgorithm<'a, T, R> {
 
 impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R> {
 
+    /// Generate and evaluate an initial population of size `len`.
+    /// Uses the configured formula generator and evaluator; overwrites any existing population.
     pub fn initialize_population(&mut self, len: usize) -> Result<(), String> {
         self.population = (0..len)
                         .map(|_| self.formula_generator.generate())
@@ -139,6 +144,11 @@ impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R> {
 
 impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R>{
     /// Helper: evolve one generation and return the new population
+    /// Evolve one generation:
+    /// - copy elites
+    /// - select parents, crossover, optional mutation
+    /// - evaluate offspring
+    /// Returns the new population (caller replaces `self.population`).
     pub fn evolve_one_generation(&mut self) -> Vec<Solution<T>> {
         let mut evolved_population: Vec<Solution<T>> =
             Vec::with_capacity(self.population.len());
@@ -167,6 +177,8 @@ impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R>{
     }
 
     /// Original version: return only the best final solution
+    /// Run GA for the configured number of generations, return best solution
+    /// from the final population.
     pub fn fit(&mut self) -> Solution<T> {
         for _ in 0..self.generations {
             let evolved_population = self.evolve_one_generation();
@@ -186,6 +198,7 @@ impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R>{
     }
 
     /// New version: return all populations across generations
+    /// Run GA and return the population of each generation (history).
     pub fn fit_with_history(&mut self) -> Vec<Vec<Solution<T>>> {
         let mut history = Vec::with_capacity(self.generations);
 
@@ -209,6 +222,9 @@ impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R>{
 
 impl<'a, T: Clone + Formula, R: Rng> GeneticAlgorithm<'a, T, R> {
     /// New version: return statistics (min, avg, max score) for each generation
+    /// Run GA and return per-generation stats:
+    /// (min, avg, max score, min_len, avg_len, max_len, best_precision, best_recall).
+    /// Also prints generation number.
     pub fn fit_with_stats_history(&mut self) -> Vec<(f64, f64, f64, usize, f64, usize, f64, f64)> {
         let mut stats_history = Vec::with_capacity(self.generations);
 

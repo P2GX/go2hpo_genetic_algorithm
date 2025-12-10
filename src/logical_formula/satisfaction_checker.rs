@@ -1,3 +1,4 @@
+//! Satisfaction checking: evaluate whether genes satisfy conjunctions using GO hierarchy and tissues.
 use lazy_static::lazy_static;
 
 use std::{
@@ -14,8 +15,11 @@ use super::{Conjunction, TissueExpression};
 use std::sync::Arc;
 
 pub trait SatisfactionChecker {
+    /// Check if a single gene satisfies a conjunction.
     fn is_satisfied(&self, symbol: &GeneId, conjunction: &Conjunction) -> bool;
+    /// Compute satisfactions for all genes for a conjunction.
     fn all_satisfactions(&self, conjunction: &Conjunction) -> HashMap<String, bool>;
+    /// Access the underlying gene set.
     fn get_gene_set(&self) -> &GeneSetAnnotations;
 }
 

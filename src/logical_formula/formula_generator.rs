@@ -1,3 +1,4 @@
+//! Generators that produce Conjunction or DNF formulas from random sources or gene annotations.
 use crate::annotations::GeneSetAnnotations;
 
 use super::{Conjunction, DNFBitmask, DNFVec, TermObservation, TissueExpression, DNF};
@@ -11,6 +12,7 @@ use crate::annotations::GeneAnnotations;
 pub trait FormulaGenerator {
     type Output;
 
+    /// Produce a new formula instance.
     fn generate(&mut self) -> Self::Output;
 }
 
@@ -38,6 +40,7 @@ where
 {
     type Output = Conjunction;
 
+    /// Build a conjunction with random literals (GO/tissue), allowing repeats.
     fn generate(&mut self) -> Conjunction {
         let mut go_terms: Vec<TermObservation> = Vec::new();
         // Select go terms randomly
@@ -105,6 +108,7 @@ where
 {
     type Output = Conjunction;
 
+    /// Build a conjunction by shuffling pools and taking the first N terms/tissues.
     fn generate(&mut self) -> Conjunction {
 
         // Shuffle the annotation vectors
@@ -206,6 +210,8 @@ where
 {
     type Output = Conjunction;
 
+    /// Sample a gene (optionally phenotype-filtered) and subsample its annotations
+    /// into a conjunction using the provided probabilities and optional caps.
     fn generate(&mut self) -> Conjunction {
         // let annotations_map = self.gene_set.get_gene_annotations_map();
 
@@ -258,6 +264,7 @@ where
 {
     type Output = DNFBitmask<'a>;
 
+    /// Randomly activate conjunctions in a precomputed list via bitmask.
     fn generate(&mut self) -> Self::Output {
         let mut mask = BitVec::repeat(false, self.conjunction_list.len());
         for i in 0..mask.len() {
@@ -299,6 +306,7 @@ where
 {
     type Output = DNFVec;
     
+    /// Build a DNFVec with `num_conjunctions` generated conjunctions.
     fn generate(&mut self) -> Self::Output {
         let conjunctions: Vec<Conjunction> = (0..self.num_conjunctions).map(|_| self.conjunction_generator.generate()).collect();
         DNFVec::from_conjunctions(conjunctions)

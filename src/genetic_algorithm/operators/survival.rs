@@ -1,8 +1,11 @@
+//! Elite-preservation strategies for GA populations.
 use crate::genetic_algorithm::Solution;
 
-// SELECTION OF ELITE POPULATION (SURVIVAL OF BEST SOLUTIONS)
+/// SELECTION OF ELITE POPULATION (SURVIVAL OF BEST SOLUTIONS)
 
 pub trait ElitesSelector<T: Clone> {
+    /// Copy elite solutions from the previous population into `next_population`.
+    /// Returns the new length of `next_population`.
     fn pass_elites(
         &self,
         next_population: &mut Vec<Solution<T>>,
@@ -16,6 +19,7 @@ pub struct ElitesByNumberSelector {
 }
 
 impl ElitesByNumberSelector {
+    /// Keep the top `number_of_elites` solutions (requires population > elites).
     pub fn new(number_of_elites: usize) -> Self {
         if number_of_elites == 0 {
             panic!("Number of elites must be greater than 0");
@@ -26,6 +30,7 @@ impl ElitesByNumberSelector {
 
 
 impl<T: Clone> ElitesSelector<T> for ElitesByNumberSelector {
+    /// If `already_sorted` is false, sorts by descending score, then takes the top-N.
     fn pass_elites(
         &self,
         next_population: &mut Vec<Solution<T>>,
@@ -62,6 +67,7 @@ pub struct ElitesByThresholdSelector {
 }
 
 impl ElitesByThresholdSelector {
+    /// Keep all solutions with score >= cutoff; optionally cap at `maximum_number`.
     pub fn new(elite_cutoff: f64, maximum_number: Option<usize>) -> Self {
         Self {
             elite_cutoff,
@@ -71,6 +77,7 @@ impl ElitesByThresholdSelector {
 }
 
 impl<T: Clone> ElitesSelector<T> for ElitesByThresholdSelector {
+    /// Selects all with score ≥ cutoff; respects optional max cap.
     fn pass_elites(
         &self,
         next_population: &mut Vec<Solution<T>>,

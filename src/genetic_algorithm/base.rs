@@ -1,3 +1,4 @@
+//! Core GA types: Solution wrapper, fitness scoring, and evaluators.
 use std::collections::HashMap;
 use std::fmt;
 use hpo2gene_mapper::GenePhenotypeMapping;
@@ -87,6 +88,7 @@ T: Clone{
 // FITNESS SCORER
 
 pub trait FitnessScorer<T, P> {
+    /// Compute fitness for a formula against a phenotype (often an HPO TermId).
     fn fitness(&self, formula: &T, phenotype: &P) -> f64; //I pass the phenotype by argument, that very likely will always be a HPO TermId term. In this way sperimenting with different phenotypes can be easier
     fn custom_score_fitness(&self, formula: &T, phenotype: &TermId, custom_score_metric: &ScoreMetric) -> f64;
 }
@@ -134,6 +136,7 @@ impl<C: SatisfactionChecker, T: DNF> FitnessScorer<T, TermId> for DNFScorer<C> {
 
 impl<'a, C: SatisfactionChecker> DNFScorer<C> {
 
+    /// Compute fitness for a DNF with a chosen score metric and penalty lambda.
     fn _fitness<T: DNF>(&self, formula: &T, phenotype: &TermId, custom_score_metric: &ScoreMetric, penalty_lambda: f64) -> f64{
         let genes_satisfaction: HashMap<GeneId, bool> =
             match self.get_genes_satisfaction_for_dnf(formula) {

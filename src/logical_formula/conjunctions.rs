@@ -1,3 +1,4 @@
+//! Core literal types (GO term observations, tissue expressions) and Conjunction.
 use ontolius::TermId;
 use rand::{seq::SliceRandom, Rng};
 use std::{any::Any, collections::{HashMap, HashSet}};
@@ -18,13 +19,18 @@ pub trait TermAnnotation{}
 // }
 
 
+/// GO term literal used inside a conjunction. `is_excluded=true` means NOT(term).
 #[derive(Debug, Clone)]
 pub struct TermObservation {
+    /// GO term identifier.
     pub term_id: TermId,
+    /// Whether the term is negated in the conjunction.
     pub is_excluded: bool,
 }
 
 impl TermObservation {
+    /// Create a GO literal; `is_excluded=true` means NOT(term).
+    /// Inclusion matches direct term or its descendants (checked elsewhere).
     pub fn new(term_id: TermId, is_excluded: bool) -> Self {
         Self {
             term_id,
@@ -60,6 +66,7 @@ impl fmt::Display for TermObservation {
 //     }
 // }
 
+/// Differential gene-expression state (up/down/normal).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DgeState{
     Up,
@@ -68,6 +75,7 @@ pub enum DgeState{
 }
 
 impl DgeState{
+    /// Randomly draw any of Up/Down/Normal.
     pub fn get_random<R: Rng>(rng: &mut R) -> Self{
         // let mut rng = rand::rng();
         let rnd_state_i  = rng.random_range(0..3);
@@ -79,7 +87,7 @@ impl DgeState{
         }
     }
 
-    /// Returns only UP or DOWN, excluding NORMAL
+    /// Returns only UP or DOWN, excluding NORMAL.
     pub fn get_random_up_down_only<R: Rng>(rng: &mut R) -> Self{
         let rnd_state_i  = rng.random_range(0..2);
         match  rnd_state_i{
@@ -92,6 +100,7 @@ impl DgeState{
 
 pub type TissueId = String;
 
+/// Tissue expression literal paired with a DGE state.
 #[derive(Debug, Clone, Eq, Hash, Serialize, Deserialize)]
 pub struct TissueExpression{
     pub term_id: TissueId,
@@ -99,6 +108,8 @@ pub struct TissueExpression{
 }
 
 impl TissueExpression {
+
+    /// Create a tissue expression literal.
     pub fn new(term_id: TissueId, state: DgeState) -> Self{
         Self {term_id, state}
     }
@@ -150,9 +161,13 @@ impl fmt::Display for TissueExpression {
 // }
 
 
+/// A conjunction (logical AND) of GO term observations and tissue expressions.
+/// Example display: `(GO:0008150 AND NOT(GO:0003674) AND UP(Liver))`.
 #[derive(Debug, Clone)]
 pub struct Conjunction {
+    /// GO term literals (included or excluded).
     pub term_observations: Vec<TermObservation>,
+    /// Tissue expression literals (UP/DOWN/NORMAL).
     pub tissue_expressions: Vec<TissueExpression>,
 }
 
@@ -165,18 +180,22 @@ impl PartialEq for Conjunction{
 
 impl Conjunction{
     
+    /// Empty conjunction.
     pub fn new() -> Self{
         Self { term_observations: vec![], tissue_expressions: vec![] }
     }
     
+    /// Build from provided literal vectors.
     pub fn from(term_observations: Vec<TermObservation>, tissue_expressions: Vec<TissueExpression>) -> Self{
         Self { term_observations, tissue_expressions } 
     }
 
+    /// Iterate over fields without naming (term_observations then tissue_expressions).
     pub fn iter(&self) -> ConjunctionIterator{
         ConjunctionIterator::new(self)
     }
 
+    /// Iterate over fields with their names (used by generic traversal).
     pub fn named_iter(&self) -> ConjunctionNamedIterator{
         ConjunctionNamedIterator::new(self)
     }
@@ -209,6 +228,7 @@ pub struct ConjunctionNamedIterator<'a>{
 }
 
 impl<'a> ConjunctionNamedIterator<'a>{
+    /// Iterator that yields ("term_observations", Vec<TermObservation>) then ("tissue_expressions", Vec<TissueExpression>).
     pub fn new(conjunction: &'a Conjunction) -> Self{
         Self{state: 0, conjunction: conjunction}
     }
@@ -236,6 +256,7 @@ pub struct ConjunctionIterator<'a>{
 }
 
 impl<'a> ConjunctionIterator<'a>{
+    /// Iterator that yields the two fields as `&dyn Any`, in order.
     pub fn new(conjunction: &'a Conjunction) -> Self{
         Self{state: 0, conjunction: conjunction}
     }

@@ -43,6 +43,7 @@ pub struct ConjunctionMutation<'a, O, R: Rng> {
     max_n_terms: usize,
     rng: &'a mut R,
     filtered_go_terms: Option<&'a Vec<TermId>>, // Optional filtered GO term pool for random selection
+    go_terms_pool: Vec<TermId>, // Precomputed GO terms for O(1) sampling
 }
 
 impl<O, R> Mutation<Conjunction> for ConjunctionMutation<'_, O, R>
@@ -176,8 +177,8 @@ where
                 None
             }
         } else {
-            let rnd_index = self.rng.random_range(0..self.go.len());
-            self.go.iter_term_ids().nth(rnd_index).map(|t| t.clone())
+            let rnd_index = self.rng.random_range(0..self.go_terms_pool.len());
+            self.go_terms_pool.get(rnd_index).cloned()
         };
 
         if let Some(new_term) = new_term {
@@ -274,12 +275,14 @@ where
     ///
     /// New GO terms will be selected from all terms in the ontology.
     pub fn new(go: &'a O, gtex: &'a GtexSummary, max_n_terms: usize, rng: &'a mut R) -> Self {
+        let go_terms_pool = go.iter_term_ids().cloned().collect();
         Self {
             go,
             gtex,
             max_n_terms,
             rng,
             filtered_go_terms: None,
+            go_terms_pool,
         }
     }
 
@@ -294,12 +297,14 @@ where
         rng: &'a mut R,
         filtered_go_terms: &'a Vec<TermId>,
     ) -> Self {
+        let go_terms_pool = go.iter_term_ids().cloned().collect();
         Self {
             go,
             gtex,
             max_n_terms,
             rng,
             filtered_go_terms: Some(filtered_go_terms),
+            go_terms_pool,
         }
     }
 }

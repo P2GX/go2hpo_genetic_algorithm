@@ -521,6 +521,7 @@ dependencies = [
  "oboannotation",
  "ontolius",
  "rand",
+ "rayon",
  "rstest",
  "serde",
  "serde_json",

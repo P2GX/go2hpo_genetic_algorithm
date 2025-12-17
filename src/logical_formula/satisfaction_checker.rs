@@ -1,18 +1,14 @@
 //! Satisfaction checking: evaluate whether genes satisfy conjunctions using GO hierarchy and tissues.
-use lazy_static::lazy_static;
 
-use std::{
-    cell::OnceCell,
-    collections::{HashMap, HashSet},
-};
+use std::collections::HashMap;
+use std::sync::Arc;
 
-use ontolius::{ontology::HierarchyWalks, TermId};
+use ontolius::ontology::HierarchyWalks;
+use rayon::prelude::*;
 
 use crate::annotations::{GeneAnnotations, GeneId, GeneSetAnnotations};
 
-use super::{Conjunction, TissueExpression};
-
-use std::sync::Arc;
+use super::Conjunction;
 
 pub trait SatisfactionChecker {
     /// Check if a single gene satisfies a conjunction.
@@ -42,7 +38,7 @@ pub struct NaiveSatisfactionChecker<'a, O> {
     gene_set_annotations: &'a GeneSetAnnotations,
 }
 
-impl<'a, O: HierarchyWalks> SatisfactionChecker for NaiveSatisfactionChecker<'a, O>
+impl<'a, O: HierarchyWalks + Sync> SatisfactionChecker for NaiveSatisfactionChecker<'a, O>
 where
     O: HierarchyWalks,
 {
@@ -72,7 +68,7 @@ where
     fn all_satisfactions(&self, conjunction: &Conjunction) -> HashMap<String, bool> {
         self.gene_set_annotations
             .get_gene_annotations_map()
-            .iter()
+            .par_iter()
             .map(|(symbol, gene_annotations)| {
                 let satisfied = self.are_term_annotations_satisfied(gene_annotations, conjunction)
                     && self.are_tissue_expressions_satisfied(gene_annotations, conjunction);
@@ -84,7 +80,7 @@ where
 
 impl<'a, O> NaiveSatisfactionChecker<'a, O>
 where
-    O: HierarchyWalks,
+    O: HierarchyWalks + Sync,
 {
     pub fn new(go: &'a O, gene_set_annotations: &'a GeneSetAnnotations) -> Self {
         Self {
@@ -147,10 +143,11 @@ where
 #[cfg(test)]
 mod tests {
     use flate2::bufread::GzDecoder;
-    use ontolius::{io::OntologyLoaderBuilder, ontology::csr::MinimalCsrOntology};
+    use ontolius::{io::OntologyLoaderBuilder, ontology::csr::MinimalCsrOntology, TermId};
     use rstest::fixture;
     use rstest::rstest;
-    use std::{fs::File, hash::Hash, io::BufReader};
+    use std::collections::{HashMap, HashSet};
+    use std::{fs::File, io::BufReader};
 
     use crate::logical_formula::TermObservation;
 

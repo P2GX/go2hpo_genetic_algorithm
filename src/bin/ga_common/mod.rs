@@ -340,6 +340,7 @@ pub fn run_ga(
         config.hpo_term, pop_size_for_run, config.generations, config.mutation_rate,
         config.penalty_lambda, config.tournament_size, numb_elites
     );
+    println!("Rayon threads: {} (max: {})", rayon::current_num_threads(), rayon::max_num_threads());
 
     let elites = Box::new(ElitesByNumberSelector::new(numb_elites));
 

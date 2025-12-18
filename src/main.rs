@@ -54,6 +54,7 @@ fn main() {
         "Running GA for phenotype: {}, pop_size = {}, gens = {}, mutation_rate = {}",
         hpo_term, cli.pop_size, cli.gens, cli.mutation_rate
     );
+    println!("Rayon threads: {} (max: {})", rayon::current_num_threads(), rayon::max_num_threads());
 
     // --- Load data (same as before) ---
     let go_ontology: MinimalCsrOntology = go_ontology();

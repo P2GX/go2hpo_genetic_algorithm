@@ -13,8 +13,8 @@ Context: `ga_common::run_ga` builds a `GeneticAlgorithm`, whose `evolve_one_gene
 - Avoid nested Rayon: pick one layer. If fitness uses Rayon internally, keep population evaluation serial (or gate it behind a feature); if population evaluation goes parallel, keep `all_satisfactions` serial or move it to a non-Rayon bitset path.
 
 ## Recommended low-risk sequence
-1) Add Rayon dependency and guard logging with a verbosity flag (free win for sweeps). Precompute GO term pools into `Vec<TermId>` to replace `iter_term_ids().nth`.
-2) Parallelize satisfaction: in `NaiveSatisfactionChecker::all_satisfactions`, switch to `par_iter()` over `get_gene_annotations_map()` and collect into a `HashMap`. This keeps the public API stable and avoids RNG concerns. If/when needed, add a cached GO descendant map to cut repeated `iter_descendant_ids` calls.
+✅ 1) Add Rayon dependency and guard logging with a verbosity flag (free win for sweeps). Precompute GO term pools into `Vec<TermId>` to replace `iter_term_ids().nth`.
+✅ 2) Parallelize satisfaction: in `NaiveSatisfactionChecker::all_satisfactions`, switch to `par_iter()` over `get_gene_annotations_map()` and collect into a `HashMap`. This keeps the public API stable and avoids RNG concerns. If/when needed, add a cached GO descendant map to cut repeated `iter_descendant_ids` calls.
 3) Optional, after benchmarking step 2: evaluate offspring in parallel. Restructure `evolve_one_generation` into two phases—(a) build offspring formulas serially (RNG-safe); (b) score them with `par_iter_mut`, using a `&FormulaEvaluator` that is `Send + Sync`. Leave selection/mutation serial unless you introduce per-thread RNGs.
 4) Later, consider a dense satisfaction mask (e.g., `bitvec` or `Vec<u8>`) keyed by a `GeneId → usize` map to speed up DNF OR merges. Avoid `Vec<bool>` because of its bit-packed accessor costs; prefer `bitvec` or byte masks for predictable access.
 

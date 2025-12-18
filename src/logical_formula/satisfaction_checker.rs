@@ -63,7 +63,7 @@ where
         }
     }
 
-    /// Checks satisfaction for all genes wrt to a conjunction and returns a HashMap of gene symbols
+    /// Checks satisfaction for all genes with respect to a conjunction and returns a HashMap of gene symbols
     /// and boolean value indicating the satisfaction
     fn all_satisfactions(&self, conjunction: &Conjunction) -> HashMap<String, bool> {
         self.gene_set_annotations

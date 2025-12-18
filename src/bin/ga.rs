@@ -2,9 +2,8 @@ mod ga_common;
 
 use clap::Parser;
 use ga_common::{run_ga, GaConfig};
-use go2hpo_genetic_algorithm::annotations::GeneSetAnnotations;
 use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
-    gene_set_annotations, go_ontology, gtex_summary, phenotype2genes,
+    gene_set_annotations, gene_set_annotations_expanded, go_ontology, gtex_summary, phenotype2genes,
 };
 use gtex_analyzer::expression_analysis::GtexSummary;
 use ontolius::ontology::csr::MinimalCsrOntology;
@@ -66,6 +65,10 @@ struct Args {
     /// Import snapshot to seed the initial population
     #[arg(long)]
     import_bin: Option<String>,
+
+    /// Use pre-expanded GO annotations (direct + ancestors) for traversal-free checking
+    #[arg(long, default_value_t = false)]
+    use_expanded: bool,
 }
 
 fn main() {
@@ -84,7 +87,13 @@ fn main() {
     println!("Loading data...");
     let go_ontology: MinimalCsrOntology = go_ontology();
     let gtex: GtexSummary = gtex_summary().expect("GTEx summary should load correctly");
-    let gene_set_annotations: GeneSetAnnotations = gene_set_annotations();
+    let gene_set_annotations = if args.use_expanded {
+        println!("Using pre-expanded GO annotations (direct + ancestors).");
+        gene_set_annotations_expanded(&go_ontology)
+    } else {
+        println!("Using direct GO annotations (runtime traversal).");
+        gene_set_annotations()
+    };
     let hpo2genes = phenotype2genes();
     println!("Data loaded successfully.\n");
 
@@ -103,6 +112,7 @@ fn main() {
         rng_seed: args.rng_seed,
         export_bin: args.export_bin,
         import_bin: args.import_bin,
+        use_expanded: args.use_expanded,
     };
 
     // Run the GA

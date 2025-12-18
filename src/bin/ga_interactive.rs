@@ -1,9 +1,8 @@
 mod ga_common;
 
 use ga_common::{estimate_fscore_beta, run_ga, GaConfig};
-use go2hpo_genetic_algorithm::annotations::GeneSetAnnotations;
 use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
-    gene_set_annotations, go_ontology, gtex_summary, phenotype2genes,
+    gene_set_annotations, gene_set_annotations_expanded, go_ontology, gtex_summary, phenotype2genes,
 };
 use gtex_analyzer::expression_analysis::GtexSummary;
 use ontolius::ontology::csr::MinimalCsrOntology;
@@ -13,7 +12,22 @@ use std::io::{self, Write};
 fn main() {
     let go_ontology: MinimalCsrOntology = go_ontology();
     let gtex: GtexSummary = gtex_summary().expect("GTEx summary should load correctly");
-    let gene_set_annotations: GeneSetAnnotations = gene_set_annotations();
+    println!("Use pre-expanded GO annotations? [y/N]: ");
+    io::stdout().flush().unwrap();
+    let mut expanded_in = String::new();
+    io::stdin().read_line(&mut expanded_in).unwrap();
+    let use_expanded = matches!(
+        expanded_in.trim().to_lowercase().as_str(),
+        "y" | "yes" | "true" | "1"
+    );
+
+    let gene_set_annotations = if use_expanded {
+        println!("Using pre-expanded GO annotations (direct + ancestors).");
+        gene_set_annotations_expanded(&go_ontology)
+    } else {
+        println!("Using direct GO annotations (runtime traversal).");
+        gene_set_annotations()
+    };
     let hpo2genes = phenotype2genes();
 
     println!("Data loaded. You can now run the GA on multiple HPO terms.");
@@ -147,6 +161,7 @@ fn main() {
             rng_seed: 42,
             export_bin: None,
             import_bin: None,
+            use_expanded,
         };
 
         // Run the GA

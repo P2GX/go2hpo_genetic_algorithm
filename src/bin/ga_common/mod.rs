@@ -11,7 +11,8 @@ use go2hpo_genetic_algorithm::{
     },
     logical_formula::{
         DNFVec, GenePickerConjunctionGenerator, NaiveSatisfactionChecker,
-        RandomConjunctionGenerator, RandomDNFVecGenerator, SatisfactionChecker, DNF,
+        PreexpandedSatisfactionChecker, RandomConjunctionGenerator, RandomDNFVecGenerator,
+        SatisfactionChecker, DNF,
     },
     Solution,
 };
@@ -42,6 +43,7 @@ pub struct GaConfig {
     pub rng_seed: u64,
     pub export_bin: Option<String>,
     pub import_bin: Option<String>,
+    pub use_expanded: bool,
 }
 
 impl Default for GaConfig {
@@ -60,6 +62,7 @@ impl Default for GaConfig {
             rng_seed: 42,
             export_bin: None,
             import_bin: None,
+            use_expanded: false,
         }
     }
 }
@@ -227,10 +230,14 @@ pub fn run_ga(
     let dnf_gen = RandomDNFVecGenerator::new(&mut conj_gen, 2, rng_dnf_gen);
 
     // --- Evaluator ---
-    let checker = Arc::new(NaiveSatisfactionChecker::new(
-        go_ontology,
-        gene_set_annotations,
-    ));
+    let checker: Arc<dyn SatisfactionChecker> = if config.use_expanded {
+        Arc::new(PreexpandedSatisfactionChecker::new(gene_set_annotations))
+    } else {
+        Arc::new(NaiveSatisfactionChecker::new(
+            go_ontology,
+            gene_set_annotations,
+        ))
+    };
     let conj_scorer =
         ConjunctionScorer::new(Arc::clone(&checker), ScoreMetric::FScore(fscore_beta));
     let scorer = DNFScorer::new(conj_scorer, config.penalty_lambda);
@@ -340,7 +347,11 @@ pub fn run_ga(
         config.hpo_term, pop_size_for_run, config.generations, config.mutation_rate,
         config.penalty_lambda, config.tournament_size, numb_elites
     );
-    println!("Rayon threads: {} (max: {})", rayon::current_num_threads(), rayon::max_num_threads());
+    println!(
+        "Rayon threads: {} (max: {})",
+        rayon::current_num_threads(),
+        rayon::max_num_threads()
+    );
 
     let elites = Box::new(ElitesByNumberSelector::new(numb_elites));
 

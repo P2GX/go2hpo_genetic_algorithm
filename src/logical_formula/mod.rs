@@ -2,6 +2,7 @@ mod base;
 mod conjunctions;
 mod dnf;
 mod formula_generator;
+mod preexpanded_satisfaction_checker;
 mod satisfaction_checker;
 
 pub use base::Formula;
@@ -10,6 +11,7 @@ pub use conjunctions::{Conjunction, DgeState, TermObservation, TissueExpression,
 
 pub use dnf::{DNFBitmask, DNFVec, DNF};
 
+pub use preexpanded_satisfaction_checker::PreexpandedSatisfactionChecker;
 pub use satisfaction_checker::{NaiveSatisfactionChecker, SatisfactionChecker};
 
 pub use formula_generator::FormulaGenerator;

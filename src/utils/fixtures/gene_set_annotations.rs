@@ -1,6 +1,6 @@
 use crate::annotations::gene_ontology_io::{load_minimal_csr, save_ontology_data, RawOntologyData};
 use crate::{
-    annotations::{GeneId, GeneIdMapper, GeneSetAnnotations, GtexSummaryParser},
+    annotations::{GeneAnnotations, GeneId, GeneIdMapper, GeneSetAnnotations, GtexSummaryParser},
     logical_formula::TissueExpression,
 };
 use anyhow::bail;
@@ -8,7 +8,7 @@ use gtex_analyzer::expression_analysis::{GtexSummary, GtexSummaryLoader};
 use hpo2gene_mapper::{mapper::GenePhenotypeMemoryMapper, GenePhenotypeMapping};
 use ontolius::{
     io::{GraphEdge, OntologyData, OntologyLoaderBuilder},
-    ontology::{csr::MinimalCsrOntology, OntologyTerms},
+    ontology::{csr::MinimalCsrOntology, HierarchyWalks, OntologyTerms},
     term::simple::SimpleMinimalTerm,
     TermId,
 };
@@ -290,6 +290,63 @@ pub fn gene_set_annotations() -> GeneSetAnnotations {
     gs.save_bincode(cache_path)
         .expect("Failed to save GeneSetAnnotations to cache");
     gs
+}
+
+/// Expand each gene's GO annotations to include all ancestors and persist to its own cache.
+pub fn gene_set_annotations_expanded(go: &MinimalCsrOntology) -> GeneSetAnnotations {
+    let cache_path = Path::new("cache/gene_set_annotations_expanded.bincode");
+
+    if let Some(parent) = cache_path.parent() {
+        fs::create_dir_all(parent).expect("Failed to create cache directory");
+    }
+
+    if let Ok(gs) = GeneSetAnnotations::load_bincode(cache_path) {
+        println!("Expanded GeneSet loaded from cache.");
+        return gs;
+    }
+
+    let base = gene_set_annotations();
+    let expanded = expand_gene_set_annotations(&base, go);
+    expanded
+        .save_bincode(cache_path)
+        .expect("Failed to save expanded GeneSetAnnotations to cache");
+    expanded
+}
+
+/// Build a new `GeneSetAnnotations` where each gene's GO set is pre-expanded with ancestors.
+pub fn expand_gene_set_annotations(
+    base: &GeneSetAnnotations,
+    go: &MinimalCsrOntology,
+) -> GeneSetAnnotations {
+    use std::collections::HashSet;
+
+    // Precompute ancestors per term to avoid repeated traversals during expansion.
+    let mut ancestor_cache: HashMap<TermId, HashSet<TermId>> = HashMap::new();
+    for term in go.iter_term_ids() {
+        let ancestors: HashSet<TermId> = go.iter_ancestor_ids(term).cloned().collect();
+        ancestor_cache.insert(term.clone(), ancestors);
+    }
+
+    let mut expanded_map: HashMap<String, GeneAnnotations> = HashMap::new();
+    for (gene, ann) in base.get_gene_annotations_map() {
+        let mut expanded_terms = HashSet::new();
+        for term in ann.get_term_annotations() {
+            expanded_terms.insert(term.clone());
+            if let Some(anc) = ancestor_cache.get(term) {
+                expanded_terms.extend(anc.iter().cloned());
+            }
+        }
+
+        let expanded_ann = GeneAnnotations::new(
+            gene.clone(),
+            expanded_terms,
+            ann.get_tissue_expressions().clone(),
+            ann.get_phenotypes().clone(),
+        );
+        expanded_map.insert(gene.clone(), expanded_ann);
+    }
+
+    GeneSetAnnotations::new(expanded_map)
 }
 
 // #[rstest]

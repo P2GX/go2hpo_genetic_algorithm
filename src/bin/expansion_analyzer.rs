@@ -1,13 +1,12 @@
-use std::collections::{HashMap, HashSet};
 use ontolius::{
     ontology::{csr::MinimalCsrOntology, HierarchyWalks, OntologyTerms},
-    TermId
+    TermId,
 };
+use std::collections::{HashMap, HashSet};
 
 // Import the same utilities used by the main application
 use go2hpo_genetic_algorithm::{
-    annotations::GeneSetAnnotations,
-    logical_formula::TissueExpression,
+    annotations::GeneSetAnnotations, logical_formula::TissueExpression,
 };
 
 // Copy the data loading functions from the fixtures
@@ -55,17 +54,23 @@ fn load_go_annotations() -> Result<GoAnnotations> {
 }
 
 fn load_go_ontology() -> Result<MinimalCsrOntology> {
-    let go_path = "data/go/go.toy.json.gz";
+    // Use the filtered full GO ontology for realistic expansion stats.
+    let go_path = "data/go/go-basic.filtered.json.gz";
     let reader = flate2::bufread::GzDecoder::new(BufReader::new(
         File::open(go_path).expect("The GO ontology file should exist"),
     ));
 
-    let parser = ontolius::io::OntologyLoaderBuilder::new().obographs_parser().build();
+    let parser = ontolius::io::OntologyLoaderBuilder::new()
+        .obographs_parser()
+        .build();
     let go: MinimalCsrOntology = parser
         .load_from_read(reader)
         .expect("The ontology file should be OK");
 
-    println!("Loaded GO ontology with {} terms", go.iter_term_ids().count());
+    println!(
+        "Loaded GO ontology with {} terms",
+        go.iter_term_ids().count()
+    );
     Ok(go)
 }
 
@@ -116,17 +121,14 @@ struct ExpansionStats {
 
 fn analyze_expansion_impact(
     gene_set: &GeneSetAnnotations,
-    go_ontology: &MinimalCsrOntology
+    go_ontology: &MinimalCsrOntology,
 ) -> Result<ExpansionStats> {
     println!("\nBuilding ancestor cache...");
     // Precompute ancestor relationships for efficiency
     let mut ancestor_cache: HashMap<TermId, HashSet<TermId>> = HashMap::new();
 
     for term in go_ontology.iter_term_ids() {
-        let ancestors: HashSet<TermId> = go_ontology
-            .iter_ancestor_ids(term)
-            .cloned()
-            .collect();
+        let ancestors: HashSet<TermId> = go_ontology.iter_ancestor_ids(term).cloned().collect();
         ancestor_cache.insert(term.clone(), ancestors);
     }
 
@@ -196,8 +198,10 @@ fn estimate_memory_usage(stats: &ExpansionStats) -> (f64, f64) {
     let hashset_entry_overhead = 32; // conservative estimate
     let bytes_per_annotation = term_id_size + hashset_entry_overhead;
 
-    let original_memory_mb = (stats.original_total_annotations * bytes_per_annotation) as f64 / 1_000_000.0;
-    let expanded_memory_mb = (stats.expanded_total_annotations * bytes_per_annotation) as f64 / 1_000_000.0;
+    let original_memory_mb =
+        (stats.original_total_annotations * bytes_per_annotation) as f64 / 1_000_000.0;
+    let expanded_memory_mb =
+        (stats.expanded_total_annotations * bytes_per_annotation) as f64 / 1_000_000.0;
 
     (original_memory_mb, expanded_memory_mb)
 }
@@ -222,34 +226,65 @@ fn main() -> Result<()> {
     println!("Genes analyzed: {}", stats.gene_count);
     println!("Genes with GO annotations: {}", stats.genes_with_expansion);
     println!("");
-    println!("Original direct annotations: {}", stats.original_total_annotations);
-    println!("Expanded annotations (with ancestors): {}", stats.expanded_total_annotations);
+    println!(
+        "Original direct annotations: {}",
+        stats.original_total_annotations
+    );
+    println!(
+        "Expanded annotations (with ancestors): {}",
+        stats.expanded_total_annotations
+    );
     println!("Expansion factor: {:.2}x", stats.expansion_factor);
     println!("");
     println!("Per-gene statistics:");
-    println!("  Max expansion: {} annotations", stats.max_expansion_per_gene);
-    println!("  Avg expansion: {:.1} annotations", stats.avg_expansion_per_gene);
+    println!(
+        "  Max expansion: {} annotations",
+        stats.max_expansion_per_gene
+    );
+    println!(
+        "  Avg expansion: {:.1} annotations",
+        stats.avg_expansion_per_gene
+    );
     println!("");
     println!("Memory estimates:");
     println!("  Original: {:.1} MB", original_mb);
     println!("  Expanded: {:.1} MB", expanded_mb);
-    println!("  Increase: {:.1} MB (+{:.1}x)", expanded_mb - original_mb, stats.expansion_factor);
+    println!(
+        "  Increase: {:.1} MB (+{:.1}x)",
+        expanded_mb - original_mb,
+        stats.expansion_factor
+    );
 
     // Analysis conclusion
     println!("\nCONCLUSION:");
     println!("===========");
     if stats.expansion_factor > 10.0 {
-        println!("❌ SEVERE EXPANSION: {:.1}x factor suggests pre-expansion is impractical", stats.expansion_factor);
+        println!(
+            "❌ SEVERE EXPANSION: {:.1}x factor suggests pre-expansion is impractical",
+            stats.expansion_factor
+        );
     } else if stats.expansion_factor > 5.0 {
-        println!("⚠️  MODERATE EXPANSION: {:.1}x factor - considerable memory increase", stats.expansion_factor);
+        println!(
+            "⚠️  MODERATE EXPANSION: {:.1}x factor - considerable memory increase",
+            stats.expansion_factor
+        );
     } else {
-        println!("✅ MILD EXPANSION: {:.1}x factor - pre-expansion could be viable", stats.expansion_factor);
+        println!(
+            "✅ MILD EXPANSION: {:.1}x factor - pre-expansion could be viable",
+            stats.expansion_factor
+        );
     }
 
     if expanded_mb > 100.0 {
-        println!("❌ Memory usage ({:.1} MB) exceeds reasonable limits", expanded_mb);
+        println!(
+            "❌ Memory usage ({:.1} MB) exceeds reasonable limits",
+            expanded_mb
+        );
     } else if expanded_mb > 50.0 {
-        println!("⚠️  Memory usage ({:.1} MB) is significant but manageable", expanded_mb);
+        println!(
+            "⚠️  Memory usage ({:.1} MB) is significant but manageable",
+            expanded_mb
+        );
     } else {
         println!("✅ Memory usage ({:.1} MB) is acceptable", expanded_mb);
     }

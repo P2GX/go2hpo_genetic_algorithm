@@ -1,23 +1,23 @@
 use clap::Parser;
 use go2hpo_genetic_algorithm::{
-    annotations::GeneSetAnnotations,
     genetic_algorithm::{
-        ConjunctionMutation, ConjunctionScorer, DNFScorer, DNFVecCrossover, ElitesByNumberSelector,
-        FormulaEvaluator, GeneticAlgorithm, Mutation, ScoreMetric, Selection, SimpleDNFVecMutation,
-        TournamentSelection,
+        ConjunctionMutation, ConjunctionScorer, DNFScorer, DNFVecCrossover,
+        ElitesByNumberSelector, FormulaEvaluator, GeneticAlgorithm, ScoreMetric,
+        SimpleDNFVecMutation, TournamentSelection,
     },
     logical_formula::{
-        Conjunction, GenePickerConjunctionGenerator, NaiveSatisfactionChecker,
+        GenePickerConjunctionGenerator, NaiveSatisfactionChecker, PreexpandedSatisfactionChecker,
         RandomConjunctionGenerator, RandomDNFVecGenerator,
     },
-    utils::fixtures::gene_set_annotations::{gene_set_annotations, go_ontology, gtex_summary},
-    Solution,
+    utils::fixtures::gene_set_annotations::{
+        gene_set_annotations, gene_set_annotations_expanded, go_ontology, gtex_summary,
+    },
 };
-use gtex_analyzer::expression_analysis::GtexSummary;
 use ontolius::ontology::csr::MinimalCsrOntology;
 use ontolius::ontology::OntologyTerms;
 use ontolius::TermId;
 use rand::{rngs::SmallRng, SeedableRng};
+use std::sync::Arc;
 
 /// Simple CLI for running the GO2HPO genetic algorithm
 
@@ -39,6 +39,10 @@ struct Cli {
     /// Mutation rate
     #[arg(short = 'm', long, default_value_t = 0.2)]
     mutation_rate: f64,
+
+    /// Use pre-expanded GO annotations (direct + ancestors) for traversal-free checking
+    #[arg(long, default_value_t = false)]
+    use_expanded: bool,
 }
 
 // Execution example:
@@ -54,12 +58,22 @@ fn main() {
         "Running GA for phenotype: {}, pop_size = {}, gens = {}, mutation_rate = {}",
         hpo_term, cli.pop_size, cli.gens, cli.mutation_rate
     );
-    println!("Rayon threads: {} (max: {})", rayon::current_num_threads(), rayon::max_num_threads());
+    println!(
+        "Rayon threads: {} (max: {})",
+        rayon::current_num_threads(),
+        rayon::max_num_threads()
+    );
 
     // --- Load data (same as before) ---
     let go_ontology: MinimalCsrOntology = go_ontology();
     let gtex = gtex_summary().expect("Tissue expression features should load correctly");
-    let gene_set_annotations = gene_set_annotations();
+    let gene_set_annotations = if cli.use_expanded {
+        println!("Using pre-expanded GO annotations (direct + ancestors).");
+        gene_set_annotations_expanded(&go_ontology)
+    } else {
+        println!("Using direct GO annotations (runtime traversal).");
+        gene_set_annotations()
+    };
 
     // --- RNGs ---
     let mut rng_main = SmallRng::seed_from_u64(42);
@@ -83,7 +97,15 @@ fn main() {
     let dnf_gen = RandomDNFVecGenerator::new(&mut conj_gen, 2, rng_dnf_gen);
 
     // --- Evaluator ---
-    let checker = NaiveSatisfactionChecker::new(&go_ontology, &gene_set_annotations);
+    let checker: Arc<dyn go2hpo_genetic_algorithm::logical_formula::SatisfactionChecker> =
+        if cli.use_expanded {
+            Arc::new(PreexpandedSatisfactionChecker::new(&gene_set_annotations))
+        } else {
+            Arc::new(NaiveSatisfactionChecker::new(
+                &go_ontology,
+                &gene_set_annotations,
+            ))
+        };
     let conj_scorer = ConjunctionScorer::new(checker, ScoreMetric::FScore(1.0));
     let scorer = DNFScorer::new(conj_scorer, 0.03);
     let evaluator = FormulaEvaluator::new(Box::new(scorer));

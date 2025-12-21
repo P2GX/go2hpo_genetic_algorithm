@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     genetic_algorithm::{FormulaEvaluator, Solution},
-    logical_formula::{Conjunction, DNF, DNFVec, TermObservation, TissueExpression},
+    logical_formula::{Conjunction, DNFVec, TermObservation, TissueExpression, DNF},
 };
 use ontolius::{
     ontology::{csr::MinimalCsrOntology, OntologyTerms},

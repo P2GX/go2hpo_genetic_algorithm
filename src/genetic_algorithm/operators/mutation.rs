@@ -43,7 +43,7 @@ pub struct ConjunctionMutation<'a, O, R: Rng> {
     max_n_terms: usize,
     rng: &'a mut R,
     filtered_go_terms: Option<&'a Vec<TermId>>, // Optional filtered GO term pool for random selection
-    go_terms_pool: Vec<TermId>, // Precomputed GO terms for O(1) sampling
+    go_terms_pool: Vec<TermId>,                 // Precomputed GO terms for O(1) sampling
 }
 
 impl<O, R> Mutation<Conjunction> for ConjunctionMutation<'_, O, R>
@@ -417,6 +417,12 @@ where
     /// This modifies the internal structure of the selected conjunction (e.g., adding/removing
     /// GO terms, toggling term status, modifying tissue expressions).
     pub fn mutate_conjunction(&mut self, formula: &mut DNFVec) {
+        // If there are no active conjunctions, fall back to adding one to avoid panicking.
+        if formula.len() == 0 {
+            self.add_random_conjunction(formula);
+            return;
+        }
+
         let mut conjunctions = formula.get_mut_active_conjunctions();
         let rnd_index = self.rng.random_range(0..conjunctions.len());
         let mut conjunction = conjunctions

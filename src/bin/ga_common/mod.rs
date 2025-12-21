@@ -449,12 +449,12 @@ pub fn run_ga(
     if let Some(ref file_name) = config.output_file {
         if !file_name.is_empty() {
             // Ensure the "stats" folder exists
-            if let Err(e) = std::fs::create_dir_all("stats") {
+            if let Err(e) = std::fs::create_dir_all("stats/results") {
                 eprintln!("⚠ Failed to create 'stats' directory: {}", e);
             }
 
             // Build full path inside the folder
-            let csv_path = format!("stats/{}.csv", file_name);
+            let csv_path = format!("stats/results/{}.csv", file_name);
 
             // Get the formula string representation
             let best_formula_str = format!("{}", best_last.get_formula());
@@ -494,6 +494,39 @@ pub fn run_ga(
         "Total genes annotated to {} = {}",
         config.hpo_term,
         hpo_annot_genes.len()
+    );
+
+    let best_dnf_conjs = best_last.get_formula().get_active_conjunctions();
+    let mut satisfied_hpo_genes = 0usize;
+    let mut satisfied_non_hpo_genes = 0usize;
+
+    for (gene_id, gene_annotations) in checker
+        .get_gene_set()
+        .get_gene_annotations_map()
+        .iter()
+    {
+        let satisfies_best_dnf = best_dnf_conjs
+            .iter()
+            .any(|conj| checker.is_satisfied(gene_id, conj));
+
+        if satisfies_best_dnf {
+            if gene_annotations.contains_phenotype(&config.hpo_term) {
+                satisfied_hpo_genes += 1;
+            } else {
+                satisfied_non_hpo_genes += 1;
+            }
+        }
+    }
+
+    println!(
+        "Best DNF satisfies {} / {} genes annotated to {}",
+        satisfied_hpo_genes, hpo_annot_genes.len(), config.hpo_term
+    );
+    println!(
+        "Best DNF satisfies {} genes not annotated to {} ({} total genes not annotated)",
+        satisfied_non_hpo_genes,
+        config.hpo_term,
+        total_gene_count.saturating_sub(hpo_gene_count as usize)
     );
 
     for conj in best_last.get_formula().get_active_conjunctions() {

@@ -3,7 +3,7 @@
 /cache/
 /flamegraph.svg
 /stats/*.csv
-/stats/results/
+/stats/runs/results/
 
 # plots and images
 /stats/plots/

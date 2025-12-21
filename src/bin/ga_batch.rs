@@ -1,9 +1,9 @@
 mod ga_common;
 
-use std::fs;
+use std::{fs, path::Path};
 
 use anyhow::anyhow;
-use ga_common::{run_ga, GaConfig};
+use ga_common::{run_ga, GaConfig, GaRunResult};
 use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
     gene_set_annotations_expanded, go_ontology, gtex_summary, phenotype2genes,
 };
@@ -29,6 +29,73 @@ struct BatchRun {
     output_file: Option<String>,
     #[serde(default = "default_rng_seed")]
     rng_seed: u64,
+}
+
+#[derive(Debug, Clone)]
+struct RunSummary {
+    label: String,
+    hpo_term: String,
+    min: f64,
+    avg: f64,
+    max: f64,
+    min_len: usize,
+    avg_len: f64,
+    max_len: usize,
+    best_one_precision: f64,
+    best_one_recall: f64,
+    total_hpo_genes: usize,
+    satisfied_hpo_genes: usize,
+    satisfied_non_hpo_genes: usize,
+}
+
+fn format_summary_table(summaries: &[RunSummary]) -> String {
+    if summaries.is_empty() {
+        return String::new();
+    }
+
+    let mut out = String::new();
+    out.push_str("\n=== Last-generation stats summary ===\n");
+    out.push_str(&format!(
+        "{:<12} {:<22} {:>8} {:>8} {:>8} {:>7} {:>7} {:>7} {:>10} {:>10} {:>10} {:>10} {:>12}\n",
+        "HPO term",
+        "Label",
+        "min",
+        "avg",
+        "max",
+        "min_len",
+        "avg_len",
+        "max_len",
+        "best_prec",
+        "best_rec",
+        "hpo_total",
+        "sat_hpo",
+        "sat_non_hpo"
+    ));
+    out.push_str(&"-".repeat(
+        12 + 1 + 22 + 1 + 8 * 3 + 1 + 7 * 3 + 1 + 10 * 2 + 1 + 10 + 1 + 10 + 1 + 12,
+    ));
+    out.push('\n');
+
+    for s in summaries {
+        out.push_str(&format!(
+            "{:<12} {:<22} {:>8.4} {:>8.4} {:>8.4} {:>7} {:>7.2} {:>7} {:>10.4} {:>10.4} {:>10} {:>10} {:>12}\n",
+            s.hpo_term,
+            s.label.chars().take(20).collect::<String>(),
+            s.min,
+            s.avg,
+            s.max,
+            s.min_len,
+            s.avg_len,
+            s.max_len,
+            s.best_one_precision,
+            s.best_one_recall,
+            s.total_hpo_genes,
+            s.satisfied_hpo_genes,
+            s.satisfied_non_hpo_genes
+        ));
+    }
+
+    out
 }
 
 fn default_rng_seed() -> u64 {
@@ -61,19 +128,54 @@ impl BatchRun {
     }
 }
 
+fn resolve_summary_path(raw: &str) -> String {
+    let path = Path::new(raw);
+    if path.is_relative() {
+        format!("stats/runs/summaries/{}", raw)
+    } else {
+        raw.to_string()
+    }
+}
+
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    let config_path = args
-        .get(1)
-        .map(|s| s.as_str())
-        .unwrap_or("src/bin/run_configs/hpo_runs.ljson");
+
+    let mut config_path: Option<String> = None;
+    let mut summary_path: Option<String> = None;
+
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "-s" | "--summary-file" => {
+                if i + 1 >= args.len() {
+                    anyhow::bail!("--summary-file requires a path argument");
+                }
+                summary_path = Some(resolve_summary_path(&args[i + 1]));
+                i += 2;
+            }
+            other if config_path.is_none() => {
+                config_path = Some(other.to_string());
+                i += 1;
+            }
+            other => {
+                anyhow::bail!(
+                    "Unrecognized argument '{}'. Usage: ga_batch [config_path] [--summary-file <path>]",
+                    other
+                );
+            }
+        }
+    }
+
+    let config_path = config_path.unwrap_or_else(|| "src/bin/run_configs/hpo_runs.ljson".to_string());
 
     println!("Reading run list from {}", config_path);
-    let config_text =
-        fs::read_to_string(config_path).map_err(|e| anyhow!("Failed to read {}: {}", config_path, e))?;
+    let config_path_for_err = config_path.clone();
+    let config_text = fs::read_to_string(&config_path)
+        .map_err(|e| anyhow!("Failed to read {}: {}", config_path_for_err, e))?;
 
+    let config_path_for_err = config_path.clone();
     let runs: Vec<BatchRun> = serde_json::from_str(&config_text)
-        .map_err(|e| anyhow!("Failed to parse run config {}: {}", config_path, e))?;
+        .map_err(|e| anyhow!("Failed to parse run config {}: {}", config_path_for_err, e))?;
 
     if runs.is_empty() {
         println!("No runs found in config. Exiting.");
@@ -87,20 +189,6 @@ fn main() -> anyhow::Result<()> {
     let hpo2genes = phenotype2genes();
 
     println!("Loaded {} runs.", runs.len());
-
-    #[derive(Debug)]
-    struct RunSummary {
-        label: String,
-        hpo_term: String,
-        min: f64,
-        avg: f64,
-        max: f64,
-        min_len: usize,
-        avg_len: f64,
-        max_len: usize,
-        best_one_precision: f64,
-        best_one_recall: f64,
-    }
 
     let mut summaries: Vec<RunSummary> = Vec::with_capacity(runs.len());
 
@@ -117,7 +205,7 @@ fn main() -> anyhow::Result<()> {
         let config = run.to_config()?;
 
         // Execute the GA; results are printed and optionally written per run.
-        let (stats_history, _best_solution) = run_ga(
+        let run_result: GaRunResult = run_ga(
             &config,
             &go_ontology,
             &gtex,
@@ -126,7 +214,7 @@ fn main() -> anyhow::Result<()> {
         );
 
         if let Some((min, avg, max, min_len, avg_len, max_len, best_one_precision, best_one_recall)) =
-            stats_history.last().copied()
+            run_result.stats_history.last().copied()
         {
             summaries.push(RunSummary {
                 label: label.to_string(),
@@ -139,6 +227,9 @@ fn main() -> anyhow::Result<()> {
                 max_len,
                 best_one_precision,
                 best_one_recall,
+                total_hpo_genes: run_result.total_hpo_genes,
+                satisfied_hpo_genes: run_result.satisfied_hpo_genes,
+                satisfied_non_hpo_genes: run_result.satisfied_non_hpo_genes,
             });
         } else {
             println!("Run {} had no stats history; skipping summary row.", label);
@@ -146,35 +237,19 @@ fn main() -> anyhow::Result<()> {
     }
 
     if !summaries.is_empty() {
-        println!("\n=== Last-generation stats summary ===");
-        println!(
-            "{:<12} {:<22} {:>8} {:>8} {:>8} {:>7} {:>7} {:>7} {:>10} {:>10}",
-            "HPO term",
-            "Label",
-            "min",
-            "avg",
-            "max",
-            "min_len",
-            "avg_len",
-            "max_len",
-            "best_prec",
-            "best_rec"
-        );
-        println!("{}", "-".repeat(12 + 1 + 22 + 1 + 8 * 3 + 1 + 7 * 3 + 1 + 10 * 2 + 8));
-        for s in summaries {
-            println!(
-                "{:<12} {:<22} {:>8.4} {:>8.4} {:>8.4} {:>7} {:>7.2} {:>7} {:>10.4} {:>10.4}",
-                s.hpo_term,
-                s.label.chars().take(20).collect::<String>(),
-                s.min,
-                s.avg,
-                s.max,
-                s.min_len,
-                s.avg_len,
-                s.max_len,
-                s.best_one_precision,
-                s.best_one_recall
-            );
+        let table = format_summary_table(&summaries);
+        print!("{}", table);
+
+        if let Some(path) = summary_path {
+            if let Some(parent) = Path::new(&path).parent() {
+                if let Err(e) = fs::create_dir_all(parent) {
+                    eprintln!("⚠ Failed to create summary directory {:?}: {}", parent, e);
+                }
+            }
+            match fs::write(&path, &table) {
+                Ok(_) => println!("Summary saved to {}", path),
+                Err(e) => eprintln!("⚠ Failed to write summary to {}: {}", path, e),
+            }
         }
     }
 

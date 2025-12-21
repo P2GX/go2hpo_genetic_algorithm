@@ -67,6 +67,16 @@ impl Default for GaConfig {
     }
 }
 
+/// Summary of a GA run, including final stats and satisfaction counts.
+#[derive(Debug, Clone)]
+pub struct GaRunResult {
+    pub stats_history: Vec<(f64, f64, f64, usize, f64, usize, f64, f64)>,
+    pub best_solution: Solution<DNFVec>,
+    pub total_hpo_genes: usize,
+    pub satisfied_hpo_genes: usize,
+    pub satisfied_non_hpo_genes: usize,
+}
+
 /// Estimates the optimal F-score beta value based on class imbalance.
 ///
 /// Approaches:
@@ -170,10 +180,7 @@ pub fn run_ga(
     gtex: &GtexSummary,
     gene_set_annotations: &GeneSetAnnotations,
     hpo2genes: &HashMap<TermId, HashSet<String>>,
-) -> (
-    Vec<(f64, f64, f64, usize, f64, usize, f64, f64)>,
-    Solution<DNFVec>,
-) {
+) -> GaRunResult {
     // Elite preservation: lower values (5%) promote more diversity and exploration
     // Higher values (10-20%) preserve best solutions but may cause premature convergence
     let elite_percentage = 0.05; // Recommended: 0.05 (5%) for better exploration
@@ -449,12 +456,12 @@ pub fn run_ga(
     if let Some(ref file_name) = config.output_file {
         if !file_name.is_empty() {
             // Ensure the "stats" folder exists
-            if let Err(e) = std::fs::create_dir_all("stats/results") {
+            if let Err(e) = std::fs::create_dir_all("stats/runs/results") {
                 eprintln!("⚠ Failed to create 'stats' directory: {}", e);
             }
 
             // Build full path inside the folder
-            let csv_path = format!("stats/results/{}.csv", file_name);
+            let csv_path = format!("stats/runs/results/{}.csv", file_name);
 
             // Get the formula string representation
             let best_formula_str = format!("{}", best_last.get_formula());
@@ -558,5 +565,11 @@ pub fn run_ga(
         println!("--------------------------------");
     }
 
-    (stats_history, best_last)
+    GaRunResult {
+        stats_history,
+        best_solution: best_last,
+        total_hpo_genes: hpo_annot_genes.len(),
+        satisfied_hpo_genes,
+        satisfied_non_hpo_genes,
+    }
 }

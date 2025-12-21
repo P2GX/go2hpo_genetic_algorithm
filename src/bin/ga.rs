@@ -116,7 +116,7 @@ fn main() {
     };
 
     // Run the GA
-    let (_stats_history, _best_solution) = run_ga(
+    let _result = run_ga(
         &config,
         &go_ontology,
         &gtex,

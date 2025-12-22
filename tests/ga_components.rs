@@ -305,7 +305,7 @@ fn test_conjunction_mutation_sequence(
         tissue_expressions: vec![TissueExpression::new("Liver".to_string(), DgeState::Up)],
     };
 
-    let mut mutation = ConjunctionMutation::new(&go_sample, &gtex, 8, &mut rng);
+    let mut mutation = ConjunctionMutation::new(&go_sample, &gtex, 8, &mut rng, true);
 
     // 1) toggle_term_status
     println!("BEFORE TOGGLE TERM STATUS: {}", conj);
@@ -380,7 +380,7 @@ fn test_conjunction_mutation_parent_child(
         tissue_expressions: vec![],
     };
 
-    let mut mutation = ConjunctionMutation::new(&go_sample, &gtex, 8, &mut rng);
+    let mut mutation = ConjunctionMutation::new(&go_sample, &gtex, 8, &mut rng, false);
 
     // CONJUNCTION 1
     println!("INITIAL CONJUNCTION: {}", conj);
@@ -475,10 +475,10 @@ fn test_simple_dnfvec_mutation(
         .take(5)
         .collect();
 
-    let conj_gen = RandomConjunctionGenerator::new(2, &go_terms, 2, &tissue_terms, rng.clone());
+    let conj_gen = RandomConjunctionGenerator::new(2, &go_terms, 2, &tissue_terms, rng.clone(), false);
 
     // Create the ConjunctionMutation and SimpleDNFVecMutation
-    let conj_mut = ConjunctionMutation::new(&go_sample, &gtex, 8, &mut rng);
+    let conj_mut = ConjunctionMutation::new(&go_sample, &gtex, 8, &mut rng, false);
     let mut dnf_mut = SimpleDNFVecMutation::new(conj_mut, conj_gen, 4, &mut rng2);
     // Initial DNFVec with 2 conjunctions
     let mut dnf = DNFVec::from_conjunctions(vec![
@@ -609,8 +609,8 @@ fn test_genetic_algorithm_sanity(
     let selection = Box::new(TournamentSelection::new(2, &mut rng_selection));
     let crossover = Box::new(DNFVecCrossover::new(&mut rng_crossover));
     let mutation = Box::new(SimpleDNFVecMutation::new(
-        ConjunctionMutation::new(&go_sample, &gtex, 8, &mut rng_conj_mutation),
-        RandomConjunctionGenerator::new(1, &go_terms, 1, &tissue_terms, rng_main.clone()),
+        ConjunctionMutation::new(&go_sample, &gtex, 8, &mut rng_conj_mutation, false),
+        RandomConjunctionGenerator::new(1, &go_terms, 1, &tissue_terms, rng_main.clone(), false),
         4,
         &mut rng_disj_mutation,
     ));
@@ -679,7 +679,7 @@ fn test_genetic_algorithm_sanity(
 //     let selection = Box::new(TournamentSelection::new(2, &mut rng2));
 //     let crossover = Box::new(DNFVecCrossover::new(&mut rng3));
 //     let mutation = Box::new(SimpleDNFVecMutation::new(
-//         ConjunctionMutation::new(&go_sample, &gtex, 8, &mut rng),
+//         ConjunctionMutation::new(&go_sample, &gtex, 8, &mut rng, false),
 //         RandomConjunctionGenerator::new(
 //             2,
 //             &terms_mutation_pool,

@@ -31,6 +31,7 @@ pub struct RedundantRandomConjunctionGenerator<'a, R> {
     n_tissue_terms: usize,
     tissue_terms: &'a Vec<String>,
     rng: R,
+    allow_negations: bool,
 }
 
 impl<'a, R> FormulaGenerator for RedundantRandomConjunctionGenerator<'a, R>
@@ -70,7 +71,7 @@ where
         //randomly pick a term
         let term_id = self.go_terms[self.rng.random_range(0..self.go_terms.len())].clone();
         //randomly choose whether true or false
-        let is_excluded: bool = self.rng.random();
+        let is_excluded: bool = self.allow_negations && self.rng.random();
         return TermObservation::new(term_id, is_excluded);
     }
 
@@ -89,6 +90,7 @@ where
         n_tissue_terms: usize,
         tissue_terms: &'a Vec<String>,
         rng: R,
+        allow_negations: bool,
     ) -> Self {
         Self {
             n_go_terms,
@@ -96,6 +98,7 @@ where
             n_tissue_terms,
             tissue_terms,
             rng,
+            allow_negations,
         }
     }
 }
@@ -107,6 +110,7 @@ pub struct RandomConjunctionGenerator<'a, R> {
     n_tissue_terms: usize,
     tissue_terms: &'a Vec<String>,
     rng: R,
+    allow_negations: bool,
 }
 
 impl<'a, R> FormulaGenerator for RandomConjunctionGenerator<'a, R>
@@ -128,7 +132,12 @@ where
         let chosen_go_terms: Vec<TermObservation> = shuffled_go_terms
             .iter()
             .take(self.n_go_terms)
-            .map(|term_id| TermObservation::new(term_id.clone(), self.rng.random()))
+            .map(|term_id| {
+                TermObservation::new(
+                    term_id.clone(),
+                    self.allow_negations && self.rng.random_bool(0.5),
+                )
+            })
             .collect();
 
         let chosen_tissues: Vec<TissueExpression> = shuffled_tissue_terms
@@ -161,6 +170,7 @@ where
         n_tissue_terms: usize,
         tissue_terms: &'a Vec<String>,
         rng: R,
+        allow_negations: bool,
     ) -> Self {
         Self {
             n_go_terms,
@@ -168,6 +178,7 @@ where
             n_tissue_terms,
             tissue_terms,
             rng,
+            allow_negations,
         }
     }
 }
@@ -377,6 +388,7 @@ mod tests {
             n_tissue_terms: 2,
             tissue_terms: &small_test_tissues,
             rng: rng(),
+            allow_negations: false,
         };
 
         let observation = generator.select_random_observation();
@@ -428,6 +440,7 @@ mod tests {
             n_tissue_terms: 2,
             tissue_terms: &small_test_tissues,
             rng: rng(),
+            allow_negations: false,
         };
         _test_generate_random_conjunction(&mut generator);
     }
@@ -440,6 +453,7 @@ mod tests {
             n_tissue_terms: 2,
             tissue_terms: &small_test_tissues,
             rng: rng(),
+            allow_negations: false,
         };
         _test_generate_random_conjunction(&mut generator);
     }

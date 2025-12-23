@@ -128,6 +128,7 @@ fn main() {
             &gtex,
             6,
             &mut rng_conj_mut,
+            true,
         ));
 
         // Elites

@@ -22,6 +22,7 @@ rstest = "0.25.0"
 clap = { version = "4.5", features = ["derive"] }
 csv = "1.4.0"
 rayon = "1.10"
+statrs = "0.16"
 
 
 # [dev-dependencies]

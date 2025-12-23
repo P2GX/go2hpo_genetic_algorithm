@@ -3,7 +3,12 @@ mod ga_common;
 use std::{fs, path::Path};
 
 use anyhow::anyhow;
-use ga_common::{run_ga, GaConfig, GaRunResult};
+use ga_common::{
+    run_ga, GaConfig, GaRunResult, DEFAULT_GO_ENRICHMENT_FILTER_ROOTS,
+    DEFAULT_GO_ENRICHMENT_INCLUDE_PARENTS, DEFAULT_GO_ENRICHMENT_MAX_BG_FREQ,
+    DEFAULT_GO_ENRICHMENT_MIN_FOLD, DEFAULT_GO_ENRICHMENT_MIN_SUPPORT,
+    DEFAULT_GO_ENRICHMENT_P_VALUE, DEFAULT_GO_ENRICHMENT_TOP_K,
+};
 use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
     gene_set_annotations_expanded, go_ontology, gtex_summary, phenotype2genes,
 };
@@ -29,6 +34,24 @@ struct BatchRun {
     output_file: Option<String>,
     #[serde(default = "default_rng_seed")]
     rng_seed: u64,
+    #[serde(default = "default_allow_go_negations")]
+    allow_go_negations: bool,
+    #[serde(default = "default_use_enriched_go_pool")]
+    use_enriched_go_pool: bool,
+    #[serde(default = "default_go_enrichment_top_k")]
+    go_enrichment_top_k: usize,
+    #[serde(default = "default_go_enrichment_p_value")]
+    go_enrichment_p_value: f64,
+    #[serde(default = "default_go_enrichment_min_support")]
+    go_enrichment_min_support: usize,
+    #[serde(default = "default_go_enrichment_include_parents")]
+    go_enrichment_include_parents: bool,
+    #[serde(default = "default_go_enrichment_min_fold")]
+    go_enrichment_min_fold: f64,
+    #[serde(default = "default_go_enrichment_max_bg_freq")]
+    go_enrichment_max_bg_freq: f64,
+    #[serde(default = "default_go_enrichment_filter_roots")]
+    go_enrichment_filter_roots: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -102,6 +125,42 @@ fn default_rng_seed() -> u64 {
     42
 }
 
+fn default_allow_go_negations() -> bool {
+    true
+}
+
+fn default_use_enriched_go_pool() -> bool {
+    false
+}
+
+fn default_go_enrichment_top_k() -> usize {
+    DEFAULT_GO_ENRICHMENT_TOP_K
+}
+
+fn default_go_enrichment_p_value() -> f64 {
+    DEFAULT_GO_ENRICHMENT_P_VALUE
+}
+
+fn default_go_enrichment_min_support() -> usize {
+    DEFAULT_GO_ENRICHMENT_MIN_SUPPORT
+}
+
+fn default_go_enrichment_include_parents() -> bool {
+    DEFAULT_GO_ENRICHMENT_INCLUDE_PARENTS
+}
+
+fn default_go_enrichment_min_fold() -> f64 {
+    DEFAULT_GO_ENRICHMENT_MIN_FOLD
+}
+
+fn default_go_enrichment_max_bg_freq() -> f64 {
+    DEFAULT_GO_ENRICHMENT_MAX_BG_FREQ
+}
+
+fn default_go_enrichment_filter_roots() -> bool {
+    DEFAULT_GO_ENRICHMENT_FILTER_ROOTS
+}
+
 impl BatchRun {
     fn to_config(&self) -> anyhow::Result<GaConfig> {
         let hpo_term: TermId = self
@@ -124,6 +183,15 @@ impl BatchRun {
             export_bin: None,
             import_bin: None,
             use_expanded: true, // Always run with expanded annotations for batch mode.
+            allow_go_negations: self.allow_go_negations,
+            use_enriched_go_pool: self.use_enriched_go_pool,
+            go_enrichment_top_k: self.go_enrichment_top_k,
+            go_enrichment_p_value: self.go_enrichment_p_value,
+            go_enrichment_min_support: self.go_enrichment_min_support,
+            go_enrichment_include_parents: self.go_enrichment_include_parents,
+            go_enrichment_min_fold: self.go_enrichment_min_fold,
+            go_enrichment_max_bg_freq: self.go_enrichment_max_bg_freq,
+            go_enrichment_filter_roots: self.go_enrichment_filter_roots,
         })
     }
 }

@@ -44,6 +44,7 @@ pub struct ConjunctionMutation<'a, O, R: Rng> {
     rng: &'a mut R,
     filtered_go_terms: Option<&'a Vec<TermId>>, // Optional filtered GO term pool for random selection
     go_terms_pool: Vec<TermId>,                 // Precomputed GO terms for O(1) sampling
+    allow_negations: bool,
 }
 
 impl<O, R> Mutation<Conjunction> for ConjunctionMutation<'_, O, R>
@@ -182,7 +183,10 @@ where
         };
 
         if let Some(new_term) = new_term {
-            let term_obs = TermObservation::new(new_term, self.rng.random_bool(0.5));
+            let term_obs = TermObservation::new(
+                new_term,
+                self.allow_negations && self.rng.random_bool(0.5),
+            );
             formula.term_observations.push(term_obs);
         }
     }
@@ -193,6 +197,9 @@ where
     /// effectively inverting its logical contribution to the formula.
     /// If the formula is empty, no change is made.
     pub fn toggle_term_status(&mut self, formula: &mut Conjunction) {
+        if !self.allow_negations {
+            return;
+        }
         if formula.term_observations.is_empty() {
             return;
         }
@@ -274,7 +281,13 @@ where
     /// Creates a new `ConjunctionMutation` operator.
     ///
     /// New GO terms will be selected from all terms in the ontology.
-    pub fn new(go: &'a O, gtex: &'a GtexSummary, max_n_terms: usize, rng: &'a mut R) -> Self {
+    pub fn new(
+        go: &'a O,
+        gtex: &'a GtexSummary,
+        max_n_terms: usize,
+        rng: &'a mut R,
+        allow_negations: bool,
+    ) -> Self {
         let go_terms_pool = go.iter_term_ids().cloned().collect();
         Self {
             go,
@@ -283,6 +296,7 @@ where
             rng,
             filtered_go_terms: None,
             go_terms_pool,
+            allow_negations,
         }
     }
 
@@ -296,6 +310,7 @@ where
         max_n_terms: usize,
         rng: &'a mut R,
         filtered_go_terms: &'a Vec<TermId>,
+        allow_negations: bool,
     ) -> Self {
         let go_terms_pool = go.iter_term_ids().cloned().collect();
         Self {
@@ -305,6 +320,7 @@ where
             rng,
             filtered_go_terms: Some(filtered_go_terms),
             go_terms_pool,
+            allow_negations,
         }
     }
 }
@@ -574,13 +590,8 @@ mod tests {
         seed: u64,
     ) -> Vec<Conjunction> {
         let mut uber_rng = SmallRng::seed_from_u64(seed);
-        let mut random_conjunction_generator = RandomConjunctionGenerator::new(
-            n_go_terms,
-            go_terms,
-            n_tissue_terms,
-            tissue_terms,
-            uber_rng,
-        );
+        let mut random_conjunction_generator =
+            RandomConjunctionGenerator::new(n_go_terms, go_terms, n_tissue_terms, tissue_terms, uber_rng, true);
         let small_conjunction_list: Vec<Conjunction> = (0..list_size)
             .map(|_| random_conjunction_generator.generate())
             .collect();
@@ -594,7 +605,8 @@ mod tests {
             let mut formula = Conjunction::new();
             formula.tissue_expressions = SMALL_TISS_EXPR_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
-            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, 8, &mut rng);
+            let mut conjunction_mutation =
+                ConjunctionMutation::new(&go, &GTEX, 8, &mut rng, true);
 
             let mut rng_twin = SmallRng::seed_from_u64(seed);
             let rnd_index = rng_twin.random_range(0..formula.tissue_expressions.len());
@@ -638,7 +650,8 @@ mod tests {
             let mut formula = Conjunction::new();
             formula.tissue_expressions = SMALL_TISS_EXPR_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
-            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, 6, &mut rng);
+            let mut conjunction_mutation =
+                ConjunctionMutation::new(&go, &GTEX, 6, &mut rng, true);
 
             conjunction_mutation.add_tissue_expression_term(&mut formula);
 
@@ -656,7 +669,8 @@ mod tests {
             let mut formula = Conjunction::new();
             formula.tissue_expressions = SMALL_TISS_EXPR_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
-            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, 10, &mut rng);
+            let mut conjunction_mutation =
+                ConjunctionMutation::new(&go, &GTEX, 10, &mut rng, true);
 
             conjunction_mutation.delete_tissue_expression_term(&mut formula);
 
@@ -674,7 +688,8 @@ mod tests {
             let mut formula = Conjunction::new();
             formula.term_observations = SMALL_TERM_OBS_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
-            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, 12, &mut rng);
+            let mut conjunction_mutation =
+                ConjunctionMutation::new(&go, &GTEX, 12, &mut rng, true);
 
             let mut rng_twin = SmallRng::seed_from_u64(seed);
             let rnd_index = rng_twin.random_range(0..formula.term_observations.len());
@@ -718,7 +733,8 @@ mod tests {
             let mut formula = Conjunction::new();
             formula.term_observations = SMALL_TERM_OBS_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
-            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, 8, &mut rng);
+            let mut conjunction_mutation =
+                ConjunctionMutation::new(&go, &GTEX, 8, &mut rng, true);
 
             conjunction_mutation.add_random_term(&mut formula);
 
@@ -736,7 +752,8 @@ mod tests {
             let mut formula = Conjunction::new();
             formula.term_observations = SMALL_TERM_OBS_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
-            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, 10, &mut rng);
+            let mut conjunction_mutation =
+                ConjunctionMutation::new(&go, &GTEX, 10, &mut rng, true);
 
             conjunction_mutation.delete_random_term(&mut formula);
 
@@ -754,7 +771,8 @@ mod tests {
             let mut formula = Conjunction::new();
             formula.term_observations = SMALL_TERM_OBS_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
-            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, 10, &mut rng);
+            let mut conjunction_mutation =
+                ConjunctionMutation::new(&go, &GTEX, 10, &mut rng, true);
 
             let mut rng_twin = SmallRng::seed_from_u64(seed);
             let rnd_index = rng_twin.random_range(0..formula.term_observations.len());
@@ -795,7 +813,8 @@ mod tests {
             let mut formula = Conjunction::new();
             formula.term_observations = SMALL_TERM_OBS_LIST.clone();
             let mut rng = SmallRng::seed_from_u64(seed);
-            let mut conjunction_mutation = ConjunctionMutation::new(&go, &GTEX, 10, &mut rng);
+            let mut conjunction_mutation =
+                ConjunctionMutation::new(&go, &GTEX, 10, &mut rng, true);
 
             let mut rng_twin = SmallRng::seed_from_u64(seed);
             let rnd_index = rng_twin.random_range(0..formula.term_observations.len());

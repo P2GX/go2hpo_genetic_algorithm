@@ -18,14 +18,24 @@ use go2hpo_genetic_algorithm::{
 };
 use gtex_analyzer::expression_analysis::GtexSummary;
 use ontolius::ontology::csr::MinimalCsrOntology;
-use ontolius::ontology::OntologyTerms;
+use ontolius::ontology::{HierarchyWalks, OntologyTerms};
 use ontolius::term::MinimalTerm;
 use ontolius::TermId;
 use rand::{rngs::SmallRng, SeedableRng};
+use statrs::distribution::{DiscreteCDF, Hypergeometric};
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Write;
 use std::sync::Arc;
+
+pub const DEFAULT_GO_ENRICHMENT_TOP_K: usize = 200;
+pub const DEFAULT_GO_ENRICHMENT_MIN_SUPPORT: usize = 2;
+pub const DEFAULT_GO_ENRICHMENT_P_VALUE: f64 = 0.05;
+pub const DEFAULT_GO_ENRICHMENT_INCLUDE_PARENTS: bool = true;
+pub const DEFAULT_GO_ENRICHMENT_MIN_FOLD: f64 = 1.2;
+pub const DEFAULT_GO_ENRICHMENT_MAX_BG_FREQ: f64 = 0.2;
+pub const DEFAULT_GO_ENRICHMENT_FILTER_ROOTS: bool = true;
 
 /// Configuration for running the Genetic Algorithm
 #[derive(Debug, Clone)]
@@ -44,6 +54,15 @@ pub struct GaConfig {
     pub export_bin: Option<String>,
     pub import_bin: Option<String>,
     pub use_expanded: bool,
+    pub allow_go_negations: bool,
+    pub use_enriched_go_pool: bool,
+    pub go_enrichment_top_k: usize,
+    pub go_enrichment_p_value: f64,
+    pub go_enrichment_min_support: usize,
+    pub go_enrichment_include_parents: bool,
+    pub go_enrichment_min_fold: f64,
+    pub go_enrichment_max_bg_freq: f64,
+    pub go_enrichment_filter_roots: bool,
 }
 
 impl Default for GaConfig {
@@ -63,6 +82,15 @@ impl Default for GaConfig {
             export_bin: None,
             import_bin: None,
             use_expanded: false,
+            allow_go_negations: true,
+            use_enriched_go_pool: false,
+            go_enrichment_top_k: DEFAULT_GO_ENRICHMENT_TOP_K,
+            go_enrichment_p_value: DEFAULT_GO_ENRICHMENT_P_VALUE,
+            go_enrichment_min_support: DEFAULT_GO_ENRICHMENT_MIN_SUPPORT,
+            go_enrichment_include_parents: DEFAULT_GO_ENRICHMENT_INCLUDE_PARENTS,
+            go_enrichment_min_fold: DEFAULT_GO_ENRICHMENT_MIN_FOLD,
+            go_enrichment_max_bg_freq: DEFAULT_GO_ENRICHMENT_MAX_BG_FREQ,
+            go_enrichment_filter_roots: DEFAULT_GO_ENRICHMENT_FILTER_ROOTS,
         }
     }
 }
@@ -106,6 +134,180 @@ pub fn estimate_fscore_beta(positive_count: usize, total_count: usize) -> (f64, 
     let recommended_beta = imbalance_ratio.sqrt().clamp(1.0, 3.0);
 
     (recommended_beta, "sqrt(imbalance_ratio)", imbalance_ratio)
+}
+
+#[derive(Debug, Clone)]
+struct GoTermEnrichment {
+    term: TermId,
+    p_value: f64,
+    fold_enrichment: f64,
+    pos_with_term: usize,
+    total_with_term: usize,
+}
+
+const GO_ROOT_TERMS: [&str; 5] = [
+    "GO:0008150", // biological_process
+    "GO:0009987", // cellular process (close to root)
+    "GO:0003674", // molecular_function
+    "GO:0005575", // cellular_component
+    "GO:0110165", // cellular anatomical entity
+];
+
+/// Compute a phenotype-specific, enriched GO term pool using a right-tailed
+/// hypergeometric test on positive genes vs. the rest of the gene universe.
+/// Returns the selected term list (optionally including parents) and the full
+/// sorted enrichment table for logging.
+fn compute_enriched_go_terms(
+    gene_set_annotations: &GeneSetAnnotations,
+    go_ontology: &MinimalCsrOntology,
+    hpo_term: &TermId,
+    top_k: usize,
+    p_value_cutoff: f64,
+    min_positive_support: usize,
+    include_parents: bool,
+    min_fold: f64,
+    max_bg_freq: f64,
+    filter_roots: bool,
+) -> (Vec<TermId>, Vec<GoTermEnrichment>) {
+    let gene_map = gene_set_annotations.get_gene_annotations_map();
+    let total_genes = gene_map.len();
+    if total_genes == 0 {
+        return (Vec::new(), Vec::new());
+    }
+
+    let mut pos_total = 0usize;
+    let mut total_counts: HashMap<TermId, usize> = HashMap::new();
+    let mut pos_counts: HashMap<TermId, usize> = HashMap::new();
+
+    for ann in gene_map.values() {
+        let is_pos = ann.contains_phenotype(hpo_term);
+        if is_pos {
+            pos_total += 1;
+        }
+
+        for term in ann.get_term_annotations() {
+            *total_counts.entry(term.clone()).or_default() += 1;
+            if is_pos {
+                *pos_counts.entry(term.clone()).or_default() += 1;
+            }
+        }
+    }
+
+    if pos_total == 0 {
+        // No positive genes for this phenotype in the current gene set.
+        return (Vec::new(), Vec::new());
+    }
+
+    let neg_total = total_genes.saturating_sub(pos_total);
+
+    let root_set: HashSet<TermId> = if filter_roots {
+        GO_ROOT_TERMS
+            .iter()
+            .filter_map(|id| id.parse::<TermId>().ok())
+            .collect()
+    } else {
+        HashSet::new()
+    };
+
+    let mut scores: Vec<GoTermEnrichment> = total_counts
+        .into_iter()
+        .filter_map(|(term, total_with_term)| {
+            if filter_roots && root_set.contains(&term) {
+                return None;
+            }
+
+            let bg_freq = total_with_term as f64 / total_genes as f64;
+            if max_bg_freq < 1.0 && bg_freq > max_bg_freq {
+                return None;
+            }
+
+            let pos_with_term = *pos_counts.get(&term).unwrap_or(&0);
+            if pos_with_term < min_positive_support {
+                return None;
+            }
+
+            let neg_with_term = total_with_term.saturating_sub(pos_with_term);
+            let pos_rate = pos_with_term as f64 / pos_total as f64;
+            let neg_rate = if neg_total == 0 {
+                0.0
+            } else {
+                neg_with_term as f64 / neg_total as f64
+            };
+            let fold_enrichment = if neg_rate == 0.0 {
+                f64::INFINITY
+            } else {
+                pos_rate / neg_rate
+            };
+
+            if min_fold > 1.0 {
+                let inv = 1.0 / min_fold;
+                if !(fold_enrichment >= min_fold || fold_enrichment <= inv) {
+                    return None;
+                }
+            }
+
+            // Right-tailed Fisher/hypergeometric: probability of observing at least
+            // this many positives with the term given its overall frequency.
+            let successes = total_with_term as u64;
+            let failures = (total_genes - total_with_term) as u64;
+            let draws = pos_total as u64;
+            let p_value = if successes == 0 || draws == 0 {
+                1.0
+            } else {
+                Hypergeometric::new(successes, failures, draws)
+                    .ok()
+                    .map(|hg| 1.0 - hg.cdf((pos_with_term as u64).saturating_sub(1)))
+                    .unwrap_or(1.0)
+            };
+
+            Some(GoTermEnrichment {
+                term,
+                p_value,
+                fold_enrichment,
+                pos_with_term,
+                total_with_term,
+            })
+        })
+        .collect();
+
+    scores.sort_by(|a, b| {
+        a.p_value
+            .partial_cmp(&b.p_value)
+            .unwrap_or(Ordering::Equal)
+            .then_with(|| {
+                b.fold_enrichment
+                    .partial_cmp(&a.fold_enrichment)
+                    .unwrap_or(Ordering::Equal)
+            })
+            .then_with(|| b.pos_with_term.cmp(&a.pos_with_term))
+    });
+
+    let mut selected: Vec<TermId> = scores
+        .iter()
+        .filter(|s| s.p_value <= p_value_cutoff)
+        .take(top_k)
+        .map(|s| s.term.clone())
+        .collect();
+
+    if selected.is_empty() {
+        selected = scores
+            .iter()
+            .take(top_k)
+            .map(|s| s.term.clone())
+            .collect();
+    }
+
+    if include_parents && !selected.is_empty() {
+        let mut with_parents: HashSet<TermId> = selected.iter().cloned().collect();
+        for term in selected.iter() {
+            for parent in go_ontology.iter_parent_ids(term) {
+                with_parents.insert(parent.clone());
+            }
+        }
+        selected = with_parents.into_iter().collect();
+    }
+
+    (selected, scores)
 }
 
 /// Gets the count of genes annotated with a specific HPO term
@@ -191,15 +393,83 @@ pub fn run_ga(
         config.hpo_term, hpo_gene_count
     );
 
-    // --- Get filtered GO terms for this HPO term ---
-    let filtered_go_terms_set =
-        gene_set_annotations.get_go_terms_for_hpo_phenotype(&config.hpo_term);
-    let filtered_go_terms: Vec<TermId> = filtered_go_terms_set.into_iter().collect();
+    // --- Build GO term pool for this HPO term ---
+    let union_go_terms: Vec<TermId> = gene_set_annotations
+        .get_go_terms_for_hpo_phenotype(&config.hpo_term)
+        .into_iter()
+        .collect();
     println!(
         "Found {} GO terms annotated to genes with phenotype {}",
-        filtered_go_terms.len(),
+        union_go_terms.len(),
         config.hpo_term
     );
+
+    let (filtered_go_terms, _enrichment_table): (Vec<TermId>, Vec<GoTermEnrichment>) =
+        if config.use_enriched_go_pool {
+            let (enriched_terms, table) = compute_enriched_go_terms(
+                gene_set_annotations,
+                go_ontology,    
+                &config.hpo_term,
+                config.go_enrichment_top_k,
+                config.go_enrichment_p_value,
+                config.go_enrichment_min_support,
+                config.go_enrichment_include_parents,
+                config.go_enrichment_min_fold,
+                config.go_enrichment_max_bg_freq,
+                config.go_enrichment_filter_roots,
+            );
+
+            if enriched_terms.is_empty() {
+                println!(
+                    "⚠ Enriched GO pool empty (top_k={}, min_support={}, p_value_cutoff={:.3}); falling back to union of positive genes ({} terms).",
+                    config.go_enrichment_top_k,
+                    config.go_enrichment_min_support,
+                    config.go_enrichment_p_value,
+                    union_go_terms.len()
+                );
+                (union_go_terms.clone(), table)
+            } else {
+                println!(
+                    "Using enriched GO pool: selected {} terms (top_k={}, min_support={}, p_value_cutoff={:.3}, min_fold={:.2}, max_bg_freq={:.2}, filter_roots={}, include_parents={})",
+                    enriched_terms.len(),
+                    config.go_enrichment_top_k,
+                    config.go_enrichment_min_support,
+                    config.go_enrichment_p_value,
+                    config.go_enrichment_min_fold,
+                    config.go_enrichment_max_bg_freq,
+                    config.go_enrichment_filter_roots,
+                    config.go_enrichment_include_parents
+                );
+                if !table.is_empty() {
+                    println!("Top enriched GO terms:");
+                    for entry in table.iter().take(5) {
+                        let name = go_ontology
+                            .term_by_id(&entry.term)
+                            .map(|t| t.name().to_string())
+                            .unwrap_or_else(|| "(name not found)".to_string());
+                        println!(
+                            "  {} ({}) | pos={} total={} | p={:.2e} | fold={:.2}",
+                            entry.term,
+                            name,
+                            entry.pos_with_term,
+                            entry.total_with_term,
+                            entry.p_value,
+                            entry.fold_enrichment
+                        );
+                    }
+                }
+                (enriched_terms, table)
+            }
+        } else {
+            (union_go_terms.clone(), Vec::new())
+        };
+
+    if filtered_go_terms.is_empty() {
+        println!(
+            "⚠ No GO terms annotated to genes with phenotype {}; using full GO ontology.",
+            config.hpo_term
+        );
+    }
 
     // --- Estimate optimal F-score beta based on class imbalance ---
     let total_gene_count = gene_set_annotations.get_gene_annotations_map().len();
@@ -216,9 +486,9 @@ pub fn run_ga(
     println!("Using F-score beta = {:.2}", fscore_beta);
 
     // --- RNGs ---
-    let mut rng_main = SmallRng::seed_from_u64(config.rng_seed);
+    let rng_main = SmallRng::seed_from_u64(config.rng_seed);
     let mut rng_conj_gen = rng_main.clone();
-    let mut rng_dnf_gen = rng_main.clone();
+    let rng_dnf_gen = rng_main.clone();
     let mut rng_selection = rng_main.clone();
     let mut rng_crossover = rng_main.clone();
     let mut rng_conj_mut = rng_main.clone();
@@ -334,11 +604,25 @@ pub fn run_ga(
                 config.max_n_terms,
                 &mut rng_conj_mut,
                 &filtered_go_terms,
+                config.allow_go_negations,
             )
         } else {
-            ConjunctionMutation::new(go_ontology, gtex, config.max_n_terms, &mut rng_conj_mut)
+            ConjunctionMutation::new(
+                go_ontology,
+                gtex,
+                config.max_n_terms,
+                &mut rng_conj_mut,
+                config.allow_go_negations,
+            )
         },
-        RandomConjunctionGenerator::new(1, &go_terms_pool, 1, &tissue_terms, rng_main.clone()),
+        RandomConjunctionGenerator::new(
+            1,
+            &go_terms_pool,
+            1,
+            &tissue_terms,
+            rng_main.clone(),
+            config.allow_go_negations,
+        ),
         config.max_n_conj,
         &mut rng_disj_mut,
     ));

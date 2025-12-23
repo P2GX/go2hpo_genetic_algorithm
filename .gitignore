@@ -4,6 +4,8 @@
 /flamegraph.svg
 /stats/*.csv
 /stats/runs/results/
+/stats/runs/summaries/
+src/bin/run_configs/*
 
 # plots and images
 /stats/plots/

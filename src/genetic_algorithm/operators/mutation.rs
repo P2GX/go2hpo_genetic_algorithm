@@ -47,6 +47,18 @@ pub struct ConjunctionMutation<'a, O, R: Rng> {
     allow_negations: bool,
 }
 
+#[derive(Copy, Clone)]
+enum ConjunctionOp {
+    Parent,
+    Child,
+    DeleteTerm,
+    AddTerm,
+    ToggleTerm,
+    DeleteTissue,
+    AddTissue,
+    ToggleTissue,
+}
+
 impl<O, R> Mutation<Conjunction> for ConjunctionMutation<'_, O, R>
 where
     O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
@@ -62,20 +74,28 @@ where
     /// 6: Add a random tissue expression term
     /// 7: Toggle the expression state of a tissue term (UP/DOWN)
     fn mutate(&mut self, formula: &mut Conjunction) {
-        let rnd_num = self.rng.random_range(0..=7);
-        match rnd_num {
-            0 => self.mutate_with_parent_term(formula),
-            1 => self.mutate_with_child_term(formula),
-            2 => self.delete_random_term(formula),
-            3 => self.add_random_term(formula),
-            4 => self.toggle_term_status(formula),
-            5 => self.delete_tissue_expression_term(formula),
-            6 => self.add_tissue_expression_term(formula),
-            7 => self.toggle_tissue_expression_state(formula),
-            _ => panic!(
-                "A random number outside of the range has been generated. No associated mutation"
-            ),
+        const MAX_ATTEMPTS: usize = 8;
+
+        for _ in 0..MAX_ATTEMPTS {
+            let candidate_ops = self.available_ops(formula);
+
+            if candidate_ops.is_empty() {
+                return; // nothing can mutate right now
+            }
+
+            let rnd_index = self.rng.random_range(0..candidate_ops.len());
+            let op = candidate_ops[rnd_index];
+
+            let before = formula.clone();
+            self.apply_op(op, formula);
+
+            if *formula != before {
+                return; // mutation succeeded
+            }
         }
+
+        // Last-resort deterministic attempt to avoid silent no-ops.
+        self.fallback_change(formula);
     }
 }
 
@@ -321,6 +341,102 @@ where
             filtered_go_terms: Some(filtered_go_terms),
             go_terms_pool,
             allow_negations,
+        }
+    }
+}
+
+impl<'a, O, R> ConjunctionMutation<'a, O, R>
+where
+    O: HierarchyWalks + OntologyTerms<SimpleMinimalTerm>,
+    R: Rng,
+{
+    fn apply_op(&mut self, op: ConjunctionOp, formula: &mut Conjunction) {
+        match op {
+            ConjunctionOp::Parent => self.mutate_with_parent_term(formula),
+            ConjunctionOp::Child => self.mutate_with_child_term(formula),
+            ConjunctionOp::DeleteTerm => self.delete_random_term(formula),
+            ConjunctionOp::AddTerm => self.add_random_term(formula),
+            ConjunctionOp::ToggleTerm => self.toggle_term_status(formula),
+            ConjunctionOp::DeleteTissue => self.delete_tissue_expression_term(formula),
+            ConjunctionOp::AddTissue => self.add_tissue_expression_term(formula),
+            ConjunctionOp::ToggleTissue => self.toggle_tissue_expression_state(formula),
+        }
+    }
+
+    fn available_ops(&self, formula: &Conjunction) -> Vec<ConjunctionOp> {
+        let mut ops = Vec::with_capacity(8);
+
+        if !formula.term_observations.is_empty() {
+            ops.push(ConjunctionOp::Parent);
+            ops.push(ConjunctionOp::Child);
+            ops.push(ConjunctionOp::DeleteTerm);
+            ops.push(ConjunctionOp::ToggleTerm);
+        }
+
+        if !formula.tissue_expressions.is_empty() {
+            ops.push(ConjunctionOp::DeleteTissue);
+            ops.push(ConjunctionOp::ToggleTissue);
+        }
+
+        if self.can_add_term(formula) {
+            ops.push(ConjunctionOp::AddTerm);
+        }
+
+        if self.can_add_tissue(formula) {
+            ops.push(ConjunctionOp::AddTissue);
+        }
+
+        ops
+    }
+
+    fn can_add_term(&self, formula: &Conjunction) -> bool {
+        let has_pool = if let Some(filtered) = self.filtered_go_terms {
+            !filtered.is_empty()
+        } else {
+            !self.go_terms_pool.is_empty()
+        };
+
+        if !has_pool {
+            return false;
+        }
+
+        formula.len() < self.max_n_terms || !formula.term_observations.is_empty()
+    }
+
+    fn can_add_tissue(&self, formula: &Conjunction) -> bool {
+        let has_tissues = !self.gtex.metadata.get_tissue_names().is_empty();
+
+        if !has_tissues {
+            return false;
+        }
+
+        formula.len() < self.max_n_terms || !formula.tissue_expressions.is_empty()
+    }
+
+    fn fallback_change(&mut self, formula: &mut Conjunction) {
+        if self.can_add_term(formula) && formula.len() < self.max_n_terms {
+            let before = formula.clone();
+            self.add_random_term(formula);
+            if *formula != before {
+                return;
+            }
+        }
+
+        if self.can_add_tissue(formula) && formula.len() < self.max_n_terms {
+            let before = formula.clone();
+            self.add_tissue_expression_term(formula);
+            if *formula != before {
+                return;
+            }
+        }
+
+        if !formula.term_observations.is_empty() {
+            self.toggle_term_status(formula);
+            return;
+        }
+
+        if !formula.tissue_expressions.is_empty() {
+            self.toggle_tissue_expression_state(formula);
         }
     }
 }

@@ -373,6 +373,41 @@ pub fn write_generation_stats_to_csv(
     Ok(())
 }
 
+fn format_dnf_with_go_names(dnf: &DNFVec, go_ontology: &MinimalCsrOntology) -> String {
+    let conjs = dnf.get_active_conjunctions();
+    if conjs.is_empty() {
+        return "FALSE".to_string();
+    }
+
+    let parts: Vec<String> = conjs
+        .iter()
+        .map(|conj| {
+            let mut conj_parts: Vec<String> = Vec::new();
+
+            for term in &conj.term_observations {
+                let term_label = go_ontology
+                    .term_by_id(&term.term_id)
+                    .map(|t| t.name().to_string())
+                    .unwrap_or_else(|| term.term_id.to_string());
+
+                if term.is_excluded {
+                    conj_parts.push(format!("NOT({})", term_label));
+                } else {
+                    conj_parts.push(term_label);
+                }
+            }
+
+            for tissue in &conj.tissue_expressions {
+                conj_parts.push(tissue.to_string());
+            }
+
+            format!("({})", conj_parts.join(" AND "))
+        })
+        .collect();
+
+    parts.join(" OR ")
+}
+
 /// Runs the Genetic Algorithm with the given configuration
 ///
 /// Returns the stats history and the best solution from the last generation
@@ -749,9 +784,11 @@ pub fn run_ga(
 
             // Get the formula string representation
             let best_formula_str = format!("{}", best_last.get_formula());
+            let best_formula_named_str =
+                format_dnf_with_go_names(best_last.get_formula(), go_ontology);
 
             let metadata = format!(
-                "HPO term: {}\nPopulation size: {}\nGenerations: {}\nMutation rate: {}\nTournament size: {}\nMax terms per Conjunction: {}\nMax conjunctions in DNF: {}\nPenalty lambda: {}\nF-score beta: {:.2}\nBest formula: {}",
+                "HPO term: {}\nPopulation size: {}\nGenerations: {}\nMutation rate: {}\nTournament size: {}\nMax terms per Conjunction: {}\nMax conjunctions in DNF: {}\nPenalty lambda: {}\nF-score beta: {:.2}\nBest formula: {}\nBest formula (GO names): {}",
                 config.hpo_term,
                 pop_size_for_run,
                 config.generations,
@@ -762,6 +799,7 @@ pub fn run_ga(
                 config.penalty_lambda,
                 fscore_beta,
                 best_formula_str,
+                best_formula_named_str,
             );
 
             match write_generation_stats_to_csv(&csv_path, &stats_history, &metadata) {

@@ -96,7 +96,6 @@ where
     ) -> bool {
         let direct_annotations = gene_annotations.get_term_annotations();
         for term_ob in &conjunction.term_observations {
-            //LONGER VERSION:
             match term_ob.is_excluded {
                 true => {
                     if direct_annotations.contains(&term_ob.term_id)
@@ -105,7 +104,6 @@ where
                             .iter_descendant_ids(&term_ob.term_id)
                             .any(|desc| direct_annotations.contains(desc))
                     {
-                        // Not satisfied because the gene has a direct or undirect annotation to term_ob, which is excluded.
                         return false;
                     }
                 }

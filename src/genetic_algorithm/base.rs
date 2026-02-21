@@ -95,6 +95,7 @@ pub trait FitnessScorer<T, P> {
     ) -> f64;
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum ScoreMetric {
     Accuracy,
     Precision,

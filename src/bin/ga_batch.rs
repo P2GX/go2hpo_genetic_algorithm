@@ -71,6 +71,96 @@ struct RunSummary {
     satisfied_non_hpo_genes: usize,
 }
 
+#[derive(Debug, Clone)]
+struct SummaryCsvRow {
+    label: String,
+    hpo_term: String,
+    pop_size: usize,
+    generations: usize,
+    mutation_rate: f64,
+    best_score: f64,
+    best_generation: usize,
+    best_precision: f64,
+    best_recall: f64,
+    best_max_len: usize,
+    best_avg_len: f64,
+    output_file: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct BestStats {
+    best_score: f64,
+    best_generation: usize,
+    best_precision: f64,
+    best_recall: f64,
+    best_max_len: usize,
+    best_avg_len: f64,
+}
+
+fn extract_best_stats(run_result: &GaRunResult) -> Option<BestStats> {
+    let mut best: Option<BestStats> = None;
+    for (idx, (_min, _avg, max, _min_len, avg_len, max_len, best_one_precision, best_one_recall)) in
+        run_result.stats_history.iter().copied().enumerate()
+    {
+        let replace = match &best {
+            Some(current) => max > current.best_score,
+            None => true,
+        };
+        if replace {
+            best = Some(BestStats {
+                best_score: max,
+                best_generation: idx,
+                best_precision: best_one_precision,
+                best_recall: best_one_recall,
+                best_max_len: max_len,
+                best_avg_len: avg_len,
+            });
+        }
+    }
+    best
+}
+
+fn write_summary_csv(path: &str, rows: &[SummaryCsvRow]) -> anyhow::Result<()> {
+    let csv_path = Path::new(path);
+    if let Some(parent) = csv_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let mut w = csv::Writer::from_path(csv_path)?;
+    w.write_record([
+        "hpo_term",
+        "label",
+        "pop_size",
+        "generations",
+        "mutation_rate",
+        "best_score",
+        "best_generation",
+        "best_precision",
+        "best_recall",
+        "best_max_len",
+        "best_avg_len",
+        "output_file",
+    ])?;
+    for row in rows {
+        let record = vec![
+            row.hpo_term.clone(),
+            row.label.clone(),
+            row.pop_size.to_string(),
+            row.generations.to_string(),
+            row.mutation_rate.to_string(),
+            row.best_score.to_string(),
+            row.best_generation.to_string(),
+            row.best_precision.to_string(),
+            row.best_recall.to_string(),
+            row.best_max_len.to_string(),
+            row.best_avg_len.to_string(),
+            row.output_file.clone().unwrap_or_default(),
+        ];
+        w.write_record(&record)?;
+    }
+    w.flush()?;
+    Ok(())
+}
+
 fn format_summary_table(summaries: &[RunSummary]) -> String {
     if summaries.is_empty() {
         return String::new();
@@ -210,6 +300,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut config_path: Option<String> = None;
     let mut summary_path: Option<String> = None;
+    let mut summary_csv_path: Option<String> = None;
 
     let mut i = 1;
     while i < args.len() {
@@ -219,6 +310,13 @@ fn main() -> anyhow::Result<()> {
                     anyhow::bail!("--summary-file requires a path argument");
                 }
                 summary_path = Some(resolve_summary_path(&args[i + 1]));
+                i += 2;
+            }
+            "-c" | "--summary-csv" => {
+                if i + 1 >= args.len() {
+                    anyhow::bail!("--summary-csv requires a path argument");
+                }
+                summary_csv_path = Some(args[i + 1].to_string());
                 i += 2;
             }
             other if config_path.is_none() => {
@@ -259,6 +357,7 @@ fn main() -> anyhow::Result<()> {
     println!("Loaded {} runs.", runs.len());
 
     let mut summaries: Vec<RunSummary> = Vec::with_capacity(runs.len());
+    let mut csv_rows: Vec<SummaryCsvRow> = Vec::with_capacity(runs.len());
 
     for (idx, run) in runs.iter().enumerate() {
         let label = run.label.as_deref().unwrap_or("unnamed");
@@ -302,6 +401,23 @@ fn main() -> anyhow::Result<()> {
         } else {
             println!("Run {} had no stats history; skipping summary row.", label);
         }
+
+        if let Some(best) = extract_best_stats(&run_result) {
+            csv_rows.push(SummaryCsvRow {
+                label: label.to_string(),
+                hpo_term: run.hpo_term.clone(),
+                pop_size: run.pop_size,
+                generations: run.generations,
+                mutation_rate: run.mutation_rate,
+                best_score: best.best_score,
+                best_generation: best.best_generation,
+                best_precision: best.best_precision,
+                best_recall: best.best_recall,
+                best_max_len: best.best_max_len,
+                best_avg_len: best.best_avg_len,
+                output_file: run.output_file.clone(),
+            });
+        }
     }
 
     if !summaries.is_empty() {
@@ -318,6 +434,14 @@ fn main() -> anyhow::Result<()> {
                 Ok(_) => println!("Summary saved to {}", path),
                 Err(e) => eprintln!("⚠ Failed to write summary to {}: {}", path, e),
             }
+        }
+    }
+
+    if let Some(path) = summary_csv_path {
+        if let Err(e) = write_summary_csv(&path, &csv_rows) {
+            eprintln!("⚠ Failed to write summary CSV to {}: {}", path, e);
+        } else {
+            println!("Summary CSV saved to {}", path);
         }
     }
 

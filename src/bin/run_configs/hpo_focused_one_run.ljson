@@ -1,0 +1,15 @@
+[
+  {
+    "label": "HP:0005938 final top10 focused",
+    "hpo_term": "HP:0005938",
+    "pop_size": 120,
+    "generations": 60,
+    "mutation_rate": 0.45,
+    "tournament_size": 3,
+    "max_n_terms": 7,
+    "max_n_conj": 4,
+    "penalty_lambda": 0.0,
+    "fscore_beta": 1.8,
+    "rng_seed": 5001
+  }
+]

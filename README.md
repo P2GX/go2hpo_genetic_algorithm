@@ -1,6 +1,6 @@
  # go2hpo_genetic_algorithm
  
- Genetic Algorithm experiments for discovering DNF logic formulas that predict HPO term annotations.
+ Genetic Algorithm for discovering DNF logic formulas that explain HPO term - gene associations.
  
  ## Prerequisites
  - Rust toolchain (cargo)

@@ -37,11 +37,13 @@ pub fn filter_go_json(input_path: &str, output_path: &str) -> std::io::Result<()
             // --- Filter edges ---
             if let Some(edges) = graph.get_mut("edges").and_then(|e| e.as_array_mut()) {
                 edges.retain(|edge| {
-                    let subj_ok = edge.get("sub")
+                    let subj_ok = edge
+                        .get("sub")
                         .and_then(|id| id.as_str())
                         .map(is_go_id)
                         .unwrap_or(false);
-                    let obj_ok = edge.get("obj")
+                    let obj_ok = edge
+                        .get("obj")
                         .and_then(|id| id.as_str())
                         .map(is_go_id)
                         .unwrap_or(false);
@@ -59,26 +61,23 @@ pub fn filter_go_json(input_path: &str, output_path: &str) -> std::io::Result<()
     Ok(())
 }
 
-
 fn main() -> std::io::Result<()> {
-    filter_go_json("data/go/go-basic.json.gz", "data/go/go-basic.filtered.json.gz")?;
+    filter_go_json(
+        "data/go/go-basic.json.gz",
+        "data/go/go-basic.filtered.json.gz",
+    )?;
     Ok(())
 }
-
-
-
-
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use flate2::bufread::GzDecoder;
     use ontolius::io::OntologyLoaderBuilder;
+    use ontolius::ontology::csr::MinimalCsrOntology;
     use ontolius::ontology::OntologyTerms;
     use std::fs::File;
     use std::io::BufReader;
-    use ontolius::ontology::csr::MinimalCsrOntology;
 
     fn load_ontology(path: &str) -> MinimalCsrOntology {
         let reader = GzDecoder::new(BufReader::new(
@@ -117,4 +116,3 @@ mod tests {
         assert!(all_terms_filtered <= all_terms_unfiltered);
     }
 }
-

@@ -1,3 +1,3 @@
-pub trait Formula{
+pub trait Formula {
     fn len(&self) -> usize;
 }

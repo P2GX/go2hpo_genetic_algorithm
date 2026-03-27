@@ -1,20 +1,184 @@
 mod ga_common;
 
-use ga_common::{estimate_fscore_beta, run_ga, GaConfig};
-use go2hpo_genetic_algorithm::annotations::GeneSetAnnotations;
-use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{go_ontology, gtex_summary, gene_set_annotations, phenotype2genes};
+use ga_common::{
+    estimate_fscore_beta, run_ga, GaConfig, DEFAULT_GO_ENRICHMENT_FILTER_ROOTS,
+    DEFAULT_GO_ENRICHMENT_INCLUDE_PARENTS, DEFAULT_GO_ENRICHMENT_MAX_BG_FREQ,
+    DEFAULT_GO_ENRICHMENT_MIN_FOLD, DEFAULT_GO_ENRICHMENT_MIN_SUPPORT,
+    DEFAULT_GO_ENRICHMENT_P_VALUE, DEFAULT_GO_ENRICHMENT_TOP_K,
+};
+use go2hpo_genetic_algorithm::utils::fixtures::gene_set_annotations::{
+    gene_set_annotations, gene_set_annotations_expanded, go_ontology, gtex_summary, phenotype2genes,
+};
 use gtex_analyzer::expression_analysis::GtexSummary;
 use ontolius::ontology::csr::MinimalCsrOntology;
 use ontolius::TermId;
 use std::io::{self, Write};
 
-
-
-
 fn main() {
     let go_ontology: MinimalCsrOntology = go_ontology();
     let gtex: GtexSummary = gtex_summary().expect("GTEx summary should load correctly");
-    let gene_set_annotations: GeneSetAnnotations = gene_set_annotations();
+    println!("Use pre-expanded GO annotations? [y/N]: ");
+    io::stdout().flush().unwrap();
+    let mut expanded_in = String::new();
+    io::stdin().read_line(&mut expanded_in).unwrap();
+    let use_expanded = matches!(
+        expanded_in.trim().to_lowercase().as_str(),
+        "y" | "yes" | "true" | "1"
+    );
+    println!("Disallow GO-term negations (NOT(GO:...))? [y/N]: ");
+    io::stdout().flush().unwrap();
+    let mut neg_in = String::new();
+    io::stdin().read_line(&mut neg_in).unwrap();
+    let allow_go_negations = !matches!(
+        neg_in.trim().to_lowercase().as_str(),
+        "y" | "yes" | "true" | "1"
+    );
+
+    println!(
+        "Use enriched GO pool (top {} by p<={:.3}, min_support={})? [y/N]: ",
+        DEFAULT_GO_ENRICHMENT_TOP_K, DEFAULT_GO_ENRICHMENT_P_VALUE, DEFAULT_GO_ENRICHMENT_MIN_SUPPORT
+    );
+    io::stdout().flush().unwrap();
+    let mut enriched_in = String::new();
+    io::stdin().read_line(&mut enriched_in).unwrap();
+    let use_enriched_go_pool = matches!(
+        enriched_in.trim().to_lowercase().as_str(),
+        "y" | "yes" | "true" | "1"
+    );
+
+    let (
+        go_enrichment_top_k,
+        go_enrichment_p_value,
+        go_enrichment_min_support,
+        go_enrichment_include_parents,
+        go_enrichment_min_fold,
+        go_enrichment_max_bg_freq,
+        go_enrichment_filter_roots,
+    ) = if use_enriched_go_pool {
+        print!(
+            "Enter max enriched GO terms [default={}]: ",
+            DEFAULT_GO_ENRICHMENT_TOP_K
+        );
+        io::stdout().flush().unwrap();
+        let mut topk_in = String::new();
+        io::stdin().read_line(&mut topk_in).unwrap();
+        let go_enrichment_top_k: usize = topk_in
+            .trim()
+            .parse()
+            .unwrap_or(DEFAULT_GO_ENRICHMENT_TOP_K);
+
+        print!(
+            "Enter p-value cutoff (right-tailed hypergeometric) [default={:.3}]: ",
+            DEFAULT_GO_ENRICHMENT_P_VALUE
+        );
+        io::stdout().flush().unwrap();
+        let mut pval_in = String::new();
+        io::stdin().read_line(&mut pval_in).unwrap();
+        let go_enrichment_p_value: f64 = pval_in
+            .trim()
+            .parse()
+            .unwrap_or(DEFAULT_GO_ENRICHMENT_P_VALUE);
+
+        print!(
+            "Enter minimum positive-gene support [default={}]: ",
+            DEFAULT_GO_ENRICHMENT_MIN_SUPPORT
+        );
+        io::stdout().flush().unwrap();
+        let mut minsupp_in = String::new();
+        io::stdin().read_line(&mut minsupp_in).unwrap();
+        let go_enrichment_min_support: usize = minsupp_in
+            .trim()
+            .parse()
+            .unwrap_or(DEFAULT_GO_ENRICHMENT_MIN_SUPPORT);
+
+        print!(
+            "Enter minimum fold (keep if fold>=X or <=1/X) [default={:.2}]: ",
+            DEFAULT_GO_ENRICHMENT_MIN_FOLD
+        );
+        io::stdout().flush().unwrap();
+        let mut fold_in = String::new();
+        io::stdin().read_line(&mut fold_in).unwrap();
+        let go_enrichment_min_fold: f64 = fold_in
+            .trim()
+            .parse()
+            .unwrap_or(DEFAULT_GO_ENRICHMENT_MIN_FOLD);
+
+        print!(
+            "Include parents of enriched GO terms? [Y/n, default={}]: ",
+            if DEFAULT_GO_ENRICHMENT_INCLUDE_PARENTS {
+                "Y"
+            } else {
+                "n"
+            }
+        );
+        io::stdout().flush().unwrap();
+        let mut parents_in = String::new();
+        io::stdin().read_line(&mut parents_in).unwrap();
+        let go_enrichment_include_parents = match parents_in.trim().to_lowercase().as_str() {
+            "" => DEFAULT_GO_ENRICHMENT_INCLUDE_PARENTS,
+            "y" | "yes" | "true" | "1" => true,
+            "n" | "no" | "false" | "0" => false,
+            _ => DEFAULT_GO_ENRICHMENT_INCLUDE_PARENTS,
+        };
+
+        print!(
+            "Enter maximum background frequency to keep a term (1.0 disables) [default={:.2}]: ",
+            DEFAULT_GO_ENRICHMENT_MAX_BG_FREQ
+        );
+        io::stdout().flush().unwrap();
+        let mut bg_in = String::new();
+        io::stdin().read_line(&mut bg_in).unwrap();
+        let go_enrichment_max_bg_freq: f64 = bg_in
+            .trim()
+            .parse()
+            .unwrap_or(DEFAULT_GO_ENRICHMENT_MAX_BG_FREQ);
+
+        print!(
+            "Filter GO root/namespace terms? [Y/n, default={}]: ",
+            if DEFAULT_GO_ENRICHMENT_FILTER_ROOTS {
+                "Y"
+            } else {
+                "n"
+            }
+        );
+        io::stdout().flush().unwrap();
+        let mut roots_in = String::new();
+        io::stdin().read_line(&mut roots_in).unwrap();
+        let go_enrichment_filter_roots = match roots_in.trim().to_lowercase().as_str() {
+            "" => DEFAULT_GO_ENRICHMENT_FILTER_ROOTS,
+            "y" | "yes" | "true" | "1" => true,
+            "n" | "no" | "false" | "0" => false,
+            _ => DEFAULT_GO_ENRICHMENT_FILTER_ROOTS,
+        };
+
+        (
+            go_enrichment_top_k,
+            go_enrichment_p_value,
+            go_enrichment_min_support,
+            go_enrichment_include_parents,
+            go_enrichment_min_fold,
+            go_enrichment_max_bg_freq,
+            go_enrichment_filter_roots,
+        )
+    } else {
+        (
+            DEFAULT_GO_ENRICHMENT_TOP_K,
+            DEFAULT_GO_ENRICHMENT_P_VALUE,
+            DEFAULT_GO_ENRICHMENT_MIN_SUPPORT,
+            DEFAULT_GO_ENRICHMENT_INCLUDE_PARENTS,
+            DEFAULT_GO_ENRICHMENT_MIN_FOLD,
+            DEFAULT_GO_ENRICHMENT_MAX_BG_FREQ,
+            DEFAULT_GO_ENRICHMENT_FILTER_ROOTS,
+        )
+    };
+
+    let gene_set_annotations = if use_expanded {
+        println!("Using pre-expanded GO annotations (direct + ancestors).");
+        gene_set_annotations_expanded(&go_ontology)
+    } else {
+        println!("Using direct GO annotations (runtime traversal).");
+        gene_set_annotations()
+    };
     let hpo2genes = phenotype2genes();
 
     println!("Data loaded. You can now run the GA on multiple HPO terms.");
@@ -96,21 +260,28 @@ fn main() {
         let hpo_gene_count = ga_common::get_hpo_gene_count(&hpo2genes, &hpo_term);
         let total_gene_count = gene_set_annotations.get_gene_annotations_map().len();
         let positive_count = hpo_gene_count as usize;
-        let (estimated_beta, method, imbalance_ratio) = estimate_fscore_beta(positive_count, total_gene_count);
-        
+        let (estimated_beta, method, imbalance_ratio) =
+            estimate_fscore_beta(positive_count, total_gene_count);
+
         println!(
             "Class imbalance: {} positives / {} total (ratio: {:.2}:1). Estimated beta: {:.2} (method: {})",
             positive_count, total_gene_count, imbalance_ratio, estimated_beta, method
         );
 
         // Ask user if they want to use the estimated beta or override it
-        print!("Use estimated beta ({:.2})? [Y/n, or enter custom value]: ", estimated_beta);
+        print!(
+            "Use estimated beta ({:.2})? [Y/n, or enter custom value]: ",
+            estimated_beta
+        );
         io::stdout().flush().unwrap();
         let mut beta_in = String::new();
         io::stdin().read_line(&mut beta_in).unwrap();
         let beta_input = beta_in.trim();
-        
-        let fscore_beta: Option<f64> = if beta_input.is_empty() || beta_input.eq_ignore_ascii_case("y") || beta_input.eq_ignore_ascii_case("yes") {
+
+        let fscore_beta: Option<f64> = if beta_input.is_empty()
+            || beta_input.eq_ignore_ascii_case("y")
+            || beta_input.eq_ignore_ascii_case("yes")
+        {
             None // Use estimated (will be set in run_ga)
         } else {
             match beta_input.parse() {
@@ -133,24 +304,37 @@ fn main() {
             max_n_conj,
             penalty_lambda,
             fscore_beta,
-            output_file: if file_name.is_empty() { None } else { Some(file_name) },
+            output_file: if file_name.is_empty() {
+                None
+            } else {
+                Some(file_name)
+            },
             rng_seed: 42,
+            export_bin: None,
+            import_bin: None,
+            use_expanded,
+            allow_go_negations,
+            use_enriched_go_pool,
+            go_enrichment_top_k,
+            go_enrichment_p_value,
+            go_enrichment_min_support,
+            go_enrichment_include_parents,
+            go_enrichment_min_fold,
+            go_enrichment_max_bg_freq,
+            go_enrichment_filter_roots,
         };
 
         // Run the GA
-        let (_stats_history, _best_solution) = run_ga(
+        let _result = run_ga(
             &config,
             &go_ontology,
             &gtex,
             &gene_set_annotations,
             &hpo2genes,
         );
-
-
     }
     println!("Exited interactive GA session.");
 }
-
 
 // TO RUN IT
 // cargo run --bin ga_interactive

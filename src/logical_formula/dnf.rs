@@ -2,11 +2,11 @@
 use crate::logical_formula::base::Formula;
 
 use super::conjunctions::{self, Conjunction};
-use std::fmt;
 use bitvec::prelude::*;
+use std::fmt;
 
 /// Disjunctive normal form interface: a set of active conjunctions (OR of ANDs).
-pub trait DNF: Formula{
+pub trait DNF: Formula {
     type SelectionType;
 
     /// Get active conjunctions that make up this DNF.
@@ -16,7 +16,6 @@ pub trait DNF: Formula{
     fn activate_conjunction(&mut self, conjunction: Self::SelectionType) -> Result<(), String>;
 }
 
-
 /// DNF represented as an owned vector of conjunctions.
 /// Example display: `(GO:0008150 AND UP(Liver)) OR (NOT(GO:0003674) AND DOWN(Heart))`.
 #[derive(Clone, Debug)]
@@ -24,7 +23,7 @@ pub struct DNFVec {
     conjunctions: Vec<Conjunction>,
 }
 
-impl PartialEq for DNFVec{
+impl PartialEq for DNFVec {
     fn eq(&self, other: &Self) -> bool {
         self.conjunctions == other.conjunctions
     }
@@ -44,7 +43,7 @@ impl DNF for DNFVec {
     }
 }
 
-impl Formula for DNFVec{
+impl Formula for DNFVec {
     fn len(&self) -> usize {
         self.conjunctions.len()
     }
@@ -60,12 +59,12 @@ impl DNFVec {
     }
 
     /// Build from a vector of conjunctions (all considered active).
-    pub fn from_conjunctions(conjunctions: Vec<Conjunction>) -> Self{
+    pub fn from_conjunctions(conjunctions: Vec<Conjunction>) -> Self {
         Self { conjunctions }
     }
 
     /// Mutable access to the underlying conjunction list.
-    pub fn get_mut_active_conjunctions(&mut self) -> &mut Vec<Conjunction>{
+    pub fn get_mut_active_conjunctions(&mut self) -> &mut Vec<Conjunction> {
         return &mut self.conjunctions;
     }
 }
@@ -74,7 +73,7 @@ impl fmt::Display for DNFVec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let conjs = self.get_active_conjunctions();
         if conjs.is_empty() {
-            return write!(f, "FALSE"); 
+            return write!(f, "FALSE");
         }
 
         let parts: Vec<String> = conjs.iter().map(|c| format!("{}", c)).collect();
@@ -88,7 +87,7 @@ pub struct DNFBitmask<'a> {
     conjunction_mask: BitVec,
 }
 
-impl PartialEq for DNFBitmask<'_>{
+impl PartialEq for DNFBitmask<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.conjunction_mask == other.conjunction_mask && self.conjunctions == other.conjunctions
     }
@@ -121,7 +120,7 @@ impl<'a> DNF for DNFBitmask<'a> {
     }
 }
 
-impl<'a> Formula for DNFBitmask<'a>{
+impl<'a> Formula for DNFBitmask<'a> {
     fn len(&self) -> usize {
         self.conjunction_mask.count_ones()
     }
@@ -137,31 +136,33 @@ impl<'a> DNFBitmask<'a> {
     }
 
     /// Create with a custom bitmask (must match conjunctions length).
-    pub fn new_with_bitmask(conjunctions: &'a[Conjunction], conjunction_mask: BitVec) -> Self{
-        Self { conjunctions, conjunction_mask }
+    pub fn new_with_bitmask(conjunctions: &'a [Conjunction], conjunction_mask: BitVec) -> Self {
+        Self {
+            conjunctions,
+            conjunction_mask,
+        }
     }
 
     /// Access the full list of possible conjunctions (active + inactive).
-    pub fn get_possible_conjunctions(&self) -> &'a [Conjunction]{
+    pub fn get_possible_conjunctions(&self) -> &'a [Conjunction] {
         return self.conjunctions;
     }
 
     /// Access the raw bitmask of active conjunctions.
-    pub fn get_conjunction_mask(&self) -> &BitVec{
+    pub fn get_conjunction_mask(&self) -> &BitVec {
         &self.conjunction_mask
     }
-
 }
 
-impl DNFBitmask<'_>{
+impl DNFBitmask<'_> {
     /// Returns the total number of conjunctions (both active and inactive).
     /// This is different from len(), which only counts active ones.
     pub fn total_conjunctions_count(&self) -> usize {
-        self.conjunctions.len()  // Total number of conjunctions (active + inactive)
+        self.conjunctions.len() // Total number of conjunctions (active + inactive)
     }
 
     /// Flip activation state of a conjunction at `index`.
-    pub fn toggle_conjunction(&mut self, index: usize) -> Result<(), String>{
+    pub fn toggle_conjunction(&mut self, index: usize) -> Result<(), String> {
         if index < self.conjunction_mask.len() {
             let current_value = self.conjunction_mask[index];
             self.conjunction_mask.set(index, !current_value);
@@ -223,22 +224,42 @@ mod tests {
 
     #[test]
     fn test_dnf_vec() {
-        let conjunction1 = Conjunction { term_observations: vec![], tissue_expressions: vec![] };
-        let conjunction2 = Conjunction { term_observations: vec![], tissue_expressions: vec![] };
+        let conjunction1 = Conjunction {
+            term_observations: vec![],
+            tissue_expressions: vec![],
+        };
+        let conjunction2 = Conjunction {
+            term_observations: vec![],
+            tissue_expressions: vec![],
+        };
 
         let mut dnf_vec = DNFVec::new();
         dnf_vec.activate_conjunction(conjunction1.clone()).unwrap();
         dnf_vec.activate_conjunction(conjunction2.clone()).unwrap();
 
         let active = dnf_vec.get_active_conjunctions();
-        assert_eq!(active.len(), 2, "DNFVec should contain 2 active conjunctions");
-        assert_eq!(dnf_vec.len(), active.len(), "DNFVec len method should be equal to the number of active conjunctions");
+        assert_eq!(
+            active.len(),
+            2,
+            "DNFVec should contain 2 active conjunctions"
+        );
+        assert_eq!(
+            dnf_vec.len(),
+            active.len(),
+            "DNFVec len method should be equal to the number of active conjunctions"
+        );
     }
 
     #[test]
     fn test_dnf_bitmask_valid_index() {
-        let conjunction1 = Conjunction { term_observations: vec![], tissue_expressions: vec![] };
-        let conjunction2 = Conjunction { term_observations: vec![], tissue_expressions: vec![] };
+        let conjunction1 = Conjunction {
+            term_observations: vec![],
+            tissue_expressions: vec![],
+        };
+        let conjunction2 = Conjunction {
+            term_observations: vec![],
+            tissue_expressions: vec![],
+        };
 
         let precomputed_conjunctions = [conjunction1, conjunction2];
         let mut dnf_bitmask = DNFBitmask::new(&precomputed_conjunctions);
@@ -252,14 +273,23 @@ mod tests {
 
     #[test]
     fn test_dnf_bitmask_invalid_index() {
-        let conjunction1 = Conjunction { term_observations: vec![], tissue_expressions: vec![] };
-        let conjunction2 = Conjunction { term_observations: vec![], tissue_expressions: vec![] };
+        let conjunction1 = Conjunction {
+            term_observations: vec![],
+            tissue_expressions: vec![],
+        };
+        let conjunction2 = Conjunction {
+            term_observations: vec![],
+            tissue_expressions: vec![],
+        };
 
         let precomputed_conjunctions = [conjunction1, conjunction2];
         let mut dnf_bitmask = DNFBitmask::new(&precomputed_conjunctions);
 
-        let result = dnf_bitmask.activate_conjunction(5);  // Out of bounds
-        assert!(result.is_err(), "Activation should fail because the index is not valid");
+        let result = dnf_bitmask.activate_conjunction(5); // Out of bounds
+        assert!(
+            result.is_err(),
+            "Activation should fail because the index is not valid"
+        );
         assert_eq!(
             result.unwrap_err(),
             "Index 5 is out of bounds. Max index: 1"
@@ -300,33 +330,24 @@ mod tests {
     //     );
     // }
 
-
     #[test]
     fn test_display_dnfvec_and_bitmask() {
         let t1: TermId = "GO:0051146".parse().unwrap();
         let t2: TermId = "GO:0051216".parse().unwrap();
 
         let conj1 = Conjunction {
-            term_observations: vec![
-                TermObservation::new(t1.clone(), false),
-            ],
-            tissue_expressions: vec![
-                TissueExpression::new("Liver".to_string(), DgeState::Up),
-            ],
+            term_observations: vec![TermObservation::new(t1.clone(), false)],
+            tissue_expressions: vec![TissueExpression::new("Liver".to_string(), DgeState::Up)],
         };
 
         let conj2 = Conjunction {
-            term_observations: vec![
-                TermObservation::new(t2.clone(), true),
-            ],
-            tissue_expressions: vec![
-                TissueExpression::new("Heart".to_string(), DgeState::Down),
-            ],
+            term_observations: vec![TermObservation::new(t2.clone(), true)],
+            tissue_expressions: vec![TissueExpression::new("Heart".to_string(), DgeState::Down)],
         };
 
         // Test DNFVec
         let dnf_vec = DNFVec::from_conjunctions(vec![conj1.clone(), conj2.clone()]);
-        println!("DNF Vec: {}",dnf_vec);
+        println!("DNF Vec: {}", dnf_vec);
         assert_eq!(
             format!("{}", dnf_vec),
             "(GO:0051146 AND UP(Liver)) OR (NOT(GO:0051216) AND DOWN(Heart))"
@@ -337,12 +358,10 @@ mod tests {
         let mut dnf_bitmask = DNFBitmask::new(&binding);
         dnf_bitmask.activate_conjunction(0).unwrap();
         dnf_bitmask.activate_conjunction(1).unwrap();
-        println!("DNF Bitmask: {}",dnf_bitmask);
+        println!("DNF Bitmask: {}", dnf_bitmask);
         assert_eq!(
             format!("{}", dnf_bitmask),
             "(GO:0051146 AND UP(Liver)) OR (NOT(GO:0051216) AND DOWN(Heart))"
         );
     }
-
-
 }

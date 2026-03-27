@@ -4,8 +4,6 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Cursor, Read};
 use std::path::Path;
 
-
-
 #[test]
 fn test_load_gtex_analyzer() -> io::Result<()> {
     let file_path: &str = "data/gtex/GTEx_RNASeq_gene_median_tpm_HEAD.gct";

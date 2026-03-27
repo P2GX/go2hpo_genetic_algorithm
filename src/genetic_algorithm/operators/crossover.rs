@@ -11,11 +11,7 @@ use ontolius::{
     TermId,
 };
 
-
-use crate::logical_formula::{Conjunction, TermObservation, TissueExpression, DgeState};
-
-
-
+use crate::logical_formula::{Conjunction, DgeState, TermObservation, TissueExpression};
 
 // CROSSOVER OPERATOR
 
@@ -25,40 +21,50 @@ pub trait Crossover<T> {
     fn crossover(&mut self, parent1: &T, parent2: &T) -> T;
 }
 
-
 /// Crossover for a single conjunction: samples literals from each parent.
-pub struct ConjunctionCrossover<'a, R: Rng>{
+pub struct ConjunctionCrossover<'a, R: Rng> {
     /// Fraction of literals drawn from parent1 (remainder from parent2).
-    parent1_fraction: f64, //0.5 for balanced fraction of the parents contribution on the offspring 
+    parent1_fraction: f64, //0.5 for balanced fraction of the parents contribution on the offspring
     rng: &'a mut R,
 }
 
-impl<'a, R: Rng> ConjunctionCrossover<'a, R>{
+impl<'a, R: Rng> ConjunctionCrossover<'a, R> {
     /// Balanced mix (50/50).
-    pub fn new(rng:  &'a mut R) -> Self{
-        Self {parent1_fraction: 0.5, rng} // rng: rand::rng()
+    pub fn new(rng: &'a mut R) -> Self {
+        Self {
+            parent1_fraction: 0.5,
+            rng,
+        } // rng: rand::rng()
     }
-    
+
     /// Bias the fraction taken from parent1 (0..1).
-    pub fn new_with_parent_bias(parent1_fraction: f64, rng:  &'a mut R) -> Self{
-        if parent1_fraction < 0.0 || parent1_fraction > 1.0{
-            panic!("parent1_fraction should be a probability (from 0 to 1). The current value is {}", parent1_fraction);
+    pub fn new_with_parent_bias(parent1_fraction: f64, rng: &'a mut R) -> Self {
+        if parent1_fraction < 0.0 || parent1_fraction > 1.0 {
+            panic!(
+                "parent1_fraction should be a probability (from 0 to 1). The current value is {}",
+                parent1_fraction
+            );
         }
-        Self{parent1_fraction, rng}
+        Self {
+            parent1_fraction,
+            rng,
+        }
     }
 }
 
-impl<'a, R: Rng> ConjunctionCrossover<'a, R>{
+impl<'a, R: Rng> ConjunctionCrossover<'a, R> {
     /// Pick a subset from each parent field (GO terms or tissues) according to the bias.
     fn field_crossover<T>(&mut self, parent1_annots: &Vec<T>, parent2_annots: &Vec<T>) -> Vec<T>
-    where 
-    T: Clone{
+    where
+        T: Clone,
+    {
+        let mut offspring_terms =
+            Vec::with_capacity(parent1_annots.len().saturating_add(parent2_annots.len()));
 
-        let mut offspring_terms = Vec::with_capacity(parent1_annots.len().saturating_add(parent2_annots.len()));
-        
-        let amount_parent1: usize = ((parent1_annots.len() as f64) * self.parent1_fraction).round() as usize;
-        let amount_parent2: usize = ((parent2_annots.len() as f64) * (1.0 - self.parent1_fraction)).round() as usize;
-
+        let amount_parent1: usize =
+            ((parent1_annots.len() as f64) * self.parent1_fraction).round() as usize;
+        let amount_parent2: usize =
+            ((parent2_annots.len() as f64) * (1.0 - self.parent1_fraction)).round() as usize;
 
         let terms_from_parent1 = parent1_annots.choose_multiple(&mut self.rng, amount_parent1);
         let terms_from_parent2 = parent2_annots.choose_multiple(&mut self.rng, amount_parent2);
@@ -69,14 +75,13 @@ impl<'a, R: Rng> ConjunctionCrossover<'a, R>{
     }
 }
 
-
-impl<'a, R: Rng>  Crossover<Conjunction> for ConjunctionCrossover<'a, R>{
-
+impl<'a, R: Rng> Crossover<Conjunction> for ConjunctionCrossover<'a, R> {
     /// Mixes GO/tissue literals from both parents according to parent1_fraction.
     fn crossover(&mut self, parent1: &Conjunction, parent2: &Conjunction) -> Conjunction {
-        
-        let new_term_observation = self.field_crossover(&parent1.term_observations, &parent2.term_observations);
-        let new_tissue_expression = self.field_crossover(&parent1.tissue_expressions, &parent2.tissue_expressions);
+        let new_term_observation =
+            self.field_crossover(&parent1.term_observations, &parent2.term_observations);
+        let new_tissue_expression =
+            self.field_crossover(&parent1.tissue_expressions, &parent2.tissue_expressions);
         Conjunction {
             term_observations: new_term_observation,
             tissue_expressions: new_tissue_expression,
@@ -85,38 +90,48 @@ impl<'a, R: Rng>  Crossover<Conjunction> for ConjunctionCrossover<'a, R>{
 }
 
 /// Crossover for `DNFVec`: samples active conjunctions from both parents.
-pub struct DNFVecCrossover<'a, R: Rng>{
+pub struct DNFVecCrossover<'a, R: Rng> {
     //this a field that makes the choice between the parents unbalanced towards one of the two
     /// Fraction of conjunctions taken from parent1 (remainder from parent2).
-    parent1_fraction: f64, //0.5 for balanced feraction of the parents contribution on the offspring 
+    parent1_fraction: f64, //0.5 for balanced feraction of the parents contribution on the offspring
     rng: &'a mut R,
 }
 
-impl<'a, R: Rng> DNFVecCrossover<'a, R>{
-    pub fn new(rng: &'a mut R) -> Self{
-        Self{parent1_fraction: 0.5, rng}
+impl<'a, R: Rng> DNFVecCrossover<'a, R> {
+    pub fn new(rng: &'a mut R) -> Self {
+        Self {
+            parent1_fraction: 0.5,
+            rng,
+        }
     }
 
     /// Bias the fraction of conjunctions taken from parent1.
-    pub fn new_with_parent_bias(parent1_fraction: f64, rng: &'a mut R) -> Self{
-        if parent1_fraction < 0.0 || parent1_fraction > 1.0{
-            panic!("parent1_fraction should be a probability (from 0 to 1). The current value is {}", parent1_fraction);
+    pub fn new_with_parent_bias(parent1_fraction: f64, rng: &'a mut R) -> Self {
+        if parent1_fraction < 0.0 || parent1_fraction > 1.0 {
+            panic!(
+                "parent1_fraction should be a probability (from 0 to 1). The current value is {}",
+                parent1_fraction
+            );
         }
-        Self{parent1_fraction, rng}
+        Self {
+            parent1_fraction,
+            rng,
+        }
     }
 }
 
-impl<'a, R: Rng> Crossover<DNFVec> for DNFVecCrossover<'a, R>{
+impl<'a, R: Rng> Crossover<DNFVec> for DNFVecCrossover<'a, R> {
     /// Samples active conjunctions from each parent (per bias) and unions them.
     fn crossover(&mut self, parent1: &DNFVec, parent2: &DNFVec) -> DNFVec {
-
         let mut offspring_conjunctions: Vec<Conjunction> = Vec::new();
 
         let active_conjunctions1 = parent1.get_active_conjunctions();
         let active_conjunctions2 = parent2.get_active_conjunctions();
-        
-        let parent1_amount: usize = ((active_conjunctions1.len() as f64) * self.parent1_fraction).round() as usize;
-        let parent2_amount: usize = ((active_conjunctions2.len() as f64) * (1.0 - self.parent1_fraction)).round() as usize;
+
+        let parent1_amount: usize =
+            ((active_conjunctions1.len() as f64) * self.parent1_fraction).round() as usize;
+        let parent2_amount: usize =
+            ((active_conjunctions2.len() as f64) * (1.0 - self.parent1_fraction)).round() as usize;
 
         // Select random conjunctions from each parent
         let from_parent1 = active_conjunctions1
@@ -131,101 +146,105 @@ impl<'a, R: Rng> Crossover<DNFVec> for DNFVecCrossover<'a, R>{
         offspring_conjunctions.extend(from_parent1.cloned());
         offspring_conjunctions.extend(from_parent2.cloned());
 
-
         DNFVec::from_conjunctions(offspring_conjunctions)
     }
 }
 
-
 /// Crossover for `DNFBitmask`: bitwise inheritance with a parent1 probability.
-pub struct DNFBitmaskCrossover<'a, R: Rng>{
+pub struct DNFBitmaskCrossover<'a, R: Rng> {
     /// Probability a bit is inherited from parent1; else parent2.
     parent1_prob: f64,
-    rng: &'a mut R, 
+    rng: &'a mut R,
 }
 
-impl<'a, R: Rng> DNFBitmaskCrossover<'a, R>{
-    pub fn new(rng: &'a mut R) -> Self{
-        Self{parent1_prob: 0.5, rng}
+impl<'a, R: Rng> DNFBitmaskCrossover<'a, R> {
+    pub fn new(rng: &'a mut R) -> Self {
+        Self {
+            parent1_prob: 0.5,
+            rng,
+        }
     }
 
     /// Bias bitwise inheritance toward parent1 probability.
-    pub fn new_with_parent_bias(parent1_prob: f64, rng: &'a mut R) -> Self{
-        if parent1_prob < 0.0 || parent1_prob > 1.0{
-            panic!("parent1_prob should be a probability (from 0 to 1). The current value is {}", parent1_prob);
+    pub fn new_with_parent_bias(parent1_prob: f64, rng: &'a mut R) -> Self {
+        if parent1_prob < 0.0 || parent1_prob > 1.0 {
+            panic!(
+                "parent1_prob should be a probability (from 0 to 1). The current value is {}",
+                parent1_prob
+            );
         }
-        Self{parent1_prob, rng}
+        Self { parent1_prob, rng }
     }
 }
 
 // I can do a map on the offspring in which for each bit I decide weather to take the parent 1 or 2 given the prob
-impl<'a, R: Rng> Crossover<DNFBitmask<'a>> for DNFBitmaskCrossover<'a, R>{
+impl<'a, R: Rng> Crossover<DNFBitmask<'a>> for DNFBitmaskCrossover<'a, R> {
     /// For each bit, pick parent1 vs parent2 according to parent1_prob.
     fn crossover(&mut self, parent1: &DNFBitmask<'a>, parent2: &DNFBitmask<'a>) -> DNFBitmask<'a> {
-
-        if parent1.get_possible_conjunctions() != parent2.get_possible_conjunctions(){
+        if parent1.get_possible_conjunctions() != parent2.get_possible_conjunctions() {
             panic!("The vector of the precomputed references should be the same for parent1 and parent2");
         }
-        
-        let new_mask: BitVec  = parent1
-        .get_conjunction_mask()
-        .iter()
-        .zip(parent2.get_conjunction_mask().iter())
-        .map(|(bit1, bit2)| if self.rng.random_bool(self.parent1_prob) {*bit1} else {*bit2})
-        .collect();
+
+        let new_mask: BitVec = parent1
+            .get_conjunction_mask()
+            .iter()
+            .zip(parent2.get_conjunction_mask().iter())
+            .map(|(bit1, bit2)| {
+                if self.rng.random_bool(self.parent1_prob) {
+                    *bit1
+                } else {
+                    *bit2
+                }
+            })
+            .collect();
 
         DNFBitmask::new_with_bitmask(parent1.get_possible_conjunctions(), new_mask)
     }
 }
 
-
-
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use rand::rng;
-    
-#[test]
-fn test_crossover_field_correct_range() {
-    let wrong_freq_conj_1 = panic::catch_unwind(|| {
-        let mut rng = rng();
-        ConjunctionCrossover::new_with_parent_bias(-0.1, &mut rng);
-    });
-    assert!(wrong_freq_conj_1.is_err());
 
-    let wrong_freq_conj_2 = panic::catch_unwind(|| {
-        let mut rng = rng();
-        ConjunctionCrossover::new_with_parent_bias(1.1, &mut rng);
-    });
-    assert!(wrong_freq_conj_2.is_err());
+    #[test]
+    fn test_crossover_field_correct_range() {
+        let wrong_freq_conj_1 = panic::catch_unwind(|| {
+            let mut rng = rng();
+            ConjunctionCrossover::new_with_parent_bias(-0.1, &mut rng);
+        });
+        assert!(wrong_freq_conj_1.is_err());
 
-    let wrong_freq_dnf_vec_1 = panic::catch_unwind(|| {
-        let mut rng = rng();
-        DNFVecCrossover::new_with_parent_bias(-0.1, &mut rng);
-    });
-    assert!(wrong_freq_dnf_vec_1.is_err());
+        let wrong_freq_conj_2 = panic::catch_unwind(|| {
+            let mut rng = rng();
+            ConjunctionCrossover::new_with_parent_bias(1.1, &mut rng);
+        });
+        assert!(wrong_freq_conj_2.is_err());
 
-    let wrong_freq_dnf_vec_2 = panic::catch_unwind(|| {
-        let mut rng = rng();
-        DNFVecCrossover::new_with_parent_bias(1.1, &mut rng);
-    });
-    assert!(wrong_freq_dnf_vec_2.is_err());
+        let wrong_freq_dnf_vec_1 = panic::catch_unwind(|| {
+            let mut rng = rng();
+            DNFVecCrossover::new_with_parent_bias(-0.1, &mut rng);
+        });
+        assert!(wrong_freq_dnf_vec_1.is_err());
 
-    let wrong_prob_dnf_bitmask_1 = panic::catch_unwind(|| {
-        let mut rng = rng();
-        DNFBitmaskCrossover::new_with_parent_bias(-0.1, &mut rng);
-    });
-    assert!(wrong_prob_dnf_bitmask_1.is_err());
+        let wrong_freq_dnf_vec_2 = panic::catch_unwind(|| {
+            let mut rng = rng();
+            DNFVecCrossover::new_with_parent_bias(1.1, &mut rng);
+        });
+        assert!(wrong_freq_dnf_vec_2.is_err());
 
-    let wrong_prob_dnf_bitmask_2 = panic::catch_unwind(|| {
-        let mut rng = rng();
-        DNFBitmaskCrossover::new_with_parent_bias(1.1, &mut rng);
-    });
-    assert!(wrong_prob_dnf_bitmask_2.is_err());
-}
+        let wrong_prob_dnf_bitmask_1 = panic::catch_unwind(|| {
+            let mut rng = rng();
+            DNFBitmaskCrossover::new_with_parent_bias(-0.1, &mut rng);
+        });
+        assert!(wrong_prob_dnf_bitmask_1.is_err());
 
+        let wrong_prob_dnf_bitmask_2 = panic::catch_unwind(|| {
+            let mut rng = rng();
+            DNFBitmaskCrossover::new_with_parent_bias(1.1, &mut rng);
+        });
+        assert!(wrong_prob_dnf_bitmask_2.is_err());
+    }
 
     #[test]
     fn test_crossover_conjunction_valid_offspring() {
@@ -236,47 +255,88 @@ fn test_crossover_field_correct_range() {
 
         let parent1 = Conjunction {
             term_observations: vec![
-                TermObservation { term_id: t1, is_excluded: false },
-                TermObservation { term_id: t2, is_excluded: true },
+                TermObservation {
+                    term_id: t1,
+                    is_excluded: false,
+                },
+                TermObservation {
+                    term_id: t2,
+                    is_excluded: true,
+                },
             ],
             tissue_expressions: vec![
-                TissueExpression{ term_id: "Heart".to_string(), state: DgeState::Up},
-                TissueExpression{ term_id: "Brain".to_string(), state: DgeState::Down}
+                TissueExpression {
+                    term_id: "Heart".to_string(),
+                    state: DgeState::Up,
+                },
+                TissueExpression {
+                    term_id: "Brain".to_string(),
+                    state: DgeState::Down,
+                },
             ],
         };
 
         let parent2 = Conjunction {
             term_observations: vec![
-                TermObservation { term_id: t3, is_excluded: false },
-                TermObservation { term_id: t4, is_excluded: true },
+                TermObservation {
+                    term_id: t3,
+                    is_excluded: false,
+                },
+                TermObservation {
+                    term_id: t4,
+                    is_excluded: true,
+                },
             ],
             tissue_expressions: vec![
-                TissueExpression{ term_id: "Liver".to_string(), state: DgeState::Up},
-                TissueExpression{ term_id: "Brain".to_string(), state: DgeState::Up}
+                TissueExpression {
+                    term_id: "Liver".to_string(),
+                    state: DgeState::Up,
+                },
+                TissueExpression {
+                    term_id: "Brain".to_string(),
+                    state: DgeState::Up,
+                },
             ],
         };
         let mut rng = rng();
         let mut crossover = ConjunctionCrossover::new(&mut rng);
         let offspring = crossover.crossover(&parent1, &parent2);
 
-        assert!(!offspring.term_observations.is_empty(), "Offspring should not be empty.");
+        assert!(
+            !offspring.term_observations.is_empty(),
+            "Offspring should not be empty."
+        );
 
-        let n_parent1_terms = offspring.term_observations
+        let n_parent1_terms = offspring
+            .term_observations
             .iter()
-            .filter(|term| parent1.term_observations.contains(term) )
+            .filter(|term| parent1.term_observations.contains(term))
             .count();
-        let n_parent2_terms = offspring.term_observations
+        let n_parent2_terms = offspring
+            .term_observations
             .iter()
-            .filter(|term| parent2.term_observations.contains(term) )
+            .filter(|term| parent2.term_observations.contains(term))
             .count();
 
-        println!("Terms from the father:{} Terms from the mother:{} Terms in total:{}", n_parent1_terms, n_parent2_terms, offspring.term_observations.len());
-        assert!(n_parent1_terms > 0 , "Offspring should contain terms from Parent 1.");
-        assert!(n_parent2_terms > 0, "Offspring should contain terms from Parent 2.");
-        assert!(n_parent1_terms + n_parent2_terms ==  offspring.term_observations.len(), "Offspring terms should all be from the two parents");
+        println!(
+            "Terms from the father:{} Terms from the mother:{} Terms in total:{}",
+            n_parent1_terms,
+            n_parent2_terms,
+            offspring.term_observations.len()
+        );
+        assert!(
+            n_parent1_terms > 0,
+            "Offspring should contain terms from Parent 1."
+        );
+        assert!(
+            n_parent2_terms > 0,
+            "Offspring should contain terms from Parent 2."
+        );
+        assert!(
+            n_parent1_terms + n_parent2_terms == offspring.term_observations.len(),
+            "Offspring terms should all be from the two parents"
+        );
     }
-
-
 
     #[test]
     fn test_crossover_conjunction_offspring_not_identical_to_parents() {
@@ -287,22 +347,42 @@ fn test_crossover_field_correct_range() {
 
         let parent1 = Conjunction {
             term_observations: vec![
-                TermObservation { term_id: t1, is_excluded: false },
-                TermObservation { term_id: t2, is_excluded: true },
+                TermObservation {
+                    term_id: t1,
+                    is_excluded: false,
+                },
+                TermObservation {
+                    term_id: t2,
+                    is_excluded: true,
+                },
             ],
             tissue_expressions: vec![
-                TissueExpression{ term_id: "Heart".to_string(), state: DgeState::Up},
-                TissueExpression{ term_id: "Brain".to_string(), state: DgeState::Down}
+                TissueExpression {
+                    term_id: "Heart".to_string(),
+                    state: DgeState::Up,
+                },
+                TissueExpression {
+                    term_id: "Brain".to_string(),
+                    state: DgeState::Down,
+                },
             ],
         };
 
         let parent2 = Conjunction {
             term_observations: vec![
-                TermObservation { term_id: t3, is_excluded: false },
-                TermObservation { term_id: t4, is_excluded: true },
+                TermObservation {
+                    term_id: t3,
+                    is_excluded: false,
+                },
+                TermObservation {
+                    term_id: t4,
+                    is_excluded: true,
+                },
             ],
-            tissue_expressions: vec![
-                TissueExpression{ term_id: "Colon".to_string(), state: DgeState::Up}]
+            tissue_expressions: vec![TissueExpression {
+                term_id: "Colon".to_string(),
+                state: DgeState::Up,
+            }],
         };
 
         let mut rng = rng();
@@ -320,5 +400,4 @@ fn test_crossover_field_correct_range() {
     }
 
     //TO DO: Write tests for DNF crossover
-
 }

@@ -4,12 +4,11 @@ use std::sync::Arc;
 use ontolius::TermId;
 use rand::Rng;
 
-use super::base::{Solution, FitnessScorer, FormulaEvaluator}; //to change
+use super::base::{FitnessScorer, FormulaEvaluator, Solution}; //to change
 
-use super::operators::{Selection, Crossover, Mutation, ElitesSelector};
+use super::operators::{Crossover, ElitesSelector, Mutation, Selection};
 use crate::genetic_algorithm::ScoreMetric;
 use crate::logical_formula::{Formula, FormulaGenerator};
-
 
 /// GeneticAlgorithm orchestrates population evolution (selection, crossover, mutation,
 /// elitism) for formulas predicting a target phenotype.
@@ -28,22 +27,20 @@ pub struct GeneticAlgorithm<'a, T, R> {
     phenotype: TermId,
 }
 
-
 impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R> {
-
     /// Generate and evaluate an initial population of size `len`.
     /// Uses the configured formula generator and evaluator; overwrites any existing population.
     pub fn initialize_population(&mut self, len: usize) -> Result<(), String> {
         self.population = (0..len)
-                        .map(|_| self.formula_generator.generate())
-                        .map(|formula| self.evaluator.evaluate(&formula, &self.phenotype))
-                        .collect();
+            .map(|_| self.formula_generator.generate())
+            .map(|formula| self.evaluator.evaluate(&formula, &self.phenotype))
+            .collect();
         Ok(())
     }
 
     // // Maybe pass the list of GO annotations and tissues as arguments in the fit
     // pub fn fit(&mut self) -> Solution<T> {
-        
+
     //     for _ in 0..self.generations {
     //         // New population for next generation
     //         let mut evolved_population: Vec<Solution<T>> =
@@ -95,11 +92,7 @@ impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R> {
     pub fn get_population(&self) -> &Vec<Solution<T>> {
         &self.population
     }
-
-
 }
-
-
 
 // impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R>{
 //     pub fn fit_with_history(&mut self) -> Vec<Vec<Solution<T>>> {
@@ -140,9 +133,7 @@ impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R> {
 //     }
 // }
 
-
-
-impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R>{
+impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R> {
     /// Helper: evolve one generation and return the new population
     /// Evolve one generation:
     /// - copy elites
@@ -150,8 +141,7 @@ impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R>{
     /// - evaluate offspring
     /// Returns the new population (caller replaces `self.population`).
     pub fn evolve_one_generation(&mut self) -> Vec<Solution<T>> {
-        let mut evolved_population: Vec<Solution<T>> =
-            Vec::with_capacity(self.population.len());
+        let mut evolved_population: Vec<Solution<T>> = Vec::with_capacity(self.population.len());
 
         // Elitism
         let number_of_elites =
@@ -162,8 +152,9 @@ impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R>{
         for _ in number_of_elites..self.population.len() {
             let parent1 = self.selection.select(&self.population);
             let parent2 = self.selection.select(&self.population);
-            let mut new_formula =
-                self.crossover.crossover(parent1.get_formula(), parent2.get_formula());
+            let mut new_formula = self
+                .crossover
+                .crossover(parent1.get_formula(), parent2.get_formula());
 
             if self.rng.random::<f64>() < self.mutation_rate {
                 self.mutation.mutate(&mut new_formula);
@@ -214,11 +205,7 @@ impl<'a, T: Clone, R: Rng> GeneticAlgorithm<'a, T, R>{
 
         history
     }
-
-
 }
-
-
 
 impl<'a, T: Clone + Formula, R: Rng> GeneticAlgorithm<'a, T, R> {
     /// New version: return statistics (min, avg, max score) for each generation
@@ -233,48 +220,53 @@ impl<'a, T: Clone + Formula, R: Rng> GeneticAlgorithm<'a, T, R> {
             let evolved_population = self.evolve_one_generation();
 
             // Compute scores
-            let scores: Vec<f64> = evolved_population
-                .iter()
-                .map(|s| s.get_score())
-                .collect();
+            let scores: Vec<f64> = evolved_population.iter().map(|s| s.get_score()).collect();
 
-            let min_score = scores
-                .iter()
-                .cloned()
-                .fold(f64::INFINITY, f64::min);
-            let max_score = scores
-                .iter()
-                .cloned()
-                .fold(f64::NEG_INFINITY, f64::max);
+            let min_score = scores.iter().cloned().fold(f64::INFINITY, f64::min);
+            let max_score = scores.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
             let avg_score = scores.iter().sum::<f64>() / scores.len() as f64;
 
             // Compute Precision Score and Recall Score
-            let formulas: Vec<&T> = evolved_population.
-                iter()
-                .map(|s| s.get_formula())
-                .collect();
+            let formulas: Vec<&T> = evolved_population.iter().map(|s| s.get_formula()).collect();
 
             // Formula with the highest score (first best)
             let best_formula: &T = evolved_population
                 .iter()
                 .max_by(|a, b| a.get_score().partial_cmp(&b.get_score()).unwrap())
-                .map(|s| s.get_formula()).unwrap();
+                .map(|s| s.get_formula())
+                .unwrap();
 
-            let best_one_precision = self.evaluator.get_scorer().custom_score_fitness(best_formula, &self.phenotype, &ScoreMetric::Precision);
-            let best_one_recall = self.evaluator.get_scorer().custom_score_fitness(best_formula, &self.phenotype, &ScoreMetric::Recall);
+            let best_one_precision = self.evaluator.get_scorer().custom_score_fitness(
+                best_formula,
+                &self.phenotype,
+                &ScoreMetric::Precision,
+            );
+            let best_one_recall = self.evaluator.get_scorer().custom_score_fitness(
+                best_formula,
+                &self.phenotype,
+                &ScoreMetric::Recall,
+            );
 
             // Compute avg length
             let (sum, min_len, max_len) = evolved_population
                 .iter()
                 .map(|s| s.get_formula().len())
                 .fold((0usize, usize::MAX, 0usize), |(sum, min, max), len| {
-                (sum + len, min.min(len), max.max(len))
-            });
+                    (sum + len, min.min(len), max.max(len))
+                });
 
             let avg_len = sum as f64 / evolved_population.len() as f64;
-                            
 
-            stats_history.push((min_score, avg_score, max_score, min_len, avg_len, max_len, best_one_precision, best_one_recall));
+            stats_history.push((
+                min_score,
+                avg_score,
+                max_score,
+                min_len,
+                avg_len,
+                max_len,
+                best_one_precision,
+                best_one_recall,
+            ));
 
             // Update current population
             self.population = evolved_population;
@@ -283,8 +275,6 @@ impl<'a, T: Clone + Formula, R: Rng> GeneticAlgorithm<'a, T, R> {
         stats_history
     }
 }
-
-
 
 //Two constructors:
 //      - One in which the initial population of solution is passed

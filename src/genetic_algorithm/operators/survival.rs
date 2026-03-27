@@ -28,7 +28,6 @@ impl ElitesByNumberSelector {
     }
 }
 
-
 impl<T: Clone> ElitesSelector<T> for ElitesByNumberSelector {
     /// If `already_sorted` is false, sorts by descending score, then takes the top-N.
     fn pass_elites(
@@ -84,9 +83,10 @@ impl<T: Clone> ElitesSelector<T> for ElitesByThresholdSelector {
         previous_population: &Vec<Solution<T>>,
         _already_sorted: bool,
     ) -> usize {
-        let mut elites = previous_population.iter().cloned().filter(|sol| {
-            sol.get_score() >= self.elite_cutoff as f64
-        });
+        let mut elites = previous_population
+            .iter()
+            .cloned()
+            .filter(|sol| sol.get_score() >= self.elite_cutoff as f64);
 
         if let Some(max_n) = self.maximum_number {
             next_population.extend(elites.take(max_n));
@@ -96,7 +96,6 @@ impl<T: Clone> ElitesSelector<T> for ElitesByThresholdSelector {
         next_population.len()
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -152,9 +151,6 @@ mod tests {
 
         assert_eq!(final_len, 2); // but limited by max 2
         let scores: Vec<f64> = next_population.iter().map(|s| s.get_score()).collect();
-        assert!(scores.contains(&3.0) || scores.contains(&4.5)); 
+        assert!(scores.contains(&3.0) || scores.contains(&4.5));
     }
-
 }
-
-

@@ -13,4 +13,6 @@ src/bin/run_configs/*
 *.jpg
 *.jpeg
 **/*.bin
+.cache/
+.vscode
 

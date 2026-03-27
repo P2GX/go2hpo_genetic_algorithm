@@ -44,7 +44,7 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          import:
+          inventories:
             - https://docs.python.org/3/objects.inv
             - https://pandas.pydata.org/docs/objects.inv
             - https://docs.python-requests.org/en/stable/objects.inv

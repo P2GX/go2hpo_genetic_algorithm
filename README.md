@@ -7,7 +7,7 @@
  - Access to the bundled data files under `data/` (used by the binaries)
  
  ## Running the algorithm
- Three entrypoints are provided, depending on whether you want a single run, an interactive session, or a batch of runs from a config file.
+ Two entrypoints are provided, depending on whether you want a single run or a batch of runs from a config file.
  
  ### Single run: `ga`
  Execute one GA run with CLI flags.
@@ -40,19 +40,6 @@ cargo run --release --bin ga -- --hpo-term HP:0001083 -p 20 -g 5 -m 0.5 -t 3 --m
    - `--go-enrichment-min-fold`
    - `--go-enrichment-max-bg-freq`
    - `--go-enrichment-filter-roots`
- 
- ### Interactive session: `ga_interactive`
- Guided prompts let you run multiple HPO terms in one session.
- 
-```sh
-cargo run --release --bin ga_interactive
-```
- 
- Flow:
- 1) Choose GO annotation mode (expanded vs direct), GO negation allowance, and optional GO enrichment plus its thresholds.
- 2) Loop: enter an HPO term, then per-run settings (population, generations, mutation rate, tournament size, max terms/conj, penalty, optional output file).
- 3) Beta is estimated from class imbalance; you can accept or override.
- 4) Type `quit` to exit.
  
  ### Batch runs from JSON: `ga_batch`
  Run one or more GA configs from a JSON list.
